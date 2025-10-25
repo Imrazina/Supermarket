@@ -1,0 +1,45 @@
+<script>
+    let currentText = '';
+
+    // Автоматическое копирование при получении текста
+    function autoCopy(text) {
+        currentText = text;
+        document.getElementById('message').textContent = text;
+
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                document.getElementById('copyStatus').textContent = '✓ Автоскопировано!';
+                setTimeout(() => window.close(), 1000); // Закрыть через 1 сек
+            })
+            .catch(err => {
+                document.getElementById('copyStatus').textContent = ' Автокопирование не удалось';
+                console.error(err);
+            });
+    }
+
+    // Обработчик сообщений от Service Worker
+    window.addEventListener('message', event => {
+        if (event.data?.type === 'copy') {
+            autoCopy(event.data.text);
+        }
+    });
+
+    // Обработчик параметров URL
+    window.addEventListener('load', () => {
+        const param = new URLSearchParams(location.search).get('text');
+        if (param) {
+            autoCopy(decodeURIComponent(param));
+        }
+    });
+
+    // Ручное копирование (на всякий случай)
+    document.getElementById('copyBtn').addEventListener('click', async () => {
+        try {
+            await navigator.clipboard.writeText(currentText);
+            document.getElementById('copyStatus').textContent = 'Скопировано вручную!';
+        } catch (err) {
+            document.getElementById('copyStatus').textContent = ' Ошибка копирования';
+            console.error(err);
+        }
+    });
+</script>

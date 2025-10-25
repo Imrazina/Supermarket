@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head><meta charset="UTF-8"><title>Sender</title></head>
+<body>
+<textarea id="msg" placeholder="Введите сообщение..."></textarea>
+<button id="send">Отправить</button>
+
+<script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
+<script>
+    const token = localStorage.getItem("token");
+    const me = localStorage.getItem("username");
+    const receiver = "kiki";
+
+    const socket = new SockJS('http://localhost:8082/ws');
+    const client = Stomp.over(socket);
+
+    const currentUsername = localStorage.getItem("username");
+    if (!token || !currentUsername) {
+        alert("Для использования приложения необходимо авторизоваться");
+        window.location.href = '/login.html';
+    }
+
+    client.connect({ Authorization: "Bearer " + token }, () => {
+        console.log("✅ Sender WS connected");
+    });
+
+    document.getElementById("send").onclick = () => {
+        const content = document.getElementById("msg").value;
+        client.send("/app/chat", { Authorization: "Bearer " + token }, JSON.stringify({ content, receiver }));
+        alert("Отправлено!");
+    };
+</script>
+</body>
+</html>

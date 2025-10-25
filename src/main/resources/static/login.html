@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <title>Login</title>
+</head>
+<body>
+<h2>Login</h2>
+<form id="login-form">
+    <label>Username: <input type="text" id="username" required></label><br>
+    <label>Password: <input type="password" id="password" required></label><br>
+    <button type="submit">Login</button>
+</form>
+<p id="error-msg" style="color: red;"></p>
+<script>
+    async function login(event) {
+        event.preventDefault();
+
+        const errorMsg = document.getElementById('error-msg');
+        errorMsg.textContent = ""; // очищаем старую ошибку
+
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const username = usernameInput.value.trim();
+        const password = passwordInput.value;
+
+        console.log(" Попытка логина. Username:", username);
+
+        if (!username || !password) {
+            errorMsg.textContent = "Пожалуйста, введите логин и пароль";
+            console.warn("️ Не введён логин или пароль");
+            return;
+        }
+
+        try {
+            console.log(" Отправка запроса на сервер...");
+            const response = await fetch('http://localhost:8082/auth/login', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ username, password })
+            });
+
+            console.log(" Ответ от сервера получен. Статус:", response.status);
+
+            const contentType = response.headers.get("content-type");
+            let data = null;
+            if (contentType && contentType.includes("application/json")) {
+                data = await response.json();
+                console.log(" JSON-ответ:", data);
+            } else {
+                console.warn("️ Ответ от сервера не JSON");
+            }
+
+            if (response.ok) {
+                if (!data || !data.token) {
+                    errorMsg.textContent = "Ошибка: сервер не вернул токен";
+                    console.error(" Токен отсутствует в ответе");
+                    return;
+                }
+
+                localStorage.setItem('token', data.token);
+                localStorage.setItem('username', data.username || username);
+
+                console.log(" Токен сохранён:", data.token);
+                console.log(" Username сохранён:", data.username || username);
+
+                window.location.href = "index.html";
+            } else {
+                errorMsg.textContent = data?.message || "Неверный логин или пароль";
+                console.error(" Ошибка логина:", data?.message);
+            }
+        } catch (error) {
+            console.error(" Ошибка при логине:", error);
+            errorMsg.textContent = "Ошибка сети или сервера. Попробуйте позже.";
+        }
+    }
+
+    document.getElementById('login-form').addEventListener('submit', login);
+</script>
+</body>
+</html>

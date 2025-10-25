@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Register</title>
+</head>
+<body>
+<h2>Register</h2>
+<form id="register-form">
+    <label>Username: <input type="text" id="reg-username"></label><br>
+    <label>Email: <input type="email" id="reg-email"></label><br>
+    <label>Password: <input type="password" id="reg-password"></label><br>
+    <button type="submit">Register</button>
+</form>
+<p id="register-msg" style="color: red;"></p>
+
+<script>
+    document.getElementById('register-form').addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const msgElement = document.getElementById('register-msg');
+        msgElement.textContent = "";
+        msgElement.style.color = "red";
+
+        const username = document.getElementById('reg-username').value.trim();
+        const email = document.getElementById('reg-email').value.trim();
+        const password = document.getElementById('reg-password').value;
+
+        if (!username || !password) {
+            msgElement.textContent = "Username and password are required";
+            return;
+        }
+
+        try {
+            const response = await fetch('http://localhost:8082/auth/register', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify({ username, email, password })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.message || "Registration failed");
+            }
+
+            msgElement.style.color = "green";
+            msgElement.textContent = "Registration successful! You can login now.";
+        } catch (error) {
+            console.error("Registration error:", error);
+            msgElement.textContent = error.message || "Unexpected error occurred";
+        }
+    });
+</script>
+</body>
+</html>
