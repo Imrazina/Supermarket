@@ -1,8 +1,10 @@
 package dreamteam.com.supermarket.controller;
 
-import dreamteam.com.supermarket.model.UserEntity;
-import dreamteam.com.supermarket.repository.UserRepository;
 import dreamteam.com.supermarket.jwt.JwtUtil;
+import dreamteam.com.supermarket.model.Role;
+import dreamteam.com.supermarket.model.Uzivatel;
+import dreamteam.com.supermarket.repository.RoleRepository;
+import dreamteam.com.supermarket.repository.UzivatelRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -26,7 +28,10 @@ public class AuthController {
     private UserDetailsService userDetailsService;
 
     @Autowired
-    private UserRepository userRepository;
+    private UzivatelRepository uzivatelRepository;
+
+    @Autowired
+    private RoleRepository roleRepository;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -36,20 +41,32 @@ public class AuthController {
 
     @PostMapping("/register")
     public ResponseEntity<?> register(@RequestBody Map<String, String> request) {
-        String username = request.get("username");
         String email = request.get("email");
         String password = request.get("password");
-
-        if (userRepository.findByUsername(username).isPresent()) {
-            return ResponseEntity.badRequest().body(Map.of("message", "Username already taken"));
+        if (email == null || password == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email and password are required"));
         }
 
-        UserEntity newUser = new UserEntity();
-        newUser.setUsername(username);
-        newUser.setEmail(email);
-        newUser.setPassword(passwordEncoder.encode(password));
-        userRepository.save(newUser);
-        newUser.setRole("USER");
+        if (uzivatelRepository.findByEmail(email).isPresent()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Email already registered"));
+        }
+
+        String username = request.getOrDefault("username", email);
+        String firstName = request.getOrDefault("firstName", username);
+        String lastName = request.getOrDefault("lastName", "User");
+
+        Role role = roleRepository.findByNazevRole("USER")
+                .orElseGet(() -> roleRepository.save(Role.builder().nazevRole("USER").build()));
+
+        Uzivatel newUser = Uzivatel.builder()
+                .jmeno(firstName)
+                .prijmeni(lastName)
+                .email(email)
+                .heslo(passwordEncoder.encode(password))
+                .role(role)
+                .build();
+
+        uzivatelRepository.save(newUser);
         return ResponseEntity.ok(Map.of("message", "User registered successfully"));
     }
 

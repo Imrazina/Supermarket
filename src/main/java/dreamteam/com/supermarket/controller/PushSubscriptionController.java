@@ -1,14 +1,19 @@
 package dreamteam.com.supermarket.controller;
 
-import dreamteam.com.supermarket.model.PushSubscription;
-import dreamteam.com.supermarket.repository.PushSubscriptionRepository;
+import dreamteam.com.supermarket.model.Ohlaseny;
+import dreamteam.com.supermarket.model.OhlasenyId;
+import dreamteam.com.supermarket.model.Uzivatel;
+import dreamteam.com.supermarket.model.Zpravy;
+import dreamteam.com.supermarket.repository.MessageRepository;
+import dreamteam.com.supermarket.repository.OhlasenyRepository;
+import dreamteam.com.supermarket.repository.UzivatelRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.Map;
 
 @RestController
@@ -16,8 +21,16 @@ import java.util.Map;
 @CrossOrigin(origins = "http://localhost:8000", allowCredentials = "true")
 public class PushSubscriptionController {
 
+    private static final String SUBSCRIPTION_MARKER = "__PUSH_SUBSCRIPTION__";
+
     @Autowired
-    private PushSubscriptionRepository repository;
+    private OhlasenyRepository ohlasenyRepository;
+
+    @Autowired
+    private UzivatelRepository uzivatelRepository;
+
+    @Autowired
+    private MessageRepository messageRepository;
 
     @PostMapping("/subscribe")
     public ResponseEntity<?> subscribe(
@@ -25,45 +38,46 @@ public class PushSubscriptionController {
             Authentication authentication
     ) {
         if (authentication == null || !authentication.isAuthenticated()) {
-            System.out.println(" Unauthenticated access attempt");
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        System.out.println(" Authenticated user: " + authentication.getName());
-
         Map<String, Object> keys = (Map<String, Object>) request.get("keys");
         String endpoint = (String) request.get("endpoint");
+        if (keys == null || endpoint == null) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Invalid subscription payload"));
+        }
         String auth = (String) keys.get("auth");
         String p256dh = (String) keys.get("p256dh");
-        String username = (String) request.get("username");
+        String email = (String) request.getOrDefault("username", authentication.getName());
 
-        System.out.println("📝 Данные подписки: " +
-                "username=" + username + ", " +
-                "endpoint=" + endpoint.substring(0, 30) + "...");
+        Uzivatel user = uzivatelRepository.findByEmail(email)
+                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
 
-        PushSubscription subscription = PushSubscription.builder()
-                .endpoint(endpoint)
-                .auth(auth)
-                .p256dh(p256dh)
-                .username(username)
-                .build();
+        Zpravy envelope = messageRepository.findFirstByOwnerAndContent(user, SUBSCRIPTION_MARKER)
+                .orElseGet(() -> messageRepository.save(
+                        Zpravy.builder()
+                                .sender(user)
+                                .receiver(user)
+                                .owner(user)
+                                .content(SUBSCRIPTION_MARKER)
+                                .createdAt(LocalDateTime.now())
+                                .build()
+                ));
 
-        repository.findByUsername(username).ifPresentOrElse(
-                existing -> {
-                    existing.setEndpoint(endpoint);
-                    existing.setAuth(auth);
-                    existing.setP256dh(p256dh);
-                    repository.save(existing);
-                },
-                () -> repository.save(subscription)
-        );
+        Ohlaseny subscription = ohlasenyRepository.findByZpravyOwner(user)
+                .orElseGet(() -> Ohlaseny.builder()
+                        .id(new OhlasenyId(user.getIdUzivatelu(), envelope.getId()))
+                        .zpravy(envelope)
+                        .build());
 
-        System.out.println(" Подписка сохранена для пользователя: " + username);
-        Authentication autho = SecurityContextHolder.getContext().getAuthentication();
-        System.out.println(" Principal: " + autho.getPrincipal());
-        System.out.println(" Authorities: " + autho.getAuthorities());
-        System.out.println(" Authenticated: " + autho.isAuthenticated());
+        subscription.setKonecovyBod(endpoint);
+        subscription.setAuthToken(auth);
+        subscription.setP256dh(p256dh);
+        subscription.setArdesat(String.valueOf(request.getOrDefault("label", user.getEmail())));
+        subscription.setZpravy(envelope);
+        subscription.setId(new OhlasenyId(user.getIdUzivatelu(), envelope.getId()));
 
+        ohlasenyRepository.save(subscription);
         return ResponseEntity.ok().build();
     }
 }

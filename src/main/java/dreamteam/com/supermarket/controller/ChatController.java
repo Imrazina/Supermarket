@@ -1,11 +1,11 @@
 package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.Service.PushNotificationService;
-import dreamteam.com.supermarket.model.ChatMessage;
-import dreamteam.com.supermarket.model.UserEntity;
+import dreamteam.com.supermarket.model.Uzivatel;
+import dreamteam.com.supermarket.model.Zpravy;
 import dreamteam.com.supermarket.repository.MessageRepository;
-import dreamteam.com.supermarket.repository.PushSubscriptionRepository;
-import dreamteam.com.supermarket.repository.UserRepository;
+import dreamteam.com.supermarket.repository.OhlasenyRepository;
+import dreamteam.com.supermarket.repository.UzivatelRepository;
 import nl.martijndwars.webpush.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -22,55 +22,56 @@ public class ChatController {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
 
-    private final UserRepository userRepository;
+    private final UzivatelRepository uzivatelRepository;
     private final MessageRepository messageRepository;
-    private final PushSubscriptionRepository pushSubscriptionRepository;
+    private final OhlasenyRepository ohlasenyRepository;
     private final PushNotificationService pushNotificationService;
 
-    public ChatController(UserRepository userRepository,
+    public ChatController(UzivatelRepository uzivatelRepository,
                           MessageRepository messageRepository,
-                          PushSubscriptionRepository pushSubscriptionRepository,
+                          OhlasenyRepository ohlasenyRepository,
                           PushNotificationService pushNotificationService) {
-        this.userRepository = userRepository;
+        this.uzivatelRepository = uzivatelRepository;
         this.messageRepository = messageRepository;
-        this.pushSubscriptionRepository = pushSubscriptionRepository;
+        this.ohlasenyRepository = ohlasenyRepository;
         this.pushNotificationService = pushNotificationService;
     }
 
     @MessageMapping("/chat")
     @SendTo("/topic/messages")
-    public ChatMessage sendMessage(@Payload Map<String, String> payload, Principal principal) {
+    public Zpravy sendMessage(@Payload Map<String, String> payload, Principal principal) {
         if (principal == null) {
             logger.error(" User is not authenticated!");
             throw new RuntimeException("User is not authenticated");
         }
 
-        String username = principal.getName();
-        logger.info(" Received message from user: {}", username);
+        String email = principal.getName();
+        logger.info(" Received message from user: {}", email);
 
-        UserEntity sender = userRepository.findByUsername(username)
+        Uzivatel sender = uzivatelRepository.findByEmail(email)
                 .orElseThrow(() -> {
-                    logger.error(" User not found in DB: {}", username);
+                    logger.error(" User not found in DB: {}", email);
                     return new RuntimeException("User not found");
                 });
 
-        String receiverUsername = payload.get("receiver");
-        logger.info(" Receiver from payload: {}", receiverUsername);
-        UserEntity receiver = null;
-        if (receiverUsername != null && !receiverUsername.isEmpty()) {
-            receiver = userRepository.findByUsername(receiverUsername)
+        String receiverEmail = payload.get("receiver");
+        logger.info(" Receiver from payload: {}", receiverEmail);
+        Uzivatel receiver = null;
+        if (receiverEmail != null && !receiverEmail.isEmpty()) {
+            receiver = uzivatelRepository.findByEmail(receiverEmail)
                     .orElseThrow(() -> {
-                        logger.error(" Receiver not found in DB: {}", receiverUsername);
+                        logger.error(" Receiver not found in DB: {}", receiverEmail);
                         return new RuntimeException("Receiver not found");
                     });
-            logger.info(" Receiver loaded from DB: {}", receiver.getUsername());
+            logger.info(" Receiver loaded from DB: {}", receiver.getEmail());
         }
 
-        ChatMessage message = new ChatMessage();
+        Zpravy message = new Zpravy();
         message.setSender(sender);
         message.setReceiver(receiver);
         message.setContent(payload.get("content"));
         message.setCreatedAt(LocalDateTime.now());
+        message.setOwner(receiver != null ? receiver : sender);
 
         try {
             message = messageRepository.save(message);
@@ -81,29 +82,29 @@ public class ChatController {
         }
 
         if (receiver != null) {
-            final UserEntity finalReceiver = receiver;
-            final UserEntity finalSender = sender;
-            final ChatMessage finalMessage = message;
+            final Uzivatel finalReceiver = receiver;
+            final Uzivatel finalSender = sender;
+            final Zpravy finalMessage = message;
 
-            pushSubscriptionRepository.findByUsername(finalReceiver.getUsername())
+            ohlasenyRepository.findByZpravyOwner(finalReceiver)
                     .ifPresent(subscriptionEntity -> {
                         try {
                             Subscription subscription = new Subscription(
-                                    subscriptionEntity.getEndpoint(),
+                                    subscriptionEntity.getKonecovyBod(),
                                     new Subscription.Keys(
                                             subscriptionEntity.getP256dh(),
-                                            subscriptionEntity.getAuth()
+                                            subscriptionEntity.getAuthToken()
                                     )
                             );
 
                             String jsonPayload = String.format(
                                     "{\"title\":\"%s\",\"body\":\"%s\"}",
-                                    finalSender.getUsername(),
+                                    finalSender.getEmail(),
                                     finalMessage.getContent()
                             );
                             logger.info(" Payload для push: {}", jsonPayload);
                             pushNotificationService.sendNotification(subscription, jsonPayload);
-                            logger.info(" Push sent to {}", finalReceiver.getUsername());
+                            logger.info(" Push sent to {}", finalReceiver.getEmail());
 
                         } catch (Exception e) {
                             logger.warn(" Push sending failed: {}", e.getMessage());
