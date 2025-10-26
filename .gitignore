@@ -1,33 +1,67 @@
-HELP.md
+### JAVA / MAVEN ###
 target/
-!.mvn/wrapper/maven-wrapper.jar
-!**/src/main/**/target/
-!**/src/test/**/target/
+*.class
+*.jar
+*.war
+*.ear
+.mvn/wrapper/maven-wrapper.jar
+mvnw
+mvnw.cmd
 
-### STS ###
-.apt_generated
+### BUILD / OUTPUT ###
+build/
+out/
+logs/
+*.log
+*.log.*
+
+### IDE FILES ###
+# IntelliJ IDEA
+.idea/
+*.iml
+*.ipr
+*.iws
+# VS Code
+.vscode/
+# Eclipse / STS
+.apt_generated/
 .classpath
 .factorypath
 .project
-.settings
+.settings/
 .springBeans
 .sts4-cache
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-
-### NetBeans ###
+# NetBeans
 /nbproject/private/
 /nbbuild/
 /dist/
 /nbdist/
 /.nb-gradle/
-build/
-!**/src/main/**/build/
-!**/src/test/**/build/
 
-### VS Code ###
-.vscode/
+### SYSTEM FILES ###
+.DS_Store
+Thumbs.db
+
+### TEMP / BACKUPS ###
+*.tmp
+*.bak
+*.swp
+*.swo
+*.orig
+*~
+~$*
+
+### LOCAL CONFIGS (each dev keeps own)
+application-local.properties
+application-dev.properties
+application-test.properties
+*.env
+*.env.*
+
+### KEEP THESE FILES (important) ###
+!.gitignore
+!pom.xml
+!HELP.md
+!**/src/**
+!**/resources/**
+!**/application.properties
