@@ -1,4 +1,4 @@
-package dreamteam.com.supermarket.model;
+package dreamteam.com.supermarket.model.payment;
 
 import jakarta.persistence.*;
 import lombok.*;

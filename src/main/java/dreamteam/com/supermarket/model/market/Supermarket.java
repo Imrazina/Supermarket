@@ -1,5 +1,6 @@
-package dreamteam.com.supermarket.model;
+package dreamteam.com.supermarket.model.market;
 
+import dreamteam.com.supermarket.model.location.Adresa;
 import jakarta.persistence.*;
 import lombok.*;
 

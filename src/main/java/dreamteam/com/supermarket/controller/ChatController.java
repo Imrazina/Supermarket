@@ -1,8 +1,8 @@
 package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.Service.PushNotificationService;
-import dreamteam.com.supermarket.model.Uzivatel;
-import dreamteam.com.supermarket.model.Zpravy;
+import dreamteam.com.supermarket.model.user.Uzivatel;
+import dreamteam.com.supermarket.model.user.Zpravy;
 import dreamteam.com.supermarket.repository.MessageRepository;
 import dreamteam.com.supermarket.repository.OhlasenyRepository;
 import dreamteam.com.supermarket.repository.UzivatelRepository;

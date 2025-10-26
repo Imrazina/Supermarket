@@ -1,7 +1,7 @@
 package dreamteam.com.supermarket.repository;
 
-import dreamteam.com.supermarket.model.Uzivatel;
-import dreamteam.com.supermarket.model.Zpravy;
+import dreamteam.com.supermarket.model.user.Uzivatel;
+import dreamteam.com.supermarket.model.user.Zpravy;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 

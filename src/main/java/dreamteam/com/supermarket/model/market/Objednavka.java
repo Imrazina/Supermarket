@@ -1,5 +1,7 @@
-package dreamteam.com.supermarket.model;
+package dreamteam.com.supermarket.model.market;
 
+import dreamteam.com.supermarket.model.user.Dodavatel;
+import dreamteam.com.supermarket.model.user.Zakaznik;
 import jakarta.persistence.*;
 import lombok.*;
 import java.time.LocalDateTime;

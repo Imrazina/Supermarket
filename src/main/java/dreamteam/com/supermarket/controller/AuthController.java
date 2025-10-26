@@ -1,8 +1,8 @@
 package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.jwt.JwtUtil;
-import dreamteam.com.supermarket.model.Role;
-import dreamteam.com.supermarket.model.Uzivatel;
+import dreamteam.com.supermarket.model.user.Role;
+import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.repository.RoleRepository;
 import dreamteam.com.supermarket.repository.UzivatelRepository;
 import org.springframework.beans.factory.annotation.Autowired;

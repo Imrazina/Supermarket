@@ -1,5 +1,7 @@
-package dreamteam.com.supermarket.model;
+package dreamteam.com.supermarket.model.user;
 
+import dreamteam.com.supermarket.model.location.Adresa;
+import dreamteam.com.supermarket.model.market.Supermarket;
 import jakarta.persistence.*;
 import lombok.*;
 import java.math.BigDecimal;

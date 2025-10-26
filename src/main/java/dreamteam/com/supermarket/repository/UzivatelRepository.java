@@ -1,6 +1,6 @@
 package dreamteam.com.supermarket.repository;
 
-import dreamteam.com.supermarket.model.Uzivatel;
+import dreamteam.com.supermarket.model.user.Uzivatel;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.util.Optional;
