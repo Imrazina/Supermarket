@@ -18,7 +18,7 @@ public class Sklad {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_sklad")
-    @SequenceGenerator(name = "seq_sklad", sequenceName = "SEQ_SKLAD", allocationSize = 1)
+    @SequenceGenerator(name = "seq_sklad", sequenceName = "SKLAD_SEQ", allocationSize = 1)
     @Column(name = "ID_SKLADU")
     private Long idSkladu;
 

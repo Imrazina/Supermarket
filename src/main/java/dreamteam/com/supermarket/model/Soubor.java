@@ -17,7 +17,7 @@ public class Soubor {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_soubor")
-    @SequenceGenerator(name = "seq_soubor", sequenceName = "SEQ_SOUBOR", allocationSize = 1)
+    @SequenceGenerator(name = "seq_soubor", sequenceName = "SOUBOR_SEQ", allocationSize = 1)
     @Column(name = "ID_SOUBORU")
     private Long idSoubor;
 
@@ -46,6 +46,10 @@ public class Soubor {
     @Lob
     @Column(name = "POPIS")
     private String popis;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "ARCHIV_ID_ARCHIV")
+    private Archiv archiv;
 
     @PrePersist
     protected void onCreate() {

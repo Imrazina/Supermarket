@@ -19,7 +19,7 @@ public class Zamestnanec {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_zamestnanec")
-    @SequenceGenerator(name = "seq_zamestnanec", sequenceName = "SEQ_ZAMESTNANEC", allocationSize = 1)
+    @SequenceGenerator(name = "seq_zamestnanec", sequenceName = "ZAMESTNANEC_SEQ", allocationSize = 1)
     @Column(name = "ID_ZAMESTNANEC")
     private Long idZamestnanec;
 

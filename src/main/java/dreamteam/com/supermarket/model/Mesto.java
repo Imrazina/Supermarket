@@ -15,7 +15,7 @@ import lombok.*;
 public class Mesto {
 
     @Id
-    @Column(name = "PSC", length = 5)
+    @Column(name = "PSC", columnDefinition = "CHAR(5)")
     private String psc;
 
     @Column(name = "NAZEV", nullable = false, length = 45)

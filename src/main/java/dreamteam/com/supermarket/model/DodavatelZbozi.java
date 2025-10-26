@@ -11,7 +11,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "RELATION_15")
+@Table(name = "DODAVATEL_ZBOZI")
 public class DodavatelZbozi {
 
     @EmbeddedId

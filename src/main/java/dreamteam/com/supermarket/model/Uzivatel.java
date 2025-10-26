@@ -20,7 +20,7 @@ public class Uzivatel implements UserDetails {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_uzivatel")
-    @SequenceGenerator(name = "seq_uzivatel", sequenceName = "SEQ_UZIVATEL", allocationSize = 1)
+    @SequenceGenerator(name = "seq_uzivatel", sequenceName = "UZIVATEL_SEQ", allocationSize = 1)
     @Column(name = "ID_UZIVATELU")
     private Long idUzivatelu;
 
@@ -48,7 +48,7 @@ public class Uzivatel implements UserDetails {
     @JoinColumn(name = "ZAMESTNANEC_ID_ZAMESTNANEC")
     private Zamestnanec zamestnanec;
 
-    @Column(name = "DATUM_VYTVORENI")
+    @Transient
     private LocalDateTime datumVytvoreni = LocalDateTime.now();
 
     @Override

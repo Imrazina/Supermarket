@@ -15,7 +15,7 @@ public class Archiv {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_archiv")
-    @SequenceGenerator(name = "seq_archiv", sequenceName = "SEQ_ARCHIV", allocationSize = 1)
+    @SequenceGenerator(name = "seq_archiv", sequenceName = "ARCHIV_SEQ", allocationSize = 1)
     @Column(name = "ID_ARCHIV")
     private Long idArchiv;
 
@@ -25,8 +25,4 @@ public class Archiv {
     @Lob
     @Column(name = "POPIS")
     private String popis;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "SOUBOR_ID_SOUBORU", nullable = false)
-    private Soubor soubor;
 }

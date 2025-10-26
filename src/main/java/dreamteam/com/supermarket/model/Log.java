@@ -16,15 +16,15 @@ import java.time.LocalDateTime;
 public class Log {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_log")
-    @SequenceGenerator(name = "seq_log", sequenceName = "SEQ_LOG", allocationSize = 1)
+  //  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_log")
+ //   @SequenceGenerator(name = "seq_log", sequenceName = "LOG_SEQ", allocationSize = 1)
     @Column(name = "ID_LOG")
     private Long idLog;
 
     @Column(name = "TABULKANAZEV", nullable = false, length = 40)
     private String tabulkaNazev;
 
-    @Column(name = "OPERACE", nullable = false, length = 1)
+    @Column(name = "OPERACE", nullable = false, columnDefinition = "CHAR(1)")
     private String operace;
 
     @Lob

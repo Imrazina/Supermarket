@@ -18,7 +18,7 @@ public class Supermarket {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_supermarket")
-    @SequenceGenerator(name = "seq_supermarket", sequenceName = "SEQ_SUPERMARKET", allocationSize = 1)
+    @SequenceGenerator(name = "seq_supermarket", sequenceName = "SUPERMARKET_SEQ", allocationSize = 1)
     @Column(name = "ID_SUPERMARKET")
     private Long idSupermarket;
 
@@ -34,10 +34,6 @@ public class Supermarket {
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "ADRESA_ID_ADRESA", nullable = false)
     private Adresa adresa;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ARCHIV_ID_ARCHIV", nullable = false)
-    private Archiv archiv;
 
     @OneToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "SKLAD_ID_SKLADU", nullable = false, unique = true)

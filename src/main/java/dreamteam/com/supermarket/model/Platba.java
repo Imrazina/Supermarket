@@ -18,7 +18,7 @@ public class Platba {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_platba")
-    @SequenceGenerator(name = "seq_platba", sequenceName = "SEQ_PLATBA", allocationSize = 1)
+    @SequenceGenerator(name = "seq_platba", sequenceName = "PLATBA_SEQ", allocationSize = 1)
     @Column(name = "ID_PLATBA")
     private Long idPlatba;
 

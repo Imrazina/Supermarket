@@ -17,7 +17,7 @@ public class Adresa implements Serializable {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_adresa")
-    @SequenceGenerator(name = "seq_adresa", sequenceName = "SEQ_ADRESA", allocationSize = 1)
+    @SequenceGenerator(name = "seq_adresa", sequenceName = "ADRESA_SEQ", allocationSize = 1)
     @Column(name = "ID_ADRESA")
     private Long idAdresa;
 

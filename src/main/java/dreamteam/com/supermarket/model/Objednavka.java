@@ -17,7 +17,7 @@ public class Objednavka {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_objednavka")
-    @SequenceGenerator(name = "seq_objednavka", sequenceName = "SEQ_OBJEDNAVKA", allocationSize = 1)
+    @SequenceGenerator(name = "seq_objednavka", sequenceName = "OBJEDBAVKY_SEQ", allocationSize = 1)
     @Column(name = "ID_OBJEDNAVKY")
     private Long idObjednavky;
 
@@ -44,7 +44,7 @@ public class Objednavka {
     @Column(name = "POZNAMKA")
     private String poznamka;
 
-    @Column(name = "TYP_OBJEDNAVKA", nullable = false, length = 50)
+    @Column(name = "TYP_OBJEDNAVKY", nullable = false, length = 50)
     private String typObjednavka;
 
     @PrePersist

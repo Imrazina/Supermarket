@@ -16,7 +16,7 @@ public class Dodavatel {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_dodavatel")
-    @SequenceGenerator(name = "seq_dodavatel", sequenceName = "SEQ_DODAVATEL", allocationSize = 1)
+    @SequenceGenerator(name = "seq_dodavatel", sequenceName = "DODAVATEL_SEQ", allocationSize = 1)
     @Column(name = "ID_DODAVATEL")
     private Long idDodavatel;
 

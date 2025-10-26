@@ -3,6 +3,8 @@ package dreamteam.com.supermarket.model;
 import jakarta.persistence.*;
 import lombok.*;
 
+import java.math.BigDecimal;
+
 /**
  * Entity for table KARTA – specialization of PLATBA for card transactions.
  */
@@ -23,6 +25,6 @@ public class Karta {
     @JoinColumn(name = "ID_PLATBA")
     private Platba platba;
 
-    @Column(name = "CISLOKARTY", nullable = false, length = 32)
-    private String cisloKarty;
+    @Column(name = "CISLOKARTY", nullable = false)
+    private BigDecimal cisloKarty;
 }

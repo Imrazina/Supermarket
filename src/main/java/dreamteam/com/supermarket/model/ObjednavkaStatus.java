@@ -15,8 +15,8 @@ import lombok.*;
 public class ObjednavkaStatus {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_objednavka_status")
-    @SequenceGenerator(name = "seq_objednavka_status", sequenceName = "SEQ_OBJEDNAVKA_STATUS", allocationSize = 1)
+   // @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_objednavka_status")
+  //  @SequenceGenerator(name = "seq_objednavka_status", sequenceName = "OBJEDNAVKA_STATUS_SEQ", allocationSize = 1)
     @Column(name = "ID_STATUSU")
     private Long idStatusu;
 
