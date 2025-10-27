@@ -1,35 +1,209 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Register</title>
+    <title>Регистрация | BDAS Supermarket</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            color-scheme: light dark;
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            --bg: #0d1224;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --card-shadow: 0 20px 50px rgba(13, 18, 36, 0.35);
+            --primary: #6439ff;
+            --primary-dark: #4b27d1;
+            --text-muted: #5f6578;
+            --border: rgba(99, 108, 146, 0.2);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: radial-gradient(circle at top, rgba(100, 57, 255, 0.25), rgba(13, 18, 36, 1)),
+                        linear-gradient(135deg, #0d1224, #111936 60%, #192046);
+        }
+
+        .auth-wrapper {
+            width: min(440px, 100%);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 28px;
+            padding: 40px 36px;
+            box-shadow: var(--card-shadow);
+            color: #0b0f1e;
+        }
+
+        h1 {
+            margin: 0 0 12px;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        p.subtitle {
+            margin: 0 0 32px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #1c2239;
+        }
+
+        input {
+            width: 100%;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            color: #0d1224;
+            padding: 14px 16px;
+            font-size: 15px;
+            background: rgba(255, 255, 255, 0.8);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(100, 57, 255, 0.15);
+        }
+
+        .primary-btn {
+            border: none;
+            border-radius: 16px;
+            padding: 14px 18px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+
+        .primary-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        .primary-btn:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .primary-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .form-msg {
+            margin-top: 18px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-msg.success {
+            color: #138a36;
+        }
+
+        .form-msg.error {
+            color: #c81936;
+        }
+
+        .hint {
+            margin-top: 20px;
+            font-size: 15px;
+            color: var(--text-muted);
+        }
+
+        .hint a {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .hint a:hover {
+            text-decoration: underline;
+        }
+    </style>
 </head>
 <body>
-<h2>Register</h2>
-<form id="register-form">
-    <label>Username: <input type="text" id="reg-username"></label><br>
-    <label>Email: <input type="email" id="reg-email"></label><br>
-    <label>Password: <input type="password" id="reg-password"></label><br>
-    <button type="submit">Register</button>
-</form>
-<p id="register-msg" style="color: red;"></p>
+<main class="auth-wrapper">
+    <section class="card">
+        <h1>Создание аккаунта</h1>
+        <p class="subtitle">Заполните данные, и мы сразу выдадим роль NEW_USER. После входа сможете продолжить работу в CRM.</p>
+
+        <form id="register-form" novalidate>
+            <div>
+                <label for="firstName">Имя</label>
+                <input type="text" id="firstName" name="firstName" maxlength="15" autocomplete="given-name" required placeholder="Например, Anna">
+            </div>
+            <div>
+                <label for="lastName">Фамилия</label>
+                <input type="text" id="lastName" name="lastName" maxlength="15" autocomplete="family-name" required placeholder="Например, Petrova">
+            </div>
+            <div>
+                <label for="email">Рабочая почта</label>
+                <input type="email" id="email" name="email" autocomplete="email" required placeholder="name@company.com">
+            </div>
+            <div>
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" minlength="6" autocomplete="new-password" required placeholder="Минимум 6 символов">
+            </div>
+            <button type="submit" class="primary-btn">Зарегистрироваться</button>
+        </form>
+        <p class="hint">Уже есть учётка? <a href="login.html">Войти</a></p>
+        <p id="register-msg" class="form-msg" role="alert"></p>
+    </section>
+</main>
 
 <script>
-    document.getElementById('register-form').addEventListener('submit', async function(event) {
+    const form = document.getElementById('register-form');
+    const messageEl = document.getElementById('register-msg');
+
+    form.addEventListener('submit', async (event) => {
         event.preventDefault();
 
-        const msgElement = document.getElementById('register-msg');
-        msgElement.textContent = "";
-        msgElement.style.color = "red";
+        const firstName = form.firstName.value.trim();
+        const lastName = form.lastName.value.trim();
+        const email = form.email.value.trim().toLowerCase();
+        const password = form.password.value;
 
-        const username = document.getElementById('reg-username').value.trim();
-        const email = document.getElementById('reg-email').value.trim();
-        const password = document.getElementById('reg-password').value;
+        messageEl.textContent = '';
+        messageEl.className = 'form-msg';
 
-        if (!username || !password) {
-            msgElement.textContent = "Username and password are required";
+        if (!firstName || !lastName || !email || !password) {
+            showMessage('Пожалуйста, заполните все поля', false);
             return;
         }
+
+        if (firstName.length > 15 || lastName.length > 15) {
+            showMessage('Имя и фамилия должны быть не длиннее 15 символов', false);
+            return;
+        }
+
+        if (password.length < 6) {
+            showMessage('Пароль должен содержать минимум 6 символов', false);
+            return;
+        }
+
+        toggleForm(true);
 
         try {
             const response = await fetch('http://localhost:8082/auth/register', {
@@ -38,22 +212,35 @@
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({ username, email, password })
+                body: JSON.stringify({ firstName, lastName, email, password })
             });
 
-            const data = await response.json();
+            const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.message || "Registration failed");
+                throw new Error(data.message || 'Регистрация не удалась');
             }
 
-            msgElement.style.color = "green";
-            msgElement.textContent = "Registration successful! You can login now.";
+            form.reset();
+            showMessage('Готово! Теперь можно войти, чтобы продолжить.', true);
         } catch (error) {
-            console.error("Registration error:", error);
-            msgElement.textContent = error.message || "Unexpected error occurred";
+            console.error('Registration error:', error);
+            showMessage(error.message || 'Что-то пошло не так. Повторите попытку позже.', false);
+        } finally {
+            toggleForm(false);
         }
     });
+
+    function toggleForm(disabled) {
+        [...form.elements].forEach((element) => {
+            element.disabled = disabled;
+        });
+    }
+
+    function showMessage(text, isSuccess) {
+        messageEl.textContent = text;
+        messageEl.className = 'form-msg ' + (isSuccess ? 'success' : 'error');
+    }
 </script>
 </body>
 </html>

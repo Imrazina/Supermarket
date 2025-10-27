@@ -30,10 +30,10 @@ public class Uzivatel implements UserDetails {
     @Column(name = "PRIJMENI", nullable = false, length = 15)
     private String prijmeni;
 
-    @Column(name = "EMAIL", nullable = false, length = 77)
+    @Column(name = "EMAIL", nullable = false, length = 77, unique = true)
     private String email;
 
-    @Column(name = "HESLO", nullable = false, length = 33)
+    @Column(name = "HESLO", nullable = false, length = 100)
     private String heslo;
 
     @ManyToOne(fetch = FetchType.EAGER, optional = false)

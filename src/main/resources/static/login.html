@@ -1,81 +1,228 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ru">
 <head>
-    <meta charset="UTF-8" />
-    <title>Login</title>
+    <meta charset="UTF-8">
+    <title>Вход | BDAS Supermarket</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            --bg: #060913;
+            --card-bg: rgba(255, 255, 255, 0.95);
+            --shadow: 0 24px 60px rgba(6, 9, 19, 0.45);
+            --primary: #ff6b00;
+            --primary-dark: #e15a00;
+            --text-muted: #5f6578;
+            --border: rgba(99, 108, 146, 0.2);
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background: radial-gradient(circle at 10% 20%, rgba(255, 107, 0, 0.35), transparent 45%),
+                        radial-gradient(circle at 90% 10%, rgba(100, 57, 255, 0.35), transparent 40%),
+                        linear-gradient(140deg, #070918, #0d1329 55%, #111737);
+        }
+
+        .auth-wrapper {
+            width: min(420px, 100%);
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 26px;
+            padding: 38px 34px;
+            box-shadow: var(--shadow);
+            color: #0b0f1e;
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 28px;
+            font-weight: 600;
+        }
+
+        p.subtitle {
+            margin: 8px 0 32px;
+            color: var(--text-muted);
+            line-height: 1.5;
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 14px;
+            font-weight: 500;
+            margin-bottom: 6px;
+            color: #1c2239;
+        }
+
+        input {
+            width: 100%;
+            border-radius: 14px;
+            border: 1px solid var(--border);
+            padding: 14px 16px;
+            font-size: 15px;
+            background: rgba(255, 255, 255, 0.9);
+            transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        }
+
+        input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(255, 107, 0, 0.2);
+        }
+
+        .primary-btn {
+            border: none;
+            border-radius: 16px;
+            padding: 14px 18px;
+            background: var(--primary);
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s ease, transform 0.1s ease;
+        }
+
+        .primary-btn:disabled {
+            opacity: 0.65;
+            cursor: not-allowed;
+        }
+
+        .primary-btn:hover:not(:disabled) {
+            background: var(--primary-dark);
+        }
+
+        .primary-btn:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        .form-msg {
+            margin-top: 18px;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .form-msg.error { color: #c81936; }
+        .form-msg.success { color: #138a36; }
+
+        .hint {
+            margin-top: 22px;
+            font-size: 15px;
+            color: var(--text-muted);
+        }
+
+        .hint a {
+            color: var(--primary);
+            font-weight: 600;
+            text-decoration: none;
+        }
+
+        .hint a:hover { text-decoration: underline; }
+    </style>
 </head>
 <body>
-<h2>Login</h2>
-<form id="login-form">
-    <label>Username: <input type="text" id="username" required></label><br>
-    <label>Password: <input type="password" id="password" required></label><br>
-    <button type="submit">Login</button>
-</form>
-<p id="error-msg" style="color: red;"></p>
+<main class="auth-wrapper">
+    <section class="card">
+        <h1>С возвращением!</h1>
+        <p class="subtitle">Используйте корпоративную почту и пароль. Если аккаунта ещё нет, сначала зарегистрируйтесь.</p>
+
+        <form id="login-form" novalidate>
+            <div>
+                <label for="email">Email</label>
+                <input type="email" id="email" name="email" autocomplete="email" required placeholder="name@company.com">
+            </div>
+            <div>
+                <label for="password">Пароль</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required placeholder="Ваш пароль">
+            </div>
+            <button type="submit" class="primary-btn">Войти</button>
+        </form>
+
+        <p class="hint">Нет аккаунта? <a href="register.html">Создать</a></p>
+        <p id="error-msg" class="form-msg" role="alert"></p>
+    </section>
+</main>
+
 <script>
-    async function login(event) {
+    const loginForm = document.getElementById('login-form');
+    const errorMsg = document.getElementById('error-msg');
+
+    loginForm.addEventListener('submit', async (event) => {
         event.preventDefault();
+        toggleForm(true);
+        errorMsg.textContent = '';
+        errorMsg.className = 'form-msg';
 
-        const errorMsg = document.getElementById('error-msg');
-        errorMsg.textContent = ""; // очищаем старую ошибку
+        const email = loginForm.email.value.trim().toLowerCase();
+        const password = loginForm.password.value;
 
-        const usernameInput = document.getElementById('username');
-        const passwordInput = document.getElementById('password');
-        const username = usernameInput.value.trim();
-        const password = passwordInput.value;
-
-        console.log(" Попытка логина. Username:", username);
-
-        if (!username || !password) {
-            errorMsg.textContent = "Пожалуйста, введите логин и пароль";
-            console.warn("️ Не введён логин или пароль");
+        if (!email || !password) {
+            showMessage('Введите email и пароль', false);
+            toggleForm(false);
             return;
         }
 
         try {
-            console.log(" Отправка запроса на сервер...");
             const response = await fetch('http://localhost:8082/auth/login', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ username, password })
+                body: JSON.stringify({ email, password })
             });
 
-            console.log(" Ответ от сервера получен. Статус:", response.status);
+            const contentType = response.headers.get('content-type') || '';
+            const data = contentType.includes('application/json')
+                ? await response.json()
+                : {};
 
-            const contentType = response.headers.get("content-type");
-            let data = null;
-            if (contentType && contentType.includes("application/json")) {
-                data = await response.json();
-                console.log(" JSON-ответ:", data);
-            } else {
-                console.warn("️ Ответ от сервера не JSON");
+            if (!response.ok) {
+                throw new Error(data.message || 'Неверный email или пароль');
             }
 
-            if (response.ok) {
-                if (!data || !data.token) {
-                    errorMsg.textContent = "Ошибка: сервер не вернул токен";
-                    console.error(" Токен отсутствует в ответе");
-                    return;
-                }
-
-                localStorage.setItem('token', data.token);
-                localStorage.setItem('username', data.username || username);
-
-                console.log(" Токен сохранён:", data.token);
-                console.log(" Username сохранён:", data.username || username);
-
-                window.location.href = "index.html";
-            } else {
-                errorMsg.textContent = data?.message || "Неверный логин или пароль";
-                console.error(" Ошибка логина:", data?.message);
+            if (!data.token) {
+                throw new Error('Сервер не вернул токен, обратитесь к администратору');
             }
+
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('email', data.email || email);
+            localStorage.setItem('username', data.email || email); // для совместимости со старыми страницами
+            localStorage.setItem('fullName', data.fullName || '');
+            localStorage.setItem('role', data.role || '');
+
+            showMessage('Вход выполнен, перенаправляем...', true);
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 600);
         } catch (error) {
-            console.error(" Ошибка при логине:", error);
-            errorMsg.textContent = "Ошибка сети или сервера. Попробуйте позже.";
+            console.error('Ошибка входа:', error);
+            showMessage(error.message || 'Ошибка сети или сервера. Попробуйте позже.', false);
+        } finally {
+            toggleForm(false);
         }
+    });
+
+    function showMessage(text, success) {
+        errorMsg.textContent = text;
+        errorMsg.className = 'form-msg ' + (success ? 'success' : 'error');
     }
 
-    document.getElementById('login-form').addEventListener('submit', login);
+    function toggleForm(disabled) {
+        [...loginForm.elements].forEach((element) => {
+            element.disabled = disabled;
+        });
+    }
 </script>
 </body>
 </html>

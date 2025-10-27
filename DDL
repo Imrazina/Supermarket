@@ -297,7 +297,7 @@ CREATE TABLE UZIVATEL
      jmeno                      VARCHAR2 (15)  NOT NULL , 
      prijmeni                   VARCHAR2 (15)  NOT NULL , 
      email                      VARCHAR2 (77)  NOT NULL , 
-     heslo                      VARCHAR2 (33)  NOT NULL , 
+     heslo                      VARCHAR2 (100)  NOT NULL , 
      ROLE_ID_role               INTEGER  NOT NULL , 
      ZAKAZNIK_ID_zakaznik       NUMBER , 
      ZAMESTNANEC_ID_zamestnanec INTEGER 
