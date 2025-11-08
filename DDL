@@ -13,10 +13,9 @@ ALTER TABLE ADRESA
 
 CREATE TABLE ARCHIV 
     ( 
-     ID_archiv         INTEGER  NOT NULL , 
-     nazev             VARCHAR2 (33)  NOT NULL , 
-     popis             CLOB , 
-     SOUBOR_ID_souboru INTEGER  NOT NULL 
+     ID_archiv INTEGER  NOT NULL , 
+     nazev     VARCHAR2 (33)  NOT NULL , 
+     popis     CLOB 
     ) 
 ;
 
@@ -25,25 +24,26 @@ ALTER TABLE ARCHIV
 
 CREATE TABLE DODAVATEL 
     ( 
-     ID_Dodavatel   INTEGER  NOT NULL , 
-     nazev          VARCHAR2 (33)  NOT NULL , 
-     kontaktniOsoba VARCHAR2 (111)  NOT NULL , 
-     telefon        NUMBER  NOT NULL , 
-     email          VARCHAR2 (111)  NOT NULL 
+     ID_uzivatelu INTEGER  NOT NULL , 
+     ID_Dodavatel INTEGER  NOT NULL , 
+     firma        VARCHAR2 (100)  NOT NULL 
     ) 
 ;
 
 ALTER TABLE DODAVATEL 
-    ADD CONSTRAINT DODAVATEL_PK PRIMARY KEY ( ID_Dodavatel ) ;
+    ADD CONSTRAINT DODAVATEL_PK PRIMARY KEY ( ID_uzivatelu ) ;
 
 ALTER TABLE DODAVATEL 
-    ADD CONSTRAINT DODAVATEL_nazev_UN UNIQUE ( nazev ) ;
+    ADD CONSTRAINT DODAVATEL_PKv1 UNIQUE ( ID_Dodavatel ) ;
+
+ALTER TABLE DODAVATEL 
+    ADD CONSTRAINT DODAVATEL_firma_UN UNIQUE ( firma ) ;
 
 CREATE TABLE HOTOVOST 
     ( 
      ID_platba INTEGER  NOT NULL , 
-     prijato   NUMBER  NOT NULL , 
-     vraceno   NUMBER  NOT NULL 
+     prijato   NUMBER (10,2)  NOT NULL , 
+     vraceno   NUMBER (10,2)  NOT NULL 
     ) 
 ;
 
@@ -79,11 +79,10 @@ CREATE TABLE LOG
      ID_Log       INTEGER  NOT NULL , 
      tabulkaNazev VARCHAR2 (40)  NOT NULL , 
      operace      CHAR (1)  NOT NULL , 
-     oldData      CLOB , 
-     newData      CLOB  NOT NULL , 
      datumZmeny   DATE  NOT NULL , 
      idRekord     VARCHAR2 (100)  NOT NULL , 
-     kohoZmena    NUMBER  NOT NULL , 
+     newData      CLOB  NOT NULL , 
+     oldData      CLOB , 
      popis        CLOB 
     ) 
 ;
@@ -106,11 +105,12 @@ CREATE TABLE OBJEDNAVKA
     ( 
      ID_Objednavky                INTEGER  NOT NULL , 
      datum                        DATE  NOT NULL , 
-     OBJEDNAVKA_STATUS_ID_statusu INTEGER , 
-     ZAKAZNIK_ID_zakaznik         NUMBER  NOT NULL , 
+     OBJEDNAVKA_STATUS_ID_statusu INTEGER  NOT NULL , 
      SUPERMARKET_ID_Supermarket   INTEGER  NOT NULL , 
-     poznamka                     CLOB , 
      typ_objednavka               VARCHAR2 (50)  NOT NULL , 
+     poznamka                     CLOB , 
+     ZAMESTNANEC_ID_zamestnanec   INTEGER  NOT NULL , 
+     ZAKAZNIK_ID_zakaznik         NUMBER  NOT NULL , 
      DODAVATEL_ID_Dodavatel       INTEGER  NOT NULL 
     ) 
 ;
@@ -130,7 +130,7 @@ ALTER TABLE OBJEDNAVKA_STATUS
 
 CREATE TABLE OBJEDNAVKA_ZBOZI 
     ( 
-     pocet                    INTEGER , 
+     pocet                    INTEGER  NOT NULL , 
      OBJEDNAVKA_ID_Objednavky INTEGER  NOT NULL , 
      ZBOZI_ID_Zbozi           INTEGER  NOT NULL 
     ) 
@@ -149,7 +149,7 @@ CREATE TABLE Ohlaseny
      ZPRAVY_ID_zpravy INTEGER  NOT NULL 
     ) 
 ;
-CREATE UNIQUE INDEX OHLASENY__IDX ON Ohlaseny 
+CREATE UNIQUE INDEX Ohlaseny__IDX ON Ohlaseny 
     ( 
      ZPRAVY_ID_zpravy ASC 
     ) 
@@ -161,52 +161,15 @@ ALTER TABLE Ohlaseny
 CREATE TABLE PLATBA 
     ( 
      ID_platba                INTEGER  NOT NULL , 
-     castka                   NUMBER  NOT NULL , 
+     castka                   NUMBER (10,2)  NOT NULL , 
      datum                    DATE  NOT NULL , 
-     PlatbaType               VARCHAR2 (2)  NOT NULL , 
-     OBJEDNAVKA_ID_Objednavky INTEGER  NOT NULL 
+     OBJEDNAVKA_ID_Objednavky INTEGER  NOT NULL , 
+     platbaTyp                CHAR (2)  NOT NULL 
     ) 
 ;
 
 ALTER TABLE PLATBA 
     ADD CONSTRAINT PLATBA_PK PRIMARY KEY ( ID_platba ) ;
-
-CREATE TABLE POZICE 
-    ( 
-     ID_Pozice INTEGER  NOT NULL , 
-     nazev     VARCHAR2 (30)  NOT NULL , 
-     poznamka  VARCHAR2 (250) 
-    ) 
-;
-
-ALTER TABLE POZICE 
-    ADD CONSTRAINT POZICE_PK PRIMARY KEY ( ID_Pozice ) ;
-
-ALTER TABLE POZICE 
-    ADD CONSTRAINT POZICE_nazev_UN UNIQUE ( nazev ) ;
-
-CREATE TABLE PRODEJ 
-    ( 
-     ID_Prodej                  INTEGER  NOT NULL , 
-     datum                      DATE  NOT NULL , 
-     cenaCelkem                 NUMBER  NOT NULL , 
-     poznamka                   CLOB , 
-     SUPERMARKET_ID_Supermarket INTEGER  NOT NULL 
-    ) 
-;
-
-ALTER TABLE PRODEJ 
-    ADD CONSTRAINT PRODEJ_PK PRIMARY KEY ( ID_Prodej ) ;
-
-CREATE TABLE Relation_15 
-    ( 
-     DODAVATEL_ID_Dodavatel INTEGER  NOT NULL , 
-     ZBOZI_ID_Zbozi         INTEGER  NOT NULL 
-    ) 
-;
-
-ALTER TABLE Relation_15 
-    ADD CONSTRAINT Relation_15_PK PRIMARY KEY ( DODAVATEL_ID_Dodavatel, ZBOZI_ID_Zbozi ) ;
 
 CREATE TABLE ROLE 
     ( 
@@ -218,19 +181,16 @@ CREATE TABLE ROLE
 ALTER TABLE ROLE 
     ADD CONSTRAINT ROLE_PK PRIMARY KEY ( ID_role ) ;
 
+ALTER TABLE ROLE 
+    ADD CONSTRAINT Key_nazev UNIQUE ( nazevRole ) ;
+
 CREATE TABLE SKLAD 
     ( 
      ID_Skladu                  INTEGER  NOT NULL , 
      nazev                      VARCHAR2 (33)  NOT NULL , 
      kapacita                   INTEGER  NOT NULL , 
      telefonniCislo             VARCHAR2 (55)  NOT NULL , 
-     ADRESA_ID_Adresa           INTEGER  NOT NULL , 
      SUPERMARKET_ID_Supermarket INTEGER  NOT NULL 
-    ) 
-;
-CREATE UNIQUE INDEX SKLAD__IDX ON SKLAD 
-    ( 
-     SUPERMARKET_ID_Supermarket ASC 
     ) 
 ;
 
@@ -240,17 +200,21 @@ ALTER TABLE SKLAD
 ALTER TABLE SKLAD 
     ADD CONSTRAINT SKLAD_nazev_UN UNIQUE ( nazev ) ;
 
+ALTER TABLE SKLAD 
+    ADD CONSTRAINT SKLAD_ID_Supermarket_UN UNIQUE ( SUPERMARKET_ID_Supermarket ) ;
+
 CREATE TABLE SOUBOR 
     ( 
-     ID_souboru      INTEGER  NOT NULL , 
-     nazev           VARCHAR2 (55)  NOT NULL , 
-     typ             VARCHAR2 (55)  NOT NULL , 
-     pripona         VARCHAR2 (15)  NOT NULL , 
-     obsah           BLOB  NOT NULL , 
-     datumNahrani    DATE  NOT NULL , 
-     datumModifikace DATE  NOT NULL , 
-     kdoUdelal       VARCHAR2 (15)  NOT NULL , 
-     popis           CLOB 
+     ID_souboru                 INTEGER  NOT NULL , 
+     nazev                      VARCHAR2 (55)  NOT NULL , 
+     typ                        VARCHAR2 (55)  NOT NULL , 
+     pripona                    VARCHAR2 (15)  NOT NULL , 
+     obsah                      BLOB  NOT NULL , 
+     datumNahrani               DATE  NOT NULL , 
+     datumModifikace            DATE  NOT NULL , 
+     popis                      CLOB , 
+     ARCHIV_ID_archiv           INTEGER  NOT NULL , 
+     ZAMESTNANEC_ID_zamestnanec INTEGER  NOT NULL 
     ) 
 ;
 
@@ -263,14 +227,7 @@ CREATE TABLE SUPERMARKET
      nazev            VARCHAR2 (100)  NOT NULL , 
      telefon          NUMBER  NOT NULL , 
      email            VARCHAR2 (35)  NOT NULL , 
-     ADRESA_ID_Adresa INTEGER  NOT NULL , 
-     ARCHIV_ID_archiv INTEGER  NOT NULL , 
-     SKLAD_ID_Skladu  INTEGER  NOT NULL 
-    ) 
-;
-CREATE UNIQUE INDEX SUPERMARKET__IDX ON SUPERMARKET 
-    ( 
-     SKLAD_ID_Skladu ASC 
+     ADRESA_ID_Adresa INTEGER  NOT NULL 
     ) 
 ;
 
@@ -282,7 +239,6 @@ ALTER TABLE SUPERMARKET
 
 CREATE TABLE UCTENKA 
     ( 
-     castka           NUMBER  NOT NULL , 
      popis            CLOB  NOT NULL , 
      PLATBA_ID_platba INTEGER  NOT NULL 
     ) 
@@ -293,61 +249,69 @@ ALTER TABLE UCTENKA
 
 CREATE TABLE UZIVATEL 
     ( 
-     ID_uzivatelu               INTEGER  NOT NULL , 
-     jmeno                      VARCHAR2 (15)  NOT NULL , 
-     prijmeni                   VARCHAR2 (15)  NOT NULL , 
-     email                      VARCHAR2 (77)  NOT NULL , 
-     heslo                      VARCHAR2 (100)  NOT NULL , 
-     ROLE_ID_role               INTEGER  NOT NULL , 
-     ZAKAZNIK_ID_zakaznik       NUMBER , 
-     ZAMESTNANEC_ID_zamestnanec INTEGER 
+     ID_uzivatelu     INTEGER  NOT NULL , 
+     jmeno            VARCHAR2 (15)  NOT NULL , 
+     prijmeni         VARCHAR2 (15)  NOT NULL , 
+     email            VARCHAR2 (77)  NOT NULL , 
+     heslo            VARCHAR2 (255)  NOT NULL , 
+     telefonniCislo   VARCHAR2 (20)  NOT NULL , 
+     ROLE_ID_role     INTEGER  NOT NULL , 
+     ADRESA_ID_Adresa INTEGER 
     ) 
 ;
 
 ALTER TABLE UZIVATEL 
     ADD CONSTRAINT UZIVATEL_PK PRIMARY KEY ( ID_uzivatelu ) ;
 
+ALTER TABLE UZIVATEL 
+    ADD CONSTRAINT Key_telefon UNIQUE ( telefonniCislo ) ;
+
+ALTER TABLE UZIVATEL 
+    ADD CONSTRAINT Key_email UNIQUE ( email ) ;
+
 CREATE TABLE ZAKAZNIK 
     ( 
-     ID_zakaznik      NUMBER  NOT NULL , 
-     mobilCislo       NUMBER  NOT NULL , 
-     ADRESA_ID_Adresa INTEGER 
+     ID_uzivatelu  INTEGER  NOT NULL , 
+     ID_zakaznik   NUMBER  NOT NULL , 
+     kartaVernosti VARCHAR2 (20) 
     ) 
 ;
 
 ALTER TABLE ZAKAZNIK 
-    ADD CONSTRAINT ZAKAZNIK_PK PRIMARY KEY ( ID_zakaznik ) ;
+    ADD CONSTRAINT ZAKAZNIK_PK PRIMARY KEY ( ID_uzivatelu ) ;
+
+ALTER TABLE ZAKAZNIK 
+    ADD CONSTRAINT ZAKAZNIK_PKv1 UNIQUE ( ID_zakaznik ) ;
+
+ALTER TABLE ZAKAZNIK 
+    ADD CONSTRAINT ZAKAZNIK_kartaVernosti_UN UNIQUE ( kartaVernosti ) ;
 
 CREATE TABLE ZAMESTNANEC 
     ( 
-     ID_zamestnanec             INTEGER  NOT NULL , 
-     jmeno                      VARCHAR2 (33)  NOT NULL , 
-     prijmeni                   VARCHAR2 (33)  NOT NULL , 
-     telefon                    NUMBER  NOT NULL , 
-     email                      VARCHAR2 (111)  NOT NULL , 
-     mzda                       NUMBER  NOT NULL , 
-     ZAMESTNANEC_ID_zamestnanec INTEGER , 
-     SUPERMARKET_ID_Supermarket INTEGER  NOT NULL , 
-     ADRESA_ID_Adresa           INTEGER  NOT NULL , 
-     POZICE_ID_Pozice           INTEGER  NOT NULL 
+     ID_uzivatelu   INTEGER  NOT NULL , 
+     ID_zamestnanec INTEGER  NOT NULL , 
+     mzda           NUMBER (10,2)  NOT NULL , 
+     datumNastupa   DATE  NOT NULL , 
+     pozice         VARCHAR2 (50)  NOT NULL 
     ) 
 ;
 
 ALTER TABLE ZAMESTNANEC 
-    ADD CONSTRAINT ZAMESTNANEC_PK PRIMARY KEY ( ID_zamestnanec ) ;
+    ADD CONSTRAINT ZAMESTNANEC_PK PRIMARY KEY ( ID_uzivatelu ) ;
+
+ALTER TABLE ZAMESTNANEC 
+    ADD CONSTRAINT ZAMESTNANEC_PKv1 UNIQUE ( ID_zamestnanec ) ;
 
 CREATE TABLE ZBOZI 
     ( 
      ID_Zbozi                     INTEGER  NOT NULL , 
      nazev                        VARCHAR2 (55)  NOT NULL , 
-     cena                         NUMBER  NOT NULL , 
+     cena                         NUMBER (10,2)  NOT NULL , 
      mnozstvi                     INTEGER  NOT NULL , 
      minMnozstvi                  INTEGER  NOT NULL , 
      popis                        CLOB , 
-     SKLAD_ID_Skladu              INTEGER , 
-     Kategorie_zbozi_ID_Kategorie INTEGER  NOT NULL , 
-     PULT_ID_Pultu                INTEGER , 
-     SUPERMARKET_ID_Supermarket   INTEGER 
+     SKLAD_ID_Skladu              INTEGER  NOT NULL , 
+     Kategorie_zbozi_ID_Kategorie INTEGER  NOT NULL 
     ) 
 ;
 
@@ -359,12 +323,11 @@ ALTER TABLE ZBOZI
 
 CREATE TABLE ZPRAVY 
     ( 
-     ID_zpravy             INTEGER  NOT NULL , 
-     odesilatel_ID         INTEGER  NOT NULL , 
-     prijimac_ID           INTEGER  NOT NULL , 
-     zprava                CLOB  NOT NULL , 
-     dataZasilani          DATE  NOT NULL , 
-     UZIVATEL_ID_uzivatelu INTEGER  NOT NULL 
+     ID_zpravy     INTEGER  NOT NULL , 
+     odesilatel_ID INTEGER  NOT NULL , 
+     prijimac_ID   INTEGER  NOT NULL , 
+     zprava        CLOB  NOT NULL , 
+     dataZasilani  DATE  NOT NULL 
     ) 
 ;
 
@@ -382,14 +345,14 @@ ALTER TABLE ADRESA
     ) 
 ;
 
-ALTER TABLE ARCHIV 
-    ADD CONSTRAINT ARCHIV_SOUBOR_FK FOREIGN KEY 
+ALTER TABLE DODAVATEL 
+    ADD CONSTRAINT DODAVATEL_UZIVATEL_FK FOREIGN KEY 
     ( 
-     SOUBOR_ID_souboru
+     ID_uzivatelu
     ) 
-    REFERENCES SOUBOR 
+    REFERENCES UZIVATEL 
     ( 
-     ID_souboru
+     ID_uzivatelu
     ) 
 ;
 
@@ -426,9 +389,8 @@ ALTER TABLE OBJEDNAVKA
     ) 
 ;
 
---  ERROR: FK name length exceeds maximum allowed length(30) 
 ALTER TABLE OBJEDNAVKA 
-    ADD CONSTRAINT OBJEDNAVKA_OBJEDNAVKA_STATUS_FK FOREIGN KEY 
+    ADD CONSTRAINT OBJEDNAVKA_STATUS_FK FOREIGN KEY 
     ( 
      OBJEDNAVKA_STATUS_ID_statusu
     ) 
@@ -457,6 +419,17 @@ ALTER TABLE OBJEDNAVKA
     REFERENCES ZAKAZNIK 
     ( 
      ID_zakaznik
+    ) 
+;
+
+ALTER TABLE OBJEDNAVKA 
+    ADD CONSTRAINT OBJEDNAVKA_ZAMESTNANEC_FK FOREIGN KEY 
+    ( 
+     ZAMESTNANEC_ID_zamestnanec
+    ) 
+    REFERENCES ZAMESTNANEC 
+    ( 
+     ID_zamestnanec
     ) 
 ;
 
@@ -504,50 +477,6 @@ ALTER TABLE PLATBA
     ) 
 ;
 
-ALTER TABLE PRODEJ 
-    ADD CONSTRAINT PRODEJ_SUPERMARKET_FK FOREIGN KEY 
-    ( 
-     SUPERMARKET_ID_Supermarket
-    ) 
-    REFERENCES SUPERMARKET 
-    ( 
-     ID_Supermarket
-    ) 
-;
-
-ALTER TABLE Relation_15 
-    ADD CONSTRAINT Relation_15_DODAVATEL_FK FOREIGN KEY 
-    ( 
-     DODAVATEL_ID_Dodavatel
-    ) 
-    REFERENCES DODAVATEL 
-    ( 
-     ID_Dodavatel
-    ) 
-;
-
-ALTER TABLE Relation_15 
-    ADD CONSTRAINT Relation_15_ZBOZI_FK FOREIGN KEY 
-    ( 
-     ZBOZI_ID_Zbozi
-    ) 
-    REFERENCES ZBOZI 
-    ( 
-     ID_Zbozi
-    ) 
-;
-
-ALTER TABLE SKLAD 
-    ADD CONSTRAINT SKLAD_ADRESA_FK FOREIGN KEY 
-    ( 
-     ADRESA_ID_Adresa
-    ) 
-    REFERENCES ADRESA 
-    ( 
-     ID_Adresa
-    ) 
-;
-
 ALTER TABLE SKLAD 
     ADD CONSTRAINT SKLAD_SUPERMARKET_FK FOREIGN KEY 
     ( 
@@ -556,6 +485,29 @@ ALTER TABLE SKLAD
     REFERENCES SUPERMARKET 
     ( 
      ID_Supermarket
+    ) 
+    ON DELETE CASCADE 
+;
+
+ALTER TABLE SOUBOR 
+    ADD CONSTRAINT SOUBOR_ARCHIV_FK FOREIGN KEY 
+    ( 
+     ARCHIV_ID_archiv
+    ) 
+    REFERENCES ARCHIV 
+    ( 
+     ID_archiv
+    ) 
+;
+
+ALTER TABLE SOUBOR 
+    ADD CONSTRAINT SOUBOR_ZAMESTNANEC_FK FOREIGN KEY 
+    ( 
+     ZAMESTNANEC_ID_zamestnanec
+    ) 
+    REFERENCES ZAMESTNANEC 
+    ( 
+     ID_zamestnanec
     ) 
 ;
 
@@ -567,28 +519,6 @@ ALTER TABLE SUPERMARKET
     REFERENCES ADRESA 
     ( 
      ID_Adresa
-    ) 
-;
-
-ALTER TABLE SUPERMARKET 
-    ADD CONSTRAINT SUPERMARKET_ARCHIV_FK FOREIGN KEY 
-    ( 
-     ARCHIV_ID_archiv
-    ) 
-    REFERENCES ARCHIV 
-    ( 
-     ID_archiv
-    ) 
-;
-
-ALTER TABLE SUPERMARKET 
-    ADD CONSTRAINT SUPERMARKET_SKLAD_FK FOREIGN KEY 
-    ( 
-     SKLAD_ID_Skladu
-    ) 
-    REFERENCES SKLAD 
-    ( 
-     ID_Skladu
     ) 
 ;
 
@@ -604,6 +534,17 @@ ALTER TABLE UCTENKA
 ;
 
 ALTER TABLE UZIVATEL 
+    ADD CONSTRAINT UZIVATEL_ADRESA_FK FOREIGN KEY 
+    ( 
+     ADRESA_ID_Adresa
+    ) 
+    REFERENCES ADRESA 
+    ( 
+     ID_Adresa
+    ) 
+;
+
+ALTER TABLE UZIVATEL 
     ADD CONSTRAINT UZIVATEL_ROLE_FK FOREIGN KEY 
     ( 
      ROLE_ID_role
@@ -614,80 +555,25 @@ ALTER TABLE UZIVATEL
     ) 
 ;
 
-ALTER TABLE UZIVATEL 
-    ADD CONSTRAINT UZIVATEL_ZAKAZNIK_FK FOREIGN KEY 
-    ( 
-     ZAKAZNIK_ID_zakaznik
-    ) 
-    REFERENCES ZAKAZNIK 
-    ( 
-     ID_zakaznik
-    ) 
-;
-
-ALTER TABLE UZIVATEL 
-    ADD CONSTRAINT UZIVATEL_ZAMESTNANEC_FK FOREIGN KEY 
-    ( 
-     ZAMESTNANEC_ID_zamestnanec
-    ) 
-    REFERENCES ZAMESTNANEC 
-    ( 
-     ID_zamestnanec
-    ) 
-;
-
 ALTER TABLE ZAKAZNIK 
-    ADD CONSTRAINT ZAKAZNIK_ADRESA_FK FOREIGN KEY 
+    ADD CONSTRAINT ZAKAZNIK_UZIVATEL_FK FOREIGN KEY 
     ( 
-     ADRESA_ID_Adresa
+     ID_uzivatelu
     ) 
-    REFERENCES ADRESA 
+    REFERENCES UZIVATEL 
     ( 
-     ID_Adresa
-    ) 
-;
-
-ALTER TABLE ZAMESTNANEC 
-    ADD CONSTRAINT ZAMESTNANEC_ADRESA_FK FOREIGN KEY 
-    ( 
-     ADRESA_ID_Adresa
-    ) 
-    REFERENCES ADRESA 
-    ( 
-     ID_Adresa
+     ID_uzivatelu
     ) 
 ;
 
 ALTER TABLE ZAMESTNANEC 
-    ADD CONSTRAINT ZAMESTNANEC_POZICE_FK FOREIGN KEY 
+    ADD CONSTRAINT ZAMESTNANEC_UZIVATEL_FK FOREIGN KEY 
     ( 
-     POZICE_ID_Pozice
+     ID_uzivatelu
     ) 
-    REFERENCES POZICE 
+    REFERENCES UZIVATEL 
     ( 
-     ID_Pozice
-    ) 
-;
-
-ALTER TABLE ZAMESTNANEC 
-    ADD CONSTRAINT ZAMESTNANEC_SUPERMARKET_FK FOREIGN KEY 
-    ( 
-     SUPERMARKET_ID_Supermarket
-    ) 
-    REFERENCES SUPERMARKET 
-    ( 
-     ID_Supermarket
-    ) 
-;
-
-ALTER TABLE ZAMESTNANEC 
-    ADD CONSTRAINT ZAMESTNANEC_ZAMESTNANEC_FK FOREIGN KEY 
-    ( 
-     ZAMESTNANEC_ID_zamestnanec
-    ) 
-    REFERENCES ZAMESTNANEC 
-    ( 
-     ID_zamestnanec
+     ID_uzivatelu
     ) 
 ;
 
@@ -713,21 +599,10 @@ ALTER TABLE ZBOZI
     ) 
 ;
 
-ALTER TABLE ZBOZI 
-    ADD CONSTRAINT ZBOZI_SUPERMARKET_FK FOREIGN KEY 
-    ( 
-     SUPERMARKET_ID_Supermarket
-    ) 
-    REFERENCES SUPERMARKET 
-    ( 
-     ID_Supermarket
-    ) 
-;
-
 ALTER TABLE ZPRAVY 
-    ADD CONSTRAINT ZPRAVY_UZIVATEL_FK FOREIGN KEY 
+    ADD CONSTRAINT ZPRAVY_ODESILATEL_FK FOREIGN KEY 
     ( 
-     UZIVATEL_ID_uzivatelu
+     odesilatel_ID
     ) 
     REFERENCES UZIVATEL 
     ( 
@@ -735,18 +610,71 @@ ALTER TABLE ZPRAVY
     ) 
 ;
 
-CREATE OR REPLACE TRIGGER ARC_FKArc_1_KARTA 
-BEFORE INSERT OR UPDATE OF ID_platba 
-ON KARTA 
+ALTER TABLE ZPRAVY 
+    ADD CONSTRAINT ZPRAVY_PRIJIMAC_FK FOREIGN KEY 
+    ( 
+     prijimac_ID
+    ) 
+    REFERENCES UZIVATEL 
+    ( 
+     ID_uzivatelu
+    ) 
+;
+
+CREATE OR REPLACE TRIGGER ARC_FKArc_2_ZAKAZNIK 
+BEFORE INSERT OR UPDATE OF ID_uzivatelu 
+ON ZAKAZNIK 
 FOR EACH ROW 
 DECLARE 
-    d VARCHAR2 (2); 
+    d INTEGER; 
 BEGIN 
-    SELECT A.PlatbaType INTO d 
-    FROM PLATBA A 
-    WHERE A.ID_platba = :new.ID_platba; 
-    IF (d IS NULL OR d <> 'D') THEN 
-        raise_application_error(-20223,'FK KARTA_PLATBA_FK in Table KARTA violates Arc constraint on Table PLATBA - discriminator column PlatbaType doesn''t have value ''D'''); 
+    SELECT A.ROLE_ID_role INTO d 
+    FROM UZIVATEL A 
+    WHERE A.ID_uzivatelu = :new.ID_uzivatelu; 
+    IF (d IS NULL OR d <> 3) THEN 
+        raise_application_error(-20223,'FK ZAKAZNIK_UZIVATEL_FK in Table ZAKAZNIK violates Arc constraint on Table UZIVATEL - discriminator column ROLE_ID_role doesn''t have value 3'); 
+    END IF; 
+    EXCEPTION 
+    WHEN NO_DATA_FOUND THEN 
+        NULL; 
+    WHEN OTHERS THEN 
+        RAISE; 
+END; 
+/
+
+CREATE OR REPLACE TRIGGER ARC_FKArc_2_DODAVATEL 
+BEFORE INSERT OR UPDATE OF ID_uzivatelu 
+ON DODAVATEL 
+FOR EACH ROW 
+DECLARE 
+    d INTEGER; 
+BEGIN 
+    SELECT A.ROLE_ID_role INTO d 
+    FROM UZIVATEL A 
+    WHERE A.ID_uzivatelu = :new.ID_uzivatelu; 
+    IF (d IS NULL OR d <> 2) THEN 
+        raise_application_error(-20223,'FK DODAVATEL_UZIVATEL_FK in Table DODAVATEL violates Arc constraint on Table UZIVATEL - discriminator column ROLE_ID_role doesn''t have value 2'); 
+    END IF; 
+    EXCEPTION 
+    WHEN NO_DATA_FOUND THEN 
+        NULL; 
+    WHEN OTHERS THEN 
+        RAISE; 
+END; 
+/
+
+CREATE OR REPLACE TRIGGER ARC_FKArc_2_ZAMESTNANEC 
+BEFORE INSERT OR UPDATE OF ID_uzivatelu 
+ON ZAMESTNANEC 
+FOR EACH ROW 
+DECLARE 
+    d INTEGER; 
+BEGIN 
+    SELECT A.ROLE_ID_role INTO d 
+    FROM UZIVATEL A 
+    WHERE A.ID_uzivatelu = :new.ID_uzivatelu; 
+    IF (d IS NULL OR d <> 4) THEN 
+        raise_application_error(-20223,'FK ZAMESTNANEC_UZIVATEL_FK in Table ZAMESTNANEC violates Arc constraint on Table UZIVATEL - discriminator column ROLE_ID_role doesn''t have value 4'); 
     END IF; 
     EXCEPTION 
     WHEN NO_DATA_FOUND THEN 
@@ -761,13 +689,34 @@ BEFORE INSERT OR UPDATE OF ID_platba
 ON HOTOVOST 
 FOR EACH ROW 
 DECLARE 
-    d VARCHAR2 (2); 
+    d CHAR (2); 
 BEGIN 
-    SELECT A.PlatbaType INTO d 
+    SELECT A.platbaTyp INTO d 
     FROM PLATBA A 
     WHERE A.ID_platba = :new.ID_platba; 
-    IF (d IS NULL OR d <> 'A') THEN 
-        raise_application_error(-20223,'FK HOTOVOST_PLATBA_FK in Table HOTOVOST violates Arc constraint on Table PLATBA - discriminator column PlatbaType doesn''t have value ''A'''); 
+    IF (d IS NULL OR d <> 'H') THEN 
+        raise_application_error(-20223,'FK HOTOVOST_PLATBA_FK in Table HOTOVOST violates Arc constraint on Table PLATBA - discriminator column platbaTyp doesn''t have value ''H'''); 
+    END IF; 
+    EXCEPTION 
+    WHEN NO_DATA_FOUND THEN 
+        NULL; 
+    WHEN OTHERS THEN 
+        RAISE; 
+END; 
+/
+
+CREATE OR REPLACE TRIGGER ARC_FKArc_1_KARTA 
+BEFORE INSERT OR UPDATE OF ID_platba 
+ON KARTA 
+FOR EACH ROW 
+DECLARE 
+    d CHAR (2); 
+BEGIN 
+    SELECT A.platbaTyp INTO d 
+    FROM PLATBA A 
+    WHERE A.ID_platba = :new.ID_platba; 
+    IF (d IS NULL OR d <> 'K') THEN 
+        raise_application_error(-20223,'FK KARTA_PLATBA_FK in Table KARTA violates Arc constraint on Table PLATBA - discriminator column platbaTyp doesn''t have value ''K'''); 
     END IF; 
     EXCEPTION 
     WHEN NO_DATA_FOUND THEN 

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>BDAS Supermarket | Řízení sítě</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #0c1535;
+            --primary: #4361ee;
+            --primary-dark: #3046d3;
+            --accent: #ff9f43;
+            --muted: rgba(12, 21, 53, 0.65);
+            --border: rgba(15, 23, 42, 0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at 15% 20%, rgba(67, 97, 238, 0.25), transparent 50%),
+                        radial-gradient(circle at 75% 0%, rgba(255, 159, 67, 0.2), transparent 45%),
+                        linear-gradient(135deg, #eef2ff 0%, #f8fafc 45%, #fefefe 100%);
+            color: #0c1535;
+        }
+        header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 28px clamp(20px, 6vw, 70px);
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 14px;
+        }
+        .brand-badge {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            background: linear-gradient(135deg, #4361ee, #6c63ff);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-weight: 600;
+            font-size: 18px;
+            letter-spacing: 0.5px;
+        }
+        nav {
+            display: flex;
+            gap: 18px;
+        }
+        nav a {
+            text-decoration: none;
+            color: var(--muted);
+            font-size: 15px;
+            font-weight: 500;
+        }
+        nav a:hover {
+            color: var(--primary);
+        }
+        .hero {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: clamp(20px, 4vw, 60px);
+            padding: clamp(20px, 8vw, 90px);
+            align-items: center;
+        }
+        .hero h1 {
+            font-size: clamp(32px, 5vw, 52px);
+            margin: 0 0 18px;
+        }
+        .hero p {
+            margin: 0 0 28px;
+            line-height: 1.6;
+            color: var(--muted);
+            font-size: 18px;
+        }
+        .hero-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+        }
+        .cta {
+            border: none;
+            border-radius: 999px;
+            padding: 14px 26px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.15s ease, box-shadow 0.2s ease;
+        }
+        .cta.primary {
+            background: linear-gradient(120deg, #4361ee, #6c63ff);
+            color: #fff;
+            box-shadow: 0 18px 40px rgba(67, 97, 238, 0.25);
+        }
+        .cta.secondary {
+            background: #fff;
+            color: #0c1535;
+            border: 1px solid var(--border);
+        }
+        .cta:hover {
+            transform: translateY(-1px);
+        }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-top: 40px;
+        }
+        .metric-card {
+            background: #fff;
+            border-radius: 16px;
+            padding: 16px 18px;
+            border: 1px solid var(--border);
+            box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+        }
+        .metric-card span {
+            display: block;
+            font-size: 13px;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+        .metric-card strong {
+            font-size: 22px;
+            margin-top: 8px;
+            display: block;
+        }
+        footer {
+            padding: 30px clamp(20px, 6vw, 70px);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            justify-content: space-between;
+            color: var(--muted);
+            font-size: 14px;
+        }
+        @media (max-width: 720px) {
+            header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 12px;
+            }
+            nav {
+                flex-wrap: wrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="brand">
+            <div class="brand-badge">BD</div>
+            <div>
+                <strong>BDAS Supermarket</strong><br>
+                <small style="color: var(--muted);">Platforma pro řízení retail sítě</small>
+            </div>
+        </div>
+        <nav>
+            <a href="#features">Moduly</a>
+            <a href="#security">Bezpečnost</a>
+            <a href="#contact">Kontakt</a>
+        </nav>
+    </header>
+
+    <section class="hero">
+        <div>
+            <h1>Jednotné centrum pro nákup, finance i provoz.</h1>
+            <p>Spravujte síť supermarketů z jednoho místa: objednávky, zásoby, zaměstnance i archivní dokumenty. Připraveno na přísné role a audity, od začátku optimalizováno pro adminy.</p>
+            <div class="hero-actions">
+                <button class="cta primary" onclick="location.href='register.html'">Založit účet admina</button>
+                <button class="cta secondary" onclick="location.href='login.html'">Přihlásit se</button>
+            </div>
+            <div class="metrics">
+                <div class="metric-card">
+                    <span>Integrace</span>
+                    <strong>Oracle 21c • REST</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Role</span>
+                    <strong>Admin / Buyer / Store</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Automatizace</span>
+                    <strong>Push + WS</strong>
+                </div>
+            </div>
+        </div>
+        <div style="background:#fff;border-radius:24px;padding:30px;border:1px solid var(--border);box-shadow:0 25px 55px rgba(15,23,42,0.12);">
+            <h3>Co získáte:</h3>
+            <ul style="padding-left:18px;line-height:1.6;color:var(--muted);">
+                <li>Dashboard se skladovými riziky</li>
+                <li>Plánování objednávek a validace dodavatelů</li>
+                <li>Audity, archiv dokumentů a zákaznický portál</li>
+                <li>Budoucí omezení přístupu podle role</li>
+            </ul>
+            <p style="font-size:14px;color:var(--muted);margin-top:28px;">Startovní rozhraní je připravené pro administrátory – ostatním rolím omezíme stránky později.</p>
+        </div>
+    </section>
+
+    <footer>
+        <span>© 2024 BDAS Retail Data Systems</span>
+        <span id="contact">Podpora: support@bdas-retail.cz</span>
+    </footer>
+</body>
+</html>

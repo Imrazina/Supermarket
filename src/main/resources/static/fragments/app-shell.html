@@ -1,0 +1,475 @@
+<div class="app-shell">
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-badge">BD</div>
+            <div>
+                <strong>BDAS Supermarket</strong>
+                <span>Řídicí místnost dat</span>
+            </div>
+        </div>
+
+        <div class="sidebar-section">
+            <h4>Navigace</h4>
+            <a class="nav-link" data-view="dashboard" data-url="index.html" href="index.html">
+                <span class="material-symbols-rounded" aria-hidden="true">dashboard</span>
+                <span>Přehled</span>
+            </a>
+            <a class="nav-link" data-view="profile" data-url="profile.html" href="profile.html">
+                <span class="material-symbols-rounded" aria-hidden="true">badge</span>
+                <span>Můj profil</span>
+            </a>
+            <a class="nav-link" data-view="inventory" data-url="inventory.html" href="inventory.html">
+                <span class="material-symbols-rounded" aria-hidden="true">inventory_2</span>
+                <span>Sklad</span>
+            </a>
+            <a class="nav-link" data-view="orders" data-url="orders.html" href="orders.html">
+                <span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span>
+                <span>Objednávky</span>
+            </a>
+            <a class="nav-link" data-view="people" data-url="people.html" href="people.html">
+                <span class="material-symbols-rounded" aria-hidden="true">groups</span>
+                <span>Tým &amp; zákazníci</span>
+            </a>
+            <a class="nav-link" data-view="finance" data-url="finance.html" href="finance.html">
+                <span class="material-symbols-rounded" aria-hidden="true">payments</span>
+                <span>Finance</span>
+            </a>
+            <a class="nav-link" data-view="records" data-url="records.html" href="records.html">
+                <span class="material-symbols-rounded" aria-hidden="true">folder_open</span>
+                <span>Archiv &amp; audit</span>
+            </a>
+            <a class="nav-link" data-view="customer" data-url="customer.html" href="customer.html">
+                <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
+                <span>Zákaznická zóna</span>
+            </a>
+        </div>
+
+        <div class="sidebar-section">
+            <h4>Rychlé akce</h4>
+            <button class="nav-link" id="new-order-btn">
+                <span class="material-symbols-rounded" aria-hidden="true">add_circle</span>
+                <span>Nová objednávka</span>
+            </button>
+            <button class="nav-link" id="new-store-btn">
+                <span class="material-symbols-rounded" aria-hidden="true">storefront</span>
+                <span>Nový supermarket</span>
+            </button>
+        </div>
+
+        <div class="sidebar-footer">
+            <div class="sync-card">
+                <strong>Synchronizace s Oracle</strong>
+                <p>Poslední aktualizace: <span id="sync-time">--:--</span></p>
+                <div class="progress">
+                    <span style="width: 68%"></span>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <div class="workspace">
+        <header class="topbar">
+            <div>
+                <p class="eyebrow" id="view-label">Hlavní panel</p>
+                <h1 id="view-title">Řízení operací</h1>
+            </div>
+            <div class="topbar-right">
+                <div class="search">
+                    <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                    <input type="search" id="global-search" placeholder="Hledat SKU, objednávku nebo klienta…" autocomplete="off">
+                    <div class="search-results" id="search-results"></div>
+                </div>
+                <button class="nav-link" id="refresh-btn" style="width:auto; gap:6px; padding:8px 12px;">
+                    <span class="material-symbols-rounded" aria-hidden="true">cached</span>
+                    <span>Obnovit</span>
+                </button>
+                <div class="user-pill">
+                    <div>
+                        <strong id="user-name">Uživatel</strong>
+                        <small id="user-role">NEW_USER</small>
+                    </div>
+                    <button class="logout-btn" id="logout-btn">Odhlásit</button>
+                </div>
+            </div>
+        </header>
+
+        <div class="view-container">
+            <section class="view active" data-view="dashboard">
+                <div class="kpi-grid">
+                    <article class="kpi-card">
+                        <div class="kpi-label">SKU v oběhu</div>
+                        <div class="kpi-value" id="kpi-sku">—</div>
+                        <div class="kpi-trend" id="kpi-sku-trend">0 kategorií</div>
+                    </article>
+                    <article class="kpi-card">
+                        <div class="kpi-label">Aktivní objednávky</div>
+                        <div class="kpi-value" id="kpi-orders">—</div>
+                        <div class="kpi-trend" id="kpi-orders-trend">v práci</div>
+                    </article>
+                    <article class="kpi-card">
+                        <div class="kpi-label">Týdenní obrat</div>
+                        <div class="kpi-value" id="kpi-revenue">—</div>
+                        <div class="kpi-trend">+8,6 % vs. plán</div>
+                    </article>
+                    <article class="kpi-card">
+                        <div class="kpi-label">Kritická SKU</div>
+                        <div class="kpi-value" id="kpi-critical">—</div>
+                        <div class="kpi-trend" id="kpi-critical-trend">bez rizik</div>
+                    </article>
+                </div>
+
+                <div class="layout-stack" style="margin-top: 24px;">
+                    <article class="panel">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <h2>Poptávka &amp; dodávky</h2>
+                                <p>Data z OBJEDNAVKA + PLATBA</p>
+                            </div>
+                            <span class="badge">7 dnů</span>
+                        </div>
+                        <div class="sparkline" id="demand-chart"></div>
+                    </article>
+
+                    <div class="two-column">
+                        <article class="panel">
+                            <h2>Rizikové zásoby</h2>
+                            <ul id="low-stock-list"></ul>
+                        </article>
+                        <article class="panel">
+                            <h2>Stavy řetězce</h2>
+                            <div id="overall-status-board"></div>
+                        </article>
+                    </div>
+
+                    <article class="panel">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <div>
+                                <h2>Prodejny &amp; sklady</h2>
+                                <p>SUPERMARKET • SKLAD • ADRESA</p>
+                            </div>
+                            <button class="logout-btn" id="export-store-btn">Export</button>
+                        </div>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>prodejna</th>
+                                    <th>město</th>
+                                    <th>adresa</th>
+                                    <th>sklad</th>
+                                    <th>manager</th>
+                                    <th>status</th>
+                                </tr>
+                                </thead>
+                                <tbody id="stores-table"></tbody>
+                            </table>
+                        </div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="profile">
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Osobní karta</h2>
+                        <div id="profile-overview"></div>
+                    </article>
+                    <article class="panel">
+                        <h2>Předvolby</h2>
+                        <div id="profile-preferences"></div>
+                    </article>
+                </div>
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Bezpečnost &amp; role</h2>
+                        <div id="profile-security"></div>
+                    </article>
+                    <article class="panel">
+                        <h2>Aktivita týmu</h2>
+                        <ul id="profile-activity"></ul>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="inventory">
+                <div class="two-column">
+                    <div class="layout-stack">
+                        <article class="panel">
+                            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                                <div>
+                                    <h2>Katalog (ZBOZI)</h2>
+                                    <p>Počet položek: <span id="inventory-count">0</span></p>
+                                </div>
+                                <input id="inventory-search" type="search" placeholder="Hledat podle názvu nebo SKU" style="max-width:240px;">
+                            </div>
+                            <div id="inventory-chips" style="margin-bottom: 12px;"></div>
+                            <div class="table-wrapper">
+                                <table>
+                                    <thead>
+                                    <tr>
+                                        <th>sku</th>
+                                        <th>název</th>
+                                        <th>kategorie</th>
+                                        <th>sklad</th>
+                                        <th>prodejna</th>
+                                        <th>dodavatel</th>
+                                        <th>zásoba</th>
+                                        <th>min.</th>
+                                    </tr>
+                                    </thead>
+                                    <tbody id="inventory-table-body"></tbody>
+                                </table>
+                            </div>
+                        </article>
+
+                        <article class="panel">
+                            <h2>Kategorie (KATEGORIE_ZBOZI)</h2>
+                            <div id="category-board"></div>
+                        </article>
+
+                        <article class="panel">
+                            <h2>Sklady (SKLAD)</h2>
+                            <div id="warehouse-grid"></div>
+                        </article>
+                    </div>
+
+                    <article class="panel">
+                        <h2>Nové SKU</h2>
+                        <p>Koncept se uloží lokálně a naváže na ZBOZI po integraci API.</p>
+                        <form id="new-sku-form">
+                            <label for="sku-code">SKU / kód</label>
+                            <input id="sku-code" name="sku" maxlength="10" required placeholder="SKU-00000">
+
+                            <label for="sku-name">Název</label>
+                            <input id="sku-name" name="name" required>
+
+                            <label for="sku-category">Kategorie</label>
+                            <select id="sku-category" name="category" required>
+                                <option value="">Vyberte kategorii</option>
+                            </select>
+
+                            <label for="sku-warehouse">Sklad</label>
+                            <select id="sku-warehouse" name="warehouse" required>
+                                <option value="">Vyberte sklad</option>
+                            </select>
+
+                            <label for="sku-stock">Aktuální množství</label>
+                            <input id="sku-stock" name="stock" type="number" min="0" required>
+
+                            <label for="sku-min">Minimální zásoba</label>
+                            <input id="sku-min" name="minStock" type="number" min="0" required>
+
+                            <label for="sku-supplier">Dodavatel</label>
+                            <input id="sku-supplier" name="supplier" required>
+
+                            <button type="submit">Uložit koncept</button>
+                        </form>
+                        <p class="form-msg" id="sku-form-msg"></p>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="orders">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <h2>Objednávky (OBJEDNAVKA)</h2>
+                            <p>Kliknutím zobrazíte položky</p>
+                        </div>
+                        <span class="badge" id="orders-count">0</span>
+                    </div>
+                    <div class="table-wrapper">
+                        <table class="orders-table">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>typ</th>
+                                <th>prodejna</th>
+                                <th>odpovědný</th>
+                                <th>dodavatel</th>
+                                <th>status</th>
+                                <th>datum</th>
+                                <th>částka</th>
+                            </tr>
+                            </thead>
+                            <tbody id="orders-table-body"></tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Statusy (OBJEDNAVKA_STATUS)</h2>
+                        <div id="order-status-board"></div>
+                    </article>
+
+                    <article class="panel">
+                        <div style="display:flex;justify-content:space-between;align-items:center;">
+                            <h2 id="order-lines-title">Složení objednávky</h2>
+                            <span class="badge" id="order-lines-badge">nevybráno</span>
+                        </div>
+                        <ul id="order-lines"></ul>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="people">
+                <article class="panel">
+                    <h2>Zaměstnanci (ZAMESTNANEC)</h2>
+                    <div class="card-list" id="employee-list"></div>
+                </article>
+
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Zákazníci (ZAKAZNIK)</h2>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>ID</th>
+                                    <th>Jméno</th>
+                                    <th>Věrnost</th>
+                                    <th>Kontakt</th>
+                                </tr>
+                                </thead>
+                                <tbody id="customer-list"></tbody>
+                            </table>
+                        </div>
+                    </article>
+                    <article class="panel">
+                        <h2>Dodavatelé (DODAVATEL)</h2>
+                        <div id="supplier-list"></div>
+                    </article>
+                </div>
+
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Přístupová práva (ROLE)</h2>
+                        <div class="table-wrapper">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>role</th>
+                                    <th>popis</th>
+                                    <th>počet</th>
+                                </tr>
+                                </thead>
+                                <tbody id="role-table-body"></tbody>
+                            </table>
+                        </div>
+                    </article>
+                    <article class="panel">
+                        <h2>Adresy &amp; města</h2>
+                        <div id="address-board"></div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="finance">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <h2>Platby (PLATBA)</h2>
+                            <p>Včetně HOTOVOST / KARTA + UCTENKA</p>
+                        </div>
+                        <div>
+                            <button class="chip active" data-payment-filter="all">Vše</button>
+                            <button class="chip" data-payment-filter="K">Karty</button>
+                            <button class="chip" data-payment-filter="H">Hotově</button>
+                        </div>
+                    </div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Objednávka</th>
+                                <th>Typ</th>
+                                <th>Částka</th>
+                                <th>Datum</th>
+                                <th>Stav</th>
+                            </tr>
+                            </thead>
+                            <tbody id="payments-table-body"></tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Struktura příjmů</h2>
+                        <div id="payment-stats"></div>
+                    </article>
+                    <article class="panel">
+                        <h2>Účtenky (UCTENKA)</h2>
+                        <ul id="receipt-list"></ul>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="records">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <h2>Archiv &amp; soubory</h2>
+                            <p>ARCHIV • SOUBOR</p>
+                        </div>
+                        <button class="logout-btn" id="upload-btn">Nahrát soubor</button>
+                    </div>
+                    <div id="folder-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>soubor</th>
+                                <th>typ</th>
+                                <th>archiv</th>
+                                <th>odpovědný</th>
+                                <th>aktualizováno</th>
+                            </tr>
+                            </thead>
+                            <tbody id="file-table-body"></tbody>
+                        </table>
+                    </div>
+                </article>
+
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Auditní log (LOG)</h2>
+                        <div id="log-timeline"></div>
+                    </article>
+                    <article class="panel">
+                        <h2>Komunikace (ZPRAVY)</h2>
+                        <div id="message-list"></div>
+                        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
+                        <h3>Push odběry (OHLASENY)</h3>
+                        <div id="subscriber-list"></div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="customer">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                        <div>
+                            <h2>Zákaznický výběr produktů</h2>
+                            <p>Filtrujte podle kategorií a přidejte položky do košíku.</p>
+                        </div>
+                        <div id="customer-category-chips"></div>
+                    </div>
+                    <div id="customer-product-grid" class="card-list" style="margin-top:12px;"></div>
+                </article>
+                <div class="two-column">
+                    <article class="panel">
+                        <h2>Můj košík</h2>
+                        <div id="customer-cart"></div>
+                    </article>
+                    <article class="panel">
+                        <h2>Doporučení</h2>
+                        <div id="customer-suggestions"></div>
+                    </article>
+                </div>
+            </section>
+        </div>
+    </div>
+</div>

@@ -1,30 +1,30 @@
 <script>
     let currentText = '';
 
-    // Автоматическое копирование при получении текста
+    // Automatické kopírování při přijetí textu
     function autoCopy(text) {
         currentText = text;
         document.getElementById('message').textContent = text;
 
         navigator.clipboard.writeText(text)
             .then(() => {
-                document.getElementById('copyStatus').textContent = '✓ Автоскопировано!';
-                setTimeout(() => window.close(), 1000); // Закрыть через 1 сек
+                document.getElementById('copyStatus').textContent = '✓ Automaticky zkopírováno!';
+                setTimeout(() => window.close(), 1000); // Zavřít po 1 s
             })
             .catch(err => {
-                document.getElementById('copyStatus').textContent = ' Автокопирование не удалось';
+                document.getElementById('copyStatus').textContent = ' Automatické kopírování selhalo';
                 console.error(err);
             });
     }
 
-    // Обработчик сообщений от Service Worker
+    // Zpracování zpráv od Service Workeru
     window.addEventListener('message', event => {
         if (event.data?.type === 'copy') {
             autoCopy(event.data.text);
         }
     });
 
-    // Обработчик параметров URL
+    // Zpracování parametru v URL
     window.addEventListener('load', () => {
         const param = new URLSearchParams(location.search).get('text');
         if (param) {
@@ -32,13 +32,13 @@
         }
     });
 
-    // Ручное копирование (на всякий случай)
+    // Ruční kopírování (pro jistotu)
     document.getElementById('copyBtn').addEventListener('click', async () => {
         try {
             await navigator.clipboard.writeText(currentText);
-            document.getElementById('copyStatus').textContent = 'Скопировано вручную!';
+            document.getElementById('copyStatus').textContent = 'Zkopírováno ručně!';
         } catch (err) {
-            document.getElementById('copyStatus').textContent = ' Ошибка копирования';
+            document.getElementById('copyStatus').textContent = ' Chyba kopírování';
             console.error(err);
         }
     });

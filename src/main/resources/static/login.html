@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>Вход | BDAS Supermarket</title>
+    <title>Přihlášení | BDAS Supermarket</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root {
@@ -136,22 +136,22 @@
 <body>
 <main class="auth-wrapper">
     <section class="card">
-        <h1>С возвращением!</h1>
-        <p class="subtitle">Используйте корпоративную почту и пароль. Если аккаунта ещё нет, сначала зарегистрируйтесь.</p>
+        <h1>Vítejte zpět!</h1>
+        <p class="subtitle">Použijte firemní e-mail a heslo. Pokud účet ještě nemáte, nejprve se registrujte.</p>
 
         <form id="login-form" novalidate>
             <div>
-                <label for="email">Email</label>
+                <label for="email">E-mail</label>
                 <input type="email" id="email" name="email" autocomplete="email" required placeholder="name@company.com">
             </div>
             <div>
-                <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" autocomplete="current-password" required placeholder="Ваш пароль">
+                <label for="password">Heslo</label>
+                <input type="password" id="password" name="password" autocomplete="current-password" required placeholder="Vaše heslo">
             </div>
-            <button type="submit" class="primary-btn">Войти</button>
+            <button type="submit" class="primary-btn">Přihlásit se</button>
         </form>
 
-        <p class="hint">Нет аккаунта? <a href="register.html">Создать</a></p>
+        <p class="hint">Nemáte ještě účet? <a href="register.html">Vytvořit</a></p>
         <p id="error-msg" class="form-msg" role="alert"></p>
     </section>
 </main>
@@ -170,7 +170,7 @@
         const password = loginForm.password.value;
 
         if (!email || !password) {
-            showMessage('Введите email и пароль', false);
+            showMessage('Zadejte prosím e-mail i heslo.', false);
             toggleForm(false);
             return;
         }
@@ -188,26 +188,26 @@
                 : {};
 
             if (!response.ok) {
-                throw new Error(data.message || 'Неверный email или пароль');
+                throw new Error(data.message || 'Nesprávný e-mail nebo heslo.');
             }
 
             if (!data.token) {
-                throw new Error('Сервер не вернул токен, обратитесь к администратору');
+                throw new Error('Server nevrátil token, kontaktujte administrátora.');
             }
 
             localStorage.setItem('token', data.token);
             localStorage.setItem('email', data.email || email);
-            localStorage.setItem('username', data.email || email); // для совместимости со старыми страницами
+            localStorage.setItem('username', data.email || email);
             localStorage.setItem('fullName', data.fullName || '');
             localStorage.setItem('role', data.role || '');
 
-            showMessage('Вход выполнен, перенаправляем...', true);
+            showMessage('Přihlášení proběhlo úspěšně, přesměrovávám…', true);
             setTimeout(() => {
                 window.location.href = 'index.html';
             }, 600);
         } catch (error) {
-            console.error('Ошибка входа:', error);
-            showMessage(error.message || 'Ошибка сети или сервера. Попробуйте позже.', false);
+            console.error('Chyba přihlášení:', error);
+            showMessage(error.message || 'Chyba serveru nebo sítě. Zkuste to prosím znovu.', false);
         } finally {
             toggleForm(false);
         }

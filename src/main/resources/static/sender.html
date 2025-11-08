@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="cs">
 <head><meta charset="UTF-8"><title>Sender</title></head>
 <body>
-<textarea id="msg" placeholder="Введите сообщение..."></textarea>
-<button id="send">Отправить</button>
+<textarea id="msg" placeholder="Zadejte zprávu..."></textarea>
+<button id="send">Odeslat</button>
 
 <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/stompjs/lib/stomp.min.js"></script>
@@ -17,7 +17,7 @@
 
     const currentUsername = localStorage.getItem("username");
     if (!token || !currentUsername) {
-        alert("Для использования приложения необходимо авторизоваться");
+        alert("Pro použití aplikace se prosím přihlaste.");
         window.location.href = '/login.html';
     }
 
@@ -28,7 +28,7 @@
     document.getElementById("send").onclick = () => {
         const content = document.getElementById("msg").value;
         client.send("/app/chat", { Authorization: "Bearer " + token }, JSON.stringify({ content, receiver }));
-        alert("Отправлено!");
+        alert("Odesláno!");
     };
 </script>
 </body>

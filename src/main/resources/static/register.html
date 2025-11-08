@@ -1,8 +1,8 @@
 <!DOCTYPE html>
-<html lang="ru">
+<html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>Регистрация | BDAS Supermarket</title>
+    <title>Registrace | BDAS Supermarket</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
         :root {
@@ -146,29 +146,29 @@
 <body>
 <main class="auth-wrapper">
     <section class="card">
-        <h1>Создание аккаунта</h1>
-        <p class="subtitle">Заполните данные, и мы сразу выдадим роль NEW_USER. После входа сможете продолжить работу в CRM.</p>
+        <h1>Vytvoření účtu</h1>
+        <p class="subtitle">Zadejte údaje, při registraci automaticky přiřadíme roli NEW_USER. Po přihlášení lze požádat o vyšší oprávnění.</p>
 
         <form id="register-form" novalidate>
             <div>
-                <label for="firstName">Имя</label>
-                <input type="text" id="firstName" name="firstName" maxlength="15" autocomplete="given-name" required placeholder="Например, Anna">
+                <label for="firstName">Jméno</label>
+                <input type="text" id="firstName" name="firstName" maxlength="15" autocomplete="given-name" required placeholder="Například Anna">
             </div>
             <div>
-                <label for="lastName">Фамилия</label>
-                <input type="text" id="lastName" name="lastName" maxlength="15" autocomplete="family-name" required placeholder="Например, Petrova">
+                <label for="lastName">Příjmení</label>
+                <input type="text" id="lastName" name="lastName" maxlength="15" autocomplete="family-name" required placeholder="Například Nováková">
             </div>
             <div>
-                <label for="email">Рабочая почта</label>
+                <label for="email">Firemní e-mail</label>
                 <input type="email" id="email" name="email" autocomplete="email" required placeholder="name@company.com">
             </div>
             <div>
-                <label for="password">Пароль</label>
-                <input type="password" id="password" name="password" minlength="6" autocomplete="new-password" required placeholder="Минимум 6 символов">
+                <label for="password">Heslo</label>
+                <input type="password" id="password" name="password" minlength="6" autocomplete="new-password" required placeholder="Minimálně 6 znaků">
             </div>
-            <button type="submit" class="primary-btn">Зарегистрироваться</button>
+            <button type="submit" class="primary-btn">Registrovat se</button>
         </form>
-        <p class="hint">Уже есть учётка? <a href="login.html">Войти</a></p>
+        <p class="hint">Už máte účet? <a href="login.html">Přihlásit se</a></p>
         <p id="register-msg" class="form-msg" role="alert"></p>
     </section>
 </main>
@@ -189,17 +189,17 @@
         messageEl.className = 'form-msg';
 
         if (!firstName || !lastName || !email || !password) {
-            showMessage('Пожалуйста, заполните все поля', false);
+            showMessage('Vyplňte prosím všechna pole.', false);
             return;
         }
 
         if (firstName.length > 15 || lastName.length > 15) {
-            showMessage('Имя и фамилия должны быть не длиннее 15 символов', false);
+            showMessage('Jméno i příjmení mohou mít maximálně 15 znaků.', false);
             return;
         }
 
         if (password.length < 6) {
-            showMessage('Пароль должен содержать минимум 6 символов', false);
+            showMessage('Heslo musí mít alespoň 6 znaků.', false);
             return;
         }
 
@@ -218,14 +218,14 @@
             const data = await response.json().catch(() => ({}));
 
             if (!response.ok) {
-                throw new Error(data.message || 'Регистрация не удалась');
+                throw new Error(data.message || 'Registrace se nezdařila.');
             }
 
             form.reset();
-            showMessage('Готово! Теперь можно войти, чтобы продолжить.', true);
+            showMessage('Hotovo! Nyní se můžete přihlásit a pokračovat.', true);
         } catch (error) {
-            console.error('Registration error:', error);
-            showMessage(error.message || 'Что-то пошло не так. Повторите попытку позже.', false);
+            console.error('Chyba registrace:', error);
+            showMessage(error.message || 'Něco se pokazilo. Zkuste to později.', false);
         } finally {
             toggleForm(false);
         }

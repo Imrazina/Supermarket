@@ -4,7 +4,7 @@ self.addEventListener('notificationclick', event => {
 
     event.waitUntil(
         (async () => {
-            // Пытаемся найти открытое окно copy.html
+            // Pokusíme se najít otevřené okno copy.html
             const allClients = await clients.matchAll({
                 type: 'window',
                 includeUncontrolled: true
@@ -13,14 +13,14 @@ self.addEventListener('notificationclick', event => {
             const copyClient = allClients.find(c => c.url.includes('/copy.html'));
 
             if (copyClient) {
-                // Отправляем текст в существующее окно
+                // Pošleme text do existujícího okna
                 copyClient.postMessage({
                     type: 'copy',
                     text: text
                 });
                 copyClient.focus();
             } else {
-                // Если окно не найдено, открываем новое
+                // Pokud okno neexistuje, otevřeme nové
                 await clients.openWindow(`/copy.html?text=${encodeURIComponent(text)}`);
             }
         })()
