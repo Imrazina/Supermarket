@@ -12,7 +12,7 @@ import lombok.*;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "DODAVATEL_ZBOZI")
+@Table(name = "ZBOZI_DODAVATEL")
 public class DodavatelZbozi {
 
     @EmbeddedId
@@ -20,11 +20,11 @@ public class DodavatelZbozi {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @MapsId("dodavatelId")
-    @JoinColumn(name = "DODAVATEL_ID_DODAVATEL", nullable = false)
+    @JoinColumn(name = "ID_UZIVATELU", nullable = false)
     private Dodavatel dodavatel;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @MapsId("zboziId")
-    @JoinColumn(name = "ZBOZI_ID_ZBOZI", nullable = false)
+    @JoinColumn(name = "ID_ZBOZI", nullable = false)
     private Zbozi zbozi;
 }

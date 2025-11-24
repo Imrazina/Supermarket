@@ -24,8 +24,11 @@ public class RegisterRequest {
     @NotBlank(message = "Email je povinný")
     private String email;
 
+    @NotBlank(message = "Telefon je povinný")
+    @Size(max = 20, message = "Telefon může mít maximálně 20 znaků")
+    private String phoneNumber;
+
     @NotBlank(message = "Heslo je povinné")
     @Size(min = 6, message = "Heslo musí mít alespoň 6 znaků")
     private String password;
 }
-

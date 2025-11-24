@@ -1,11 +1,10 @@
 package dreamteam.com.supermarket.model.user;
 
-import dreamteam.com.supermarket.model.location.Adresa;
 import jakarta.persistence.*;
 import lombok.*;
 
 /**
- * Entity for table ZAKAZNIK - represents a customer of the supermarket.
+ * Entity for table ZAKAZNIK - additional data for customer users.
  */
 @Entity
 @Data
@@ -16,15 +15,14 @@ import lombok.*;
 public class Zakaznik {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_zakaznik")
-    @SequenceGenerator(name = "seq_zakaznik", sequenceName = "ZAKAZNIK_SEQ", allocationSize = 1)
-    @Column(name = "ID_ZAKAZNIK")
-    private Long idZakaznik;
+    @Column(name = "ID_UZIVATELU")
+    private Long id;
 
-    @Column(name = "MOBILCISLO", nullable = false)
-    private Long mobilCislo;
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @MapsId
+    @JoinColumn(name = "ID_UZIVATELU")
+    private Uzivatel uzivatel;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ADRESA_ID_ADRESA")
-    private Adresa adresa;
+    @Column(name = "KARTAVERNOSTI", length = 20, unique = true)
+    private String kartaVernosti;
 }

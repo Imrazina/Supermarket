@@ -9,8 +9,6 @@ import lombok.*;
  */
 @Entity
 @Data
-@EqualsAndHashCode(exclude = "sklad")
-@ToString(exclude = "sklad")
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
@@ -19,24 +17,20 @@ public class Supermarket {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_supermarket")
-    @SequenceGenerator(name = "seq_supermarket", sequenceName = "SUPERMARKET_SEQ", allocationSize = 1)
+    @SequenceGenerator(name = "seq_supermarket", sequenceName = "SEQ_SUPERMARKET_ID", allocationSize = 1)
     @Column(name = "ID_SUPERMARKET")
     private Long idSupermarket;
 
     @Column(name = "NAZEV", nullable = false, unique = true, length = 100)
     private String nazev;
 
-    @Column(name = "TELEFON", nullable = false)
-    private Long telefon;
+    @Column(name = "TELEFON", nullable = false, length = 20)
+    private String telefon;
 
-    @Column(name = "EMAIL", nullable = false, length = 35)
+    @Column(name = "EMAIL", nullable = false, length = 255)
     private String email;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ADRESA_ID_ADRESA", nullable = false)
+    @JoinColumn(name = "ID_ADRESA", nullable = false)
     private Adresa adresa;
-
-    @OneToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "SKLAD_ID_SKLADU", nullable = false, unique = true)
-    private Sklad sklad;
 }

@@ -1,11 +1,10 @@
 package dreamteam.com.supermarket.controller;
 
-import dreamteam.com.supermarket.model.user.Ohlaseny;
-import dreamteam.com.supermarket.model.user.OhlasenyId;
+import dreamteam.com.supermarket.model.user.Notifikace;
 import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.model.user.Zpravy;
 import dreamteam.com.supermarket.repository.MessageRepository;
-import dreamteam.com.supermarket.repository.OhlasenyRepository;
+import dreamteam.com.supermarket.repository.NotifikaceRepository;
 import dreamteam.com.supermarket.repository.UzivatelRepository;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
@@ -24,7 +23,7 @@ public class PushSubscriptionController {
     private static final String SUBSCRIPTION_MARKER = "__PUSH_SUBSCRIPTION__";
 
     @Autowired
-    private OhlasenyRepository ohlasenyRepository;
+    private NotifikaceRepository notifikaceRepository;
 
     @Autowired
     private UzivatelRepository uzivatelRepository;
@@ -53,31 +52,31 @@ public class PushSubscriptionController {
         Uzivatel user = uzivatelRepository.findByEmail(email)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
 
-        Zpravy envelope = messageRepository.findFirstByOwnerAndContent(user, SUBSCRIPTION_MARKER)
+        Zpravy envelope = messageRepository
+                .findFirstBySenderAndReceiverAndContent(user, user, SUBSCRIPTION_MARKER)
                 .orElseGet(() -> messageRepository.save(
                         Zpravy.builder()
                                 .sender(user)
                                 .receiver(user)
-                                .owner(user)
                                 .content(SUBSCRIPTION_MARKER)
-                                .createdAt(LocalDateTime.now())
+                                .datumZasilani(LocalDateTime.now())
                                 .build()
                 ));
 
-        Ohlaseny subscription = ohlasenyRepository.findByZpravyOwner(user)
-                .orElseGet(() -> Ohlaseny.builder()
-                        .id(new OhlasenyId(user.getIdUzivatelu(), envelope.getId()))
-                        .zpravy(envelope)
-                        .build());
+        Notifikace subscription = notifikaceRepository.findByAdresat(user.getEmail())
+                .orElseGet(() -> {
+                    Notifikace notif = new Notifikace();
+                    notif.setZprava(envelope);
+                    return notif;
+                });
 
-        subscription.setKonecovyBod(endpoint);
+        subscription.setZprava(envelope);
+        subscription.setAdresat(user.getEmail());
+        subscription.setEndPoint(endpoint);
         subscription.setAuthToken(auth);
         subscription.setP256dh(p256dh);
-        subscription.setArdesat(String.valueOf(request.getOrDefault("label", user.getEmail())));
-        subscription.setZpravy(envelope);
-        subscription.setId(new OhlasenyId(user.getIdUzivatelu(), envelope.getId()));
 
-        ohlasenyRepository.save(subscription);
+        notifikaceRepository.save(subscription);
         return ResponseEntity.ok().build();
     }
 }

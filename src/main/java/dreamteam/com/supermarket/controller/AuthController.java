@@ -52,9 +52,14 @@ public class AuthController {
         String email = request.getEmail().trim().toLowerCase();
         String firstName = request.getFirstName().trim();
         String lastName = request.getLastName().trim();
+        String phoneNumber = request.getPhoneNumber().trim();
 
         if (uzivatelRepository.findByEmail(email).isPresent()) {
             return ResponseEntity.badRequest().body(Map.of("message", "Email already registered"));
+        }
+
+        if (uzivatelRepository.findByTelefonniCislo(phoneNumber).isPresent()) {
+            return ResponseEntity.badRequest().body(Map.of("message", "Phone already registered"));
         }
 
         Role role = resolveDefaultRole();
@@ -63,6 +68,7 @@ public class AuthController {
                 .jmeno(firstName)
                 .prijmeni(lastName)
                 .email(email)
+                .telefonniCislo(phoneNumber)
                 .heslo(passwordEncoder.encode(request.getPassword()))
                 .role(role)
                 .build();
@@ -71,7 +77,7 @@ public class AuthController {
         return ResponseEntity.ok(Map.of(
                 "message", "User registered successfully",
                 "email", savedUser.getEmail(),
-                "role", savedUser.getRole().getNazevRole()
+                "role", savedUser.getRole().getNazev()
         ));
     }
 
@@ -91,12 +97,12 @@ public class AuthController {
                 "token", token,
                 "email", uzivatel.getEmail(),
                 "fullName", uzivatel.getJmeno() + " " + uzivatel.getPrijmeni(),
-                "role", uzivatel.getRole().getNazevRole()
+                "role", uzivatel.getRole().getNazev()
         ));
     }
 
     private Role resolveDefaultRole() {
-        return roleRepository.findByNazevRole(DEFAULT_ROLE_NAME)
-                .orElseGet(() -> roleRepository.save(Role.builder().nazevRole(DEFAULT_ROLE_NAME).build()));
+        return roleRepository.findByNazev(DEFAULT_ROLE_NAME)
+                .orElseGet(() -> roleRepository.save(Role.builder().nazev(DEFAULT_ROLE_NAME).build()));
     }
 }

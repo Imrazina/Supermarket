@@ -1,9 +1,9 @@
 package dreamteam.com.supermarket.model.market;
 
-import dreamteam.com.supermarket.model.user.Dodavatel;
-import dreamteam.com.supermarket.model.user.Zakaznik;
+import dreamteam.com.supermarket.model.user.Uzivatel;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 /**
@@ -19,34 +19,30 @@ public class Objednavka {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_objednavka")
-    @SequenceGenerator(name = "seq_objednavka", sequenceName = "OBJEDBAVKY_SEQ", allocationSize = 1)
-    @Column(name = "ID_OBJEDNAVKY")
-    private Long idObjednavky;
+    @SequenceGenerator(name = "seq_objednavka", sequenceName = "SEQ_OBJEDNAVKA_ID", allocationSize = 1)
+    @Column(name = "ID_OBJEDNAVKA")
+    private Long idObjednavka;
 
     @Column(name = "DATUM", nullable = false)
     private LocalDateTime datum;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "OBJEDNAVKA_STATUS_ID_STATUSU")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "ID_STATUS", nullable = false)
     private ObjednavkaStatus status;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "ZAKAZNIK_ID_ZAKAZNIK", nullable = false)
-    private Zakaznik zakaznik;
+    @JoinColumn(name = "ID_UZIVATEL", nullable = false)
+    private Uzivatel uzivatel;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "SUPERMARKET_ID_SUPERMARKET", nullable = false)
+    @JoinColumn(name = "ID_SUPERMARKET", nullable = false)
     private Supermarket supermarket;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "DODAVATEL_ID_DODAVATEL", nullable = false)
-    private Dodavatel dodavatel;
 
     @Lob
     @Column(name = "POZNAMKA")
     private String poznamka;
 
-    @Column(name = "TYP_OBJEDNAVKY", nullable = false, length = 50)
+    @Column(name = "TYP_OBJEDNAVKA", nullable = false, length = 50)
     private String typObjednavka;
 
     @PrePersist

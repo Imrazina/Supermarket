@@ -19,14 +19,14 @@ public class ObjednavkaZbozi {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @MapsId("objednavkaId")
-    @JoinColumn(name = "OBJEDNAVKA_ID_OBJEDNAVKY", nullable = false)
+    @JoinColumn(name = "ID_OBJEDNAVKA", nullable = false)
     private Objednavka objednavka;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @MapsId("zboziId")
-    @JoinColumn(name = "ZBOZI_ID_ZBOZI", nullable = false)
+    @JoinColumn(name = "ID_ZBOZI", nullable = false)
     private Zbozi zbozi;
 
-    @Column(name = "POCET")
+    @Column(name = "POCET", nullable = false)
     private Integer pocet;
 }

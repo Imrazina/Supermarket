@@ -15,7 +15,7 @@ public class Archiv {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_archiv")
-    @SequenceGenerator(name = "seq_archiv", sequenceName = "ARCHIV_SEQ", allocationSize = 1)
+    @SequenceGenerator(name = "seq_archiv", sequenceName = "SEQ_ARCHIV_ID", allocationSize = 1)
     @Column(name = "ID_ARCHIV")
     private Long idArchiv;
 

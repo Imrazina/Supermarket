@@ -4,7 +4,7 @@ import dreamteam.com.supermarket.Service.PushNotificationService;
 import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.model.user.Zpravy;
 import dreamteam.com.supermarket.repository.MessageRepository;
-import dreamteam.com.supermarket.repository.OhlasenyRepository;
+import dreamteam.com.supermarket.repository.NotifikaceRepository;
 import dreamteam.com.supermarket.repository.UzivatelRepository;
 import nl.martijndwars.webpush.Subscription;
 import org.slf4j.Logger;
@@ -24,16 +24,16 @@ public class ChatController {
 
     private final UzivatelRepository uzivatelRepository;
     private final MessageRepository messageRepository;
-    private final OhlasenyRepository ohlasenyRepository;
+    private final NotifikaceRepository notifikaceRepository;
     private final PushNotificationService pushNotificationService;
 
     public ChatController(UzivatelRepository uzivatelRepository,
                           MessageRepository messageRepository,
-                          OhlasenyRepository ohlasenyRepository,
+                          NotifikaceRepository notifikaceRepository,
                           PushNotificationService pushNotificationService) {
         this.uzivatelRepository = uzivatelRepository;
         this.messageRepository = messageRepository;
-        this.ohlasenyRepository = ohlasenyRepository;
+        this.notifikaceRepository = notifikaceRepository;
         this.pushNotificationService = pushNotificationService;
     }
 
@@ -56,22 +56,22 @@ public class ChatController {
 
         String receiverEmail = payload.get("receiver");
         logger.info(" Receiver from payload: {}", receiverEmail);
-        Uzivatel receiver = null;
-        if (receiverEmail != null && !receiverEmail.isEmpty()) {
-            receiver = uzivatelRepository.findByEmail(receiverEmail)
-                    .orElseThrow(() -> {
-                        logger.error(" Receiver not found in DB: {}", receiverEmail);
-                        return new RuntimeException("Receiver not found");
-                    });
-            logger.info(" Receiver loaded from DB: {}", receiver.getEmail());
-        }
+        boolean hasExplicitReceiver = receiverEmail != null && !receiverEmail.isEmpty();
+        Uzivatel receiver = hasExplicitReceiver
+                ? uzivatelRepository.findByEmail(receiverEmail)
+                .orElseThrow(() -> {
+                    logger.error(" Receiver not found in DB: {}", receiverEmail);
+                    return new RuntimeException("Receiver not found");
+                })
+                : sender;
+
+        logger.info(" Receiver resolved to: {}", receiver.getEmail());
 
         Zpravy message = new Zpravy();
         message.setSender(sender);
         message.setReceiver(receiver);
         message.setContent(payload.get("content"));
-        message.setCreatedAt(LocalDateTime.now());
-        message.setOwner(receiver != null ? receiver : sender);
+        message.setDatumZasilani(LocalDateTime.now());
 
         try {
             message = messageRepository.save(message);
@@ -81,16 +81,16 @@ public class ChatController {
             throw e;
         }
 
-        if (receiver != null) {
+        if (hasExplicitReceiver) {
             final Uzivatel finalReceiver = receiver;
             final Uzivatel finalSender = sender;
             final Zpravy finalMessage = message;
 
-            ohlasenyRepository.findByZpravyOwner(finalReceiver)
+            notifikaceRepository.findByAdresat(finalReceiver.getEmail())
                     .ifPresent(subscriptionEntity -> {
                         try {
                             Subscription subscription = new Subscription(
-                                    subscriptionEntity.getKonecovyBod(),
+                                    subscriptionEntity.getEndPoint(),
                                     new Subscription.Keys(
                                             subscriptionEntity.getP256dh(),
                                             subscriptionEntity.getAuthToken()

@@ -16,8 +16,8 @@ import java.time.LocalDateTime;
 public class Log {
 
     @Id
-  //  @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_log")
- //   @SequenceGenerator(name = "seq_log", sequenceName = "LOG_SEQ", allocationSize = 1)
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_log")
+    @SequenceGenerator(name = "seq_log", sequenceName = "SEQ_LOG_ID", allocationSize = 1)
     @Column(name = "ID_LOG")
     private Long idLog;
 
@@ -28,12 +28,12 @@ public class Log {
     private String operace;
 
     @Lob
-    @Column(name = "OLDDATA")
-    private String oldData;
+    @Column(name = "STARADATA")
+    private String staraData;
 
     @Lob
-    @Column(name = "NEWDATA", nullable = false)
-    private String newData;
+    @Column(name = "NOVADATA")
+    private String novaData;
 
     @Column(name = "DATUMZMENY", nullable = false)
     private LocalDateTime datumZmeny;
@@ -41,12 +41,13 @@ public class Log {
     @Column(name = "IDREKORD", nullable = false, length = 100)
     private String idRekord;
 
-    @Column(name = "KOHOZMENA", nullable = false)
-    private Long kohoZmena;
-
     @Lob
     @Column(name = "POPIS")
     private String popis;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "ID_ARCHIV", nullable = false)
+    private Archiv archiv;
 
     @PrePersist
     protected void onCreate() {

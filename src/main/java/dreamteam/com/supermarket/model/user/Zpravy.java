@@ -5,20 +5,20 @@ import lombok.*;
 import java.time.LocalDateTime;
 
 /**
- * Entity for table ZPRAVY – internal messages between users.
+ * Entity for table ZPRAVA – internal messages between users.
  */
 @Entity
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "ZPRAVY")
+@Table(name = "ZPRAVA")
 public class Zpravy {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_zpravy")
-    @SequenceGenerator(name = "seq_zpravy", sequenceName = "ZPRAVY_SEQ", allocationSize = 1)
-    @Column(name = "ID_ZPRAVY")
+    @SequenceGenerator(name = "seq_zpravy", sequenceName = "SEQ_ZPRAVA_ID", allocationSize = 1)
+    @Column(name = "ID_ZPRAVA")
     private Long id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -33,20 +33,13 @@ public class Zpravy {
     @Column(name = "ZPRAVA", nullable = false)
     private String content;
 
-    @Column(name = "DATAZASILANI", nullable = false)
-    private LocalDateTime createdAt;
-
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "UZIVATEL_ID_UZIVATELU", nullable = false)
-    private Uzivatel owner;
+    @Column(name = "DATUMZASILANI", nullable = false)
+    private LocalDateTime datumZasilani;
 
     @PrePersist
     protected void onCreate() {
-        if (createdAt == null) {
-            createdAt = LocalDateTime.now();
-        }
-        if (owner == null) {
-            owner = sender;
+        if (datumZasilani == null) {
+            datumZasilani = LocalDateTime.now();
         }
     }
 }

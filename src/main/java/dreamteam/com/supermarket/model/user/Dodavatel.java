@@ -4,7 +4,7 @@ import jakarta.persistence.*;
 import lombok.*;
 
 /**
- * Entity for table DODAVATEL - represents suppliers of goods.
+ * Entity for table DODAVATEL - supplier specific data linked to a user.
  */
 @Entity
 @Data
@@ -15,20 +15,14 @@ import lombok.*;
 public class Dodavatel {
 
     @Id
-    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_dodavatel")
-    @SequenceGenerator(name = "seq_dodavatel", sequenceName = "DODAVATEL_SEQ", allocationSize = 1)
-    @Column(name = "ID_DODAVATEL")
-    private Long idDodavatel;
+    @Column(name = "ID_UZIVATELU")
+    private Long id;
 
-    @Column(name = "NAZEV", nullable = false, length = 33, unique = true)
-    private String nazev;
+    @OneToOne(fetch = FetchType.LAZY, optional = false)
+    @MapsId
+    @JoinColumn(name = "ID_UZIVATELU")
+    private Uzivatel uzivatel;
 
-    @Column(name = "KONTAKTNIOSOBA", nullable = false, length = 111)
-    private String kontaktniOsoba;
-
-    @Column(name = "TELEFON", nullable = false)
-    private Long telefon;
-
-    @Column(name = "EMAIL", nullable = false, length = 111)
-    private String email;
+    @Column(name = "FIRMA", nullable = false, length = 100, unique = true)
+    private String firma;
 }

@@ -1,7 +1,9 @@
 package dreamteam.com.supermarket.model;
 
+import dreamteam.com.supermarket.model.user.Zamestnanec;
 import jakarta.persistence.*;
 import lombok.*;
+
 import java.time.LocalDateTime;
 
 /**
@@ -17,8 +19,8 @@ public class Soubor {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_soubor")
-    @SequenceGenerator(name = "seq_soubor", sequenceName = "SOUBOR_SEQ", allocationSize = 1)
-    @Column(name = "ID_SOUBORU")
+    @SequenceGenerator(name = "seq_soubor", sequenceName = "SEQ_SOUBOR_ID", allocationSize = 1)
+    @Column(name = "ID_SOUBOR")
     private Long idSoubor;
 
     @Column(name = "NAZEV", nullable = false, length = 55)
@@ -40,26 +42,29 @@ public class Soubor {
     @Column(name = "DATUMMODIFIKACE", nullable = false)
     private LocalDateTime datumModifikace;
 
-    @Column(name = "KDOUDELAL", nullable = false, length = 15)
-    private String kdoUdelal;
-
     @Lob
     @Column(name = "POPIS")
     private String popis;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "ARCHIV_ID_ARCHIV")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "ID_UZIVATELU", nullable = false)
+    private Zamestnanec vlastnik;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "ID_ARCHIV", nullable = false)
     private Archiv archiv;
 
     @PrePersist
     protected void onCreate() {
         LocalDateTime now = LocalDateTime.now();
-        this.datumNahrani = now;
-        this.datumModifikace = now;
+        if (datumNahrani == null) {
+            datumNahrani = now;
+        }
+        datumModifikace = now;
     }
 
     @PreUpdate
     protected void onUpdate() {
-        this.datumModifikace = LocalDateTime.now();
+        datumModifikace = LocalDateTime.now();
     }
 }

@@ -9,5 +9,5 @@ import java.util.Optional;
 
 @Repository
 public interface MessageRepository extends JpaRepository<Zpravy, Long> {
-    Optional<Zpravy> findFirstByOwnerAndContent(Uzivatel owner, String content);
+    Optional<Zpravy> findFirstBySenderAndReceiverAndContent(Uzivatel sender, Uzivatel receiver, String content);
 }

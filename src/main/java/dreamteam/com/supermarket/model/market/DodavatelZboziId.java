@@ -10,9 +10,9 @@ import java.io.Serializable;
 @AllArgsConstructor
 public class DodavatelZboziId implements Serializable {
 
-    @Column(name = "DODAVATEL_ID_DODAVATEL")
+    @Column(name = "ID_UZIVATELU")
     private Long dodavatelId;
 
-    @Column(name = "ZBOZI_ID_ZBOZI")
+    @Column(name = "ID_ZBOZI")
     private Long zboziId;
 }

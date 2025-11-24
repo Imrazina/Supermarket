@@ -4,21 +4,21 @@ import jakarta.persistence.*;
 import lombok.*;
 
 /**
- * Entity for table OBJEDNAVKA_STATUS - defines allowed order states.
+ * Entity for table STATUS - defines allowed order states.
  */
 @Entity
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Table(name = "OBJEDNAVKA_STATUS")
+@Table(name = "STATUS")
 public class ObjednavkaStatus {
 
     @Id
-   // @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_objednavka_status")
-  //  @SequenceGenerator(name = "seq_objednavka_status", sequenceName = "OBJEDNAVKA_STATUS_SEQ", allocationSize = 1)
-    @Column(name = "ID_STATUSU")
-    private Long idStatusu;
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_status")
+    @SequenceGenerator(name = "seq_status", sequenceName = "SEQ_STATUS_ID", allocationSize = 1)
+    @Column(name = "ID_STATUS")
+    private Long idStatus;
 
     @Column(name = "NAZEV", nullable = false, length = 66)
     private String nazev;

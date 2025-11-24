@@ -17,7 +17,7 @@ public class Zbozi {
 
     @Id
     @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "seq_zbozi")
-    @SequenceGenerator(name = "seq_zbozi", sequenceName = "ZBOZI_SEQ", allocationSize = 1)
+    @SequenceGenerator(name = "seq_zbozi", sequenceName = "SEQ_ZBOZI_ID", allocationSize = 1)
     @Column(name = "ID_ZBOZI")
     private Long idZbozi;
 
@@ -37,18 +37,11 @@ public class Zbozi {
     @Column(name = "POPIS")
     private String popis;
 
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "SKLAD_ID_SKLADU")
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "SKLAD_ID_SKLAD", nullable = false)
     private Sklad sklad;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "KATEGORIE_ZBOZI_ID_KATEGORIE", nullable = false)
+    @JoinColumn(name = "ID_KATEGORIE", nullable = false)
     private KategorieZbozi kategorie;
-
-    @Column(name = "PULT_ID_PULTU")
-    private Long pultId;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "SUPERMARKET_ID_SUPERMARKET")
-    private Supermarket supermarket;
 }

@@ -163,6 +163,10 @@
                 <input type="email" id="email" name="email" autocomplete="email" required placeholder="name@company.com">
             </div>
             <div>
+                <label for="phoneNumber">Telefonní číslo</label>
+                <input type="tel" id="phoneNumber" name="phoneNumber" maxlength="20" autocomplete="tel" required placeholder="+420 700 123 456">
+            </div>
+            <div>
                 <label for="password">Heslo</label>
                 <input type="password" id="password" name="password" minlength="6" autocomplete="new-password" required placeholder="Minimálně 6 znaků">
             </div>
@@ -183,18 +187,24 @@
         const firstName = form.firstName.value.trim();
         const lastName = form.lastName.value.trim();
         const email = form.email.value.trim().toLowerCase();
+        const phoneNumber = form.phoneNumber.value.trim();
         const password = form.password.value;
 
         messageEl.textContent = '';
         messageEl.className = 'form-msg';
 
-        if (!firstName || !lastName || !email || !password) {
+        if (!firstName || !lastName || !email || !phoneNumber || !password) {
             showMessage('Vyplňte prosím všechna pole.', false);
             return;
         }
 
         if (firstName.length > 15 || lastName.length > 15) {
             showMessage('Jméno i příjmení mohou mít maximálně 15 znaků.', false);
+            return;
+        }
+
+        if (phoneNumber.length > 20) {
+            showMessage('Telefon může mít maximálně 20 znaků.', false);
             return;
         }
 
@@ -212,7 +222,7 @@
                     'Content-Type': 'application/json',
                     'Accept': 'application/json'
                 },
-                body: JSON.stringify({ firstName, lastName, email, password })
+                body: JSON.stringify({ firstName, lastName, email, phoneNumber, password })
             });
 
             const data = await response.json().catch(() => ({}));

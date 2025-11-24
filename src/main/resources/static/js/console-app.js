@@ -4,6 +4,63 @@ const currencyFormatter = new Intl.NumberFormat('cs-CZ', {
     maximumFractionDigits: 0
 });
 
+function createEmptyData() {
+    return {
+        syncUpdatedAt: "",
+        weeklyDemand: [],
+        inventory: [],
+        categories: [],
+        warehouses: [],
+        orders: [],
+        orderItems: [],
+        statuses: [],
+        employees: [],
+        customers: [],
+        suppliers: [],
+        roles: [],
+        addresses: [],
+        payments: [],
+        logs: [],
+        messages: [],
+        subscribers: [],
+        stores: [],
+        folders: [],
+        customerProducts: [],
+        customerSuggestions: [],
+
+        profile: {
+            fullName: "",
+            position: "",
+            email: "",
+            phone: "",
+            location: "",
+            timezone: "",
+            lastLogin: "",
+            storesOwned: 0,
+            approvals: 0,
+            escalations: 0,
+            automations: 0,
+            permissions: [],
+
+            preferences: {
+                language: "",
+                theme: "",
+                notifications: "",
+                weeklyDigest: false
+            },
+
+            security: {
+                mfa: "",
+                devices: "",
+                lastIp: ""
+            },
+
+            activity: []
+        }
+    };
+}
+
+
 const state = {
     activeView: 'dashboard',
     inventoryFilter: 'all',
@@ -12,195 +69,70 @@ const state = {
     selectedFolder: null,
     customerCategoryFilter: 'all',
     customerCart: [],
-    data: {
-        syncUpdatedAt: '2024-11-10 06:45',
-        weeklyDemand: [
-            { label: 'Po', value: 920 },
-            { label: 'Út', value: 860 },
-            { label: 'St', value: 1040 },
-            { label: 'Čt', value: 780 },
-            { label: 'Pá', value: 1260 },
-            { label: 'So', value: 1420 },
-            { label: 'Ne', value: 1180 }
-        ],
-        inventory: [
-            { sku: 'SKU-70423', name: 'Organická jablka Pink Lady', category: 'Čerstvé produkty', warehouse: 'CZ-PRG1', supermarket: 'Praha Anděl', supplier: 'Farma Liška', stock: 860, minStock: 200, leadTime: '24 h', status: 'ok' },
-            { sku: 'SKU-18590', name: 'Bio kefír 1 l', category: 'Mléčné výrobky', warehouse: 'CZ-BRN2', supermarket: 'Brno Olympia', supplier: 'Madeta', stock: 140, minStock: 180, leadTime: '48 h', status: 'critical' },
-            { sku: 'SKU-90011', name: 'Káva BDAS Signature 500 g', category: 'Nápoje', warehouse: 'CZ-OST2', supermarket: 'Ostrava Avion', supplier: 'BDAS Roast Lab', stock: 92, minStock: 80, leadTime: '72 h', status: 'ok' },
-            { sku: 'SKU-66770', name: 'Bezlepkový chléb 700 g', category: 'Pečivo', warehouse: 'CZ-PRG1', supermarket: 'Praha Anděl', supplier: 'BezLepek s.r.o.', stock: 45, minStock: 90, leadTime: '36 h', status: 'critical' },
-            { sku: 'SKU-50888', name: 'Kompostovatelné pytle 30 l', category: 'Non-Food', warehouse: 'CZ-OST2', supermarket: 'Ostrava Avion', supplier: 'EcoPack', stock: 1650, minStock: 400, leadTime: '96 h', status: 'ok' },
-            { sku: 'SKU-40220', name: 'Český lipový med 450 g', category: 'Delikatesy', warehouse: 'CZ-BRN2', supermarket: 'Brno Olympia', supplier: 'Med.cz', stock: 260, minStock: 120, leadTime: '72 h', status: 'ok' },
-            { sku: 'SKU-30010', name: 'Lososí filet chlazený', category: 'Čerstvé produkty', warehouse: 'CZ-PRG1', supermarket: 'Praha Anděl', supplier: 'Nordic Sea', stock: 180, minStock: 120, leadTime: '24 h', status: 'notice' }
-        ],
-        categories: [
-            { name: 'Čerstvé produkty', assortment: 112, turnover: '+12 %', manager: 'Filip Janda' },
-            { name: 'Mléčné výrobky', assortment: 38, turnover: '+4 %', manager: 'Eva Cerná' },
-            { name: 'Non-Food', assortment: 57, turnover: '+18 %', manager: 'Veronika Slámová' },
-            { name: 'Delikatesy', assortment: 24, turnover: '+7 %', manager: 'Adam Kovář' }
-        ],
-        warehouses: [
-            { id: 'CZ-PRG1', name: 'Praha Anděl Darkstore', capacity: 120000, used: 78, contact: '+420 600 123 456' },
-            { id: 'CZ-BRN2', name: 'Brno Olympia Hub', capacity: 90000, used: 66, contact: '+420 720 333 210' },
-            { id: 'CZ-OST2', name: 'Ostrava Fulfillment', capacity: 75000, used: 82, contact: '+420 700 555 011' }
-        ],
-        orders: [
-            { id: 'PO-45078', type: 'B2B', store: 'Praha Anděl', employee: 'Marek Havel', supplier: 'Danone CZ', status: 'Na cestě', statusCode: 'IN_TRANSIT', date: '2024-11-08T10:30', amount: 412500, priority: 'high' },
-            { id: 'PO-45079', type: 'Click&Collect', store: 'Brno Olympia', employee: 'Lenka Kubová', supplier: 'FreshBox', status: 'Kompletace', statusCode: 'PICKING', date: '2024-11-09T08:00', amount: 18540, priority: 'medium' },
-            { id: 'PO-45060', type: 'Transfer', store: 'Ostrava Avion', employee: 'Jan Mareš', supplier: 'Internal', status: 'Příjem', statusCode: 'INBOUND', date: '2024-11-07T14:45', amount: 95680, priority: 'medium' },
-            { id: 'PO-44998', type: 'B2B', store: 'Plzeň Bory', employee: 'Iveta Malá', supplier: 'Nestlé CZ', status: 'Uzavřeno', statusCode: 'DONE', date: '2024-11-05T09:10', amount: 288900, priority: 'low' },
-            { id: 'PO-45082', type: 'Delivery', store: 'Praha Anděl', employee: 'Marek Havel', supplier: 'Nordic Sea', status: 'Čeká na platbu', statusCode: 'PENDING_PAYMENT', date: '2024-11-10T07:55', amount: 122200, priority: 'high' }
-        ],
-        orderItems: [
-            { orderId: 'PO-45078', sku: 'SKU-70423', name: 'Organická jablka', qty: 480, price: 86 },
-            { orderId: 'PO-45078', sku: 'SKU-18590', name: 'Bio kefír 1 l', qty: 300, price: 45 },
-            { orderId: 'PO-45079', sku: 'SKU-66770', name: 'Bezlepkový chléb', qty: 80, price: 52 },
-            { orderId: 'PO-45060', sku: 'SKU-50888', name: 'Pytle 30 l', qty: 1200, price: 8 },
-            { orderId: 'PO-45082', sku: 'SKU-30010', name: 'Lososí filet', qty: 90, price: 340 }
-        ],
-        statuses: [
-            { code: 'NEW', label: 'Nová', count: 3 },
-            { code: 'PICKING', label: 'Kompletace', count: 4 },
-            { code: 'IN_TRANSIT', label: 'Na cestě', count: 5 },
-            { code: 'INBOUND', label: 'Příjem', count: 2 },
-            { code: 'DONE', label: 'Uzavřeno', count: 12 },
-            { code: 'PENDING_PAYMENT', label: 'Čeká na platbu', count: 1 }
-        ],
-        employees: [
-            { id: 'EMP-041', name: 'Marek Havel', position: 'Specialista nákupu', start: '2021-03-01', mzda: 42000, phone: '+420 700 123 456', role: 'BUYER' },
-            { id: 'EMP-017', name: 'Lenka Kubová', position: 'Vedoucí prodejny', start: '2019-11-14', mzda: 51000, phone: '+420 720 321 100', role: 'STORE_MANAGER' },
-            { id: 'EMP-055', name: 'Jan Mareš', position: 'Logistik skladu', start: '2022-05-09', mzda: 36000, phone: '+420 730 440 880', role: 'LOGISTICS' },
-            { id: 'EMP-012', name: 'Iveta Malá', position: 'Finanční kontrolor', start: '2018-02-19', mzda: 61000, phone: '+420 604 545 901', role: 'FINANCE' }
-        ],
-        customers: [
-            { id: 'CST-1001', name: 'Štěpán Novák', loyalty: 'CZ-9930-11', email: 'stepan@novak.cz', phone: '+420 777 222 111' },
-            { id: 'CST-1002', name: 'Alena Vavřínová', loyalty: 'CZ-7742-03', email: 'alena@vavrin.cz', phone: '+420 605 555 666' },
-            { id: 'CST-1003', name: 'Roman Kříž', loyalty: null, email: 'roman.kriz@gmail.com', phone: '+420 608 910 222' }
-        ],
-        suppliers: [
-            { id: 'SUP-01', company: 'Danone CZ', contact: 'Polská 54, Praha', phone: '+420 234 620 111', rating: 'A' },
-            { id: 'SUP-02', company: 'Nordic Sea', contact: 'Havnevej 12, DK', phone: '+45 90 22 11 00', rating: 'A' },
-            { id: 'SUP-03', company: 'EcoPack', contact: 'U Plynárny 10, Ostrava', phone: '+420 590 300 900', rating: 'B' }
-        ],
-        roles: [
-            { name: 'ADMIN', description: 'Plný přístup', count: 3 },
-            { name: 'BUYER', description: 'Nákup a dodávky', count: 6 },
-            { name: 'STORE_MANAGER', description: 'Provoz prodejen', count: 9 },
-            { name: 'FINANCE', description: 'Finance a reporting', count: 4 },
-            { name: 'NEW_USER', description: 'Omezené zobrazení', count: 18 }
-        ],
-        addresses: [
-            { store: 'Praha Anděl', city: 'Praha 5', street: 'Stroupežnického 3191/17', zip: '15000', kraj: 'Hlavní město Praha' },
-            { store: 'Brno Olympia', city: 'Brno', street: 'U Dálnice 777', zip: '66442', kraj: 'Jihomoravský' },
-            { store: 'Ostrava Avion', city: 'Ostrava', street: 'Rudná 114/3114', zip: '70030', kraj: 'Moravskoslezský' },
-            { store: 'Plzeň Bory', city: 'Plzeň', street: 'U Letiště 1074/2', zip: '30100', kraj: 'Plzeňský' }
-        ],
-        payments: [
-            { id: 'PMT-98761', orderId: 'PO-45079', type: 'K', method: 'VISA 5241', amount: 18540, date: '2024-11-09', status: 'Zpracováno', receipt: true },
-            { id: 'PMT-98762', orderId: 'PO-45078', type: 'K', method: 'Mastercard 8870', amount: 412500, date: '2024-11-08', status: 'Zpracováno', receipt: true },
-            { id: 'PMT-98763', orderId: 'PO-45060', type: 'H', method: 'Pokladna CZ-OST2', amount: 95680, date: '2024-11-07', status: 'Potvrzuje se', receipt: false },
-            { id: 'PMT-98764', orderId: 'PO-45082', type: 'K', method: 'VISA 3310', amount: 122200, date: '2024-11-10', status: 'Čeká', receipt: false },
-            { id: 'PMT-98765', orderId: 'PO-44998', type: 'K', method: 'Amex 6001', amount: 288900, date: '2024-11-05', status: 'Zpracováno', receipt: true },
-            { id: 'PMT-98766', orderId: 'PO-44950', type: 'H', method: 'Pokladna CZ-PRG1', amount: 48200, date: '2024-11-04', status: 'Zpracováno', receipt: true }
-        ],
-        logs: [
-            { table: 'OBJEDNAVKA', operation: 'UPDATE', user: 'system', timestamp: '2024-11-10 07:55', descr: 'Status PO-45082 → PENDING_PAYMENT' },
-            { table: 'ZBOZI', operation: 'INSERT', user: 'marek.havel', timestamp: '2024-11-09 18:20', descr: 'Přidán SKU-40220' },
-            { table: 'PLATBA', operation: 'UPDATE', user: 'iveta.mala', timestamp: '2024-11-08 09:40', descr: 'Potvrzen PMT-98763' },
-            { table: 'SOUBOR', operation: 'DELETE', user: 'lenka.kubova', timestamp: '2024-11-07 16:02', descr: 'Smazán starý ceník' }
-        ],
-        messages: [
-            { sender: 'Filip Janda', receiver: 'Marek Havel', preview: 'Kontroloval jsem ovoce, vše dorazilo…', date: '10.11 09:12' },
-            { sender: 'Iveta Malá', receiver: 'Finance Team', preview: 'Objednávka PO-45082 čeká na ověření platby.', date: '10.11 08:30' },
-            { sender: 'PushBot', receiver: 'All', preview: 'Push odběry byly úspěšně rozeslány.', date: '09.11 17:00' }
-        ],
-        subscribers: [
-            { endpoint: 'Praha HQ Panel', auth: '…aJkL90', updated: '2024-11-09' },
-            { endpoint: 'Warehouse Tablet CZ-PRG1', auth: '…tVx12', updated: '2024-11-08' }
-        ],
-        stores: [
-            { name: 'Praha Anděl', city: 'Praha 5', address: 'Stroupežnického 3191/17', warehouse: 'CZ-PRG1', manager: 'Lenka Kubová', status: 'Otevřeno' },
-            { name: 'Brno Olympia', city: 'Brno', address: 'U Dálnice 777', warehouse: 'CZ-BRN2', manager: 'Marek Havel', status: 'Otevřeno' },
-            { name: 'Ostrava Avion', city: 'Ostrava', address: 'Rudná 114/3114', warehouse: 'CZ-OST2', manager: 'Jan Mareš', status: 'Audit' },
-            { name: 'Plzeň Bory', city: 'Plzeň', address: 'U Letiště 1074/2', warehouse: 'CZ-BRN2', manager: 'Iveta Malá', status: 'Otevřeno' }
-        ],
-        profile: {
-            fullName: 'Lenka Kubová',
-            position: 'Global Admin',
-            email: 'lenka.kubova@bdas.cz',
-            phone: '+420 720 321 100',
-            location: 'Praha, HQ',
-            timezone: 'GMT+1 (CET)',
-            lastLogin: '10.11.2024 · 07:42',
-            storesOwned: 4,
-            approvals: 36,
-            escalations: 2,
-            automations: 12,
-            permissions: ['Objednávky', 'Finance', 'Inventář', 'Audit'],
-            preferences: {
-                language: 'Čeština',
-                theme: 'Světlé UI',
-                notifications: 'Push + e-mail',
-                weeklyDigest: true
-            },
-            security: {
-                mfa: 'Zapnuto · Authy',
-                devices: 'MacOS 15 · iOS 18',
-                lastIp: '185.34.220.17'
-            },
-            activity: [
-                { time: '10:22', text: 'Schválila objednávku PO-45082', status: 'success' },
-                { time: '09:58', text: 'Upravila sklad CZ-PRG1', status: 'info' },
-                { time: '08:40', text: 'Změnila roli uživatele iveta.mala', status: 'success' },
-                { time: 'Včera', text: 'Importovala 12 souborů do Archivu', status: 'accent' }
-            ]
-        },
-        folders: [
-            {
-                name: 'Contracts',
-                color: '#ff9f43',
-                files: [
-                    { name: 'Kontrakty Danone.pdf', type: 'PDF', archive: 'Contracts', owner: 'Marek Havel', updated: '2024-10-31' },
-                    { name: 'RetailTerms_Nordic.docx', type: 'DOCX', archive: 'Contracts', owner: 'Legal Team', updated: '2024-11-02' }
-                ]
-            },
-            {
-                name: 'Inventory',
-                color: '#34d399',
-                files: [
-                    { name: 'Inventura_PRG1.csv', type: 'CSV', archive: 'Inventory', owner: 'Jan Mareš', updated: '2024-11-08' },
-                    { name: 'Forecast_Q4.xlsx', type: 'XLSX', archive: 'Inventory', owner: 'Filip Janda', updated: '2024-11-06' }
-                ]
-            },
-            {
-                name: 'Finance',
-                color: '#a855f7',
-                files: [
-                    { name: 'Report tržeb.qvd', type: 'QVD', archive: 'Finance', owner: 'Iveta Malá', updated: '2024-11-07' },
-                    { name: 'Platby_listopad.csv', type: 'CSV', archive: 'Finance', owner: 'Finance Team', updated: '2024-11-09' }
-                ]
-            },
-            {
-                name: 'Marketing',
-                color: '#4361ee',
-                files: [
-                    { name: 'Promo_zima2024.pptx', type: 'PPTX', archive: 'Marketing', owner: 'Brand Team', updated: '2024-11-03' }
-                ]
-            }
-        ],
-        customerProducts: [
-            { sku: 'SKU-70423', name: 'Organická jablka Pink Lady', category: 'Čerstvé', price: 86, badge: 'TOP prodej', description: 'Krabička 4 ks', image: '🍎' },
-            { sku: 'SKU-18590', name: 'Bio kefír 1 l', category: 'Mléčné', price: 45, badge: 'Novinka', description: 'Madeta Bio', image: '🥛' },
-            { sku: 'SKU-50888', name: 'Kompostovatelné pytle 30 l', category: 'Non-Food', price: 8, badge: 'EKO', description: 'Balení 20 ks', image: '🛍️' },
-            { sku: 'SKU-40220', name: 'Český lipový med 450 g', category: 'Delikatesy', price: 210, badge: 'Limitka', description: 'Regionální produkt', image: '🍯' },
-            { sku: 'SKU-66770', name: 'Bezlepkový chléb 700 g', category: 'Pečivo', price: 52, badge: 'Fresh', description: 'BezLepek s.r.o.', image: '🥖' }
-        ],
-        customerSuggestions: [
-            'Doporučujeme přidat sezónní balíčky ovoce.',
-            'Zvýhodněná doprava pro objednávky nad 5 000 Kč.',
-            'Zákaznická karta přináší +3 % cashbacku.'
-        ]
-    }
+    data: createEmptyData()
 };
+
+function mergeDashboardData(payload) {
+    const base = createEmptyData();
+    if (!payload || typeof payload !== 'object') {
+        return base;
+    }
+    for (const [key, value] of Object.entries(payload)) {
+        if (key === 'profile' && value) {
+            base.profile = {
+                ...base.profile,
+                ...value,
+                preferences: {
+                    ...base.profile.preferences,
+                    ...(value.preferences || {})
+                },
+                security: {
+                    ...base.profile.security,
+                    ...(value.security || {})
+                },
+                activity: value.activity || []
+            };
+        } else {
+            base[key] = value ?? base[key];
+        }
+    }
+    return base;
+}
+
+async function fetchDashboardSnapshot() {
+    const token = localStorage.getItem('token');
+    if (!token) {
+        window.location.href = 'login.html';
+        return null;
+    }
+    const response = await fetch('/api/dashboard', {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+        }
+    });
+    if (response.status === 401) {
+        localStorage.clear();
+        window.location.href = 'login.html';
+        return null;
+    }
+    if (!response.ok) {
+        let message = 'Nepodařilo se načíst data z API.';
+        try {
+            const payload = await response.json();
+            if (payload?.message) {
+                message = payload.message;
+            }
+        } catch (err) {
+            const text = await response.text();
+            if (text) {
+                message = text;
+            }
+        }
+        throw new Error(message);
+    }
+    return response.json();
+}
 
 const viewMeta = {
     dashboard: { label: 'Hlavní panel', title: 'Řízení operací' },
@@ -227,13 +159,19 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             root.innerHTML = markup;
             root.classList.remove('app-boot');
 
+            const snapshot = await fetchDashboardSnapshot();
+            if (!snapshot) {
+                return;
+            }
+            state.data = mergeDashboardData(snapshot);
+
             const app = new BDASConsole(state, viewMeta);
             app.init();
         } catch (error) {
             console.error('Chyba inicializace rozhraní', error);
             root.innerHTML = `
                 <div class="boot-card error">
-                    <p>Nepodařilo se načíst rozhraní. Obnovte prosím stránku.</p>
+                    <p>${error.message || 'Nepodařilo se načíst rozhraní. Obnovte prosím stránku.'}</p>
                 </div>`;
         }
     }
@@ -251,7 +189,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             }
             document.getElementById('user-name').textContent = localStorage.getItem('fullName') || localStorage.getItem('email') || 'Uživatel';
             document.getElementById('user-role').textContent = localStorage.getItem('role') || 'NEW_USER';
-            document.getElementById('sync-time').textContent = this.state.data.syncUpdatedAt;
+            document.getElementById('sync-time').textContent = this.state.data.syncUpdatedAt || new Date().toLocaleString('cs-CZ');
             document.getElementById('logout-btn').addEventListener('click', () => {
                 localStorage.clear();
                 window.location.href = 'login.html';
@@ -1047,7 +985,30 @@ class InventoryModule {
         }
 
         registerUtilityButtons() {
-            document.getElementById('refresh-btn')?.addEventListener('click', () => this.renderAll());
+            const refreshBtn = document.getElementById('refresh-btn');
+            refreshBtn?.addEventListener('click', async () => {
+                if (refreshBtn.disabled) {
+                    return;
+                }
+                refreshBtn.disabled = true;
+                try {
+                    const snapshot = await fetchDashboardSnapshot();
+                    if (!snapshot) {
+                        return;
+                    }
+                    this.state.data = mergeDashboardData(snapshot);
+                    const syncLabel = document.getElementById('sync-time');
+                    if (syncLabel) {
+                        syncLabel.textContent = this.state.data.syncUpdatedAt || new Date().toLocaleString('cs-CZ');
+                    }
+                    this.renderAll();
+                } catch (error) {
+                    console.error('Refresh failed', error);
+                    alert(error.message || 'Nepodařilo se načíst aktuální data.');
+                } finally {
+                    refreshBtn.disabled = false;
+                }
+            });
             document.getElementById('new-order-btn')?.addEventListener('click', () => alert('Průvodce vytvořením objednávky bude brzy dostupný.'));
             document.getElementById('new-store-btn')?.addEventListener('click', () => alert('Průvodce otevřením prodejny bude brzy dostupný.'));
             document.getElementById('export-store-btn')?.addEventListener('click', () => alert('Export seznamu prodejen bude brzy připraven.'));
