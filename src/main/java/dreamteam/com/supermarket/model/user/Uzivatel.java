@@ -44,6 +44,7 @@ public class Uzivatel implements UserDetails {
     @JoinColumn(name = "ID_ROLE")
     private Role role;
 
+    @ToString.Exclude
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "ID_ADRESA")
     private Adresa adresa;

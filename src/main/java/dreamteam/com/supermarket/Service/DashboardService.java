@@ -61,9 +61,12 @@ public class DashboardService {
     private final NotifikaceRepository notifikaceRepository;
     private final RoleRepository roleRepository;
     private final UzivatelRepository uzivatelRepository;
+    private final RolePravoRepository rolePravoRepository;
 
     @Transactional(readOnly = true)
     public DashboardResponse buildSnapshot(Uzivatel currentUser) {
+        currentUser = uzivatelRepository.findById(currentUser.getIdUzivatel())
+                .orElse(currentUser);
         LocalDateTime now = LocalDateTime.now();
 
         List<Zbozi> goods = zboziRepository.findAll();
@@ -480,11 +483,38 @@ public class DashboardService {
                                                    long approvals,
                                                    long automations) {
         String fullName = currentUser.getJmeno() + " " + currentUser.getPrijmeni();
-        String location = currentUser.getAdresa() != null && currentUser.getAdresa().getMesto() != null
-                ? currentUser.getAdresa().getMesto().getNazev()
-                : "Nedefinováno";
+        Adresa adresa = currentUser.getAdresa();
+        String location = adresa != null && adresa.getMesto() != null
+                ? adresa.getMesto().getNazev()
+                : "";
+        DashboardResponse.Profile.AddressDetails addressDetails = adresa == null ? null :
+                new DashboardResponse.Profile.AddressDetails(
+                        adresa.getUlice(),
+                        adresa.getCisloPopisne(),
+                        adresa.getCisloOrientacni(),
+                        adresa.getMesto() != null ? adresa.getMesto().getNazev() : "",
+                        adresa.getMesto() != null ? adresa.getMesto().getPsc() : ""
+                );
 
-        List<String> permissions = List.of("Objednávky", "Finance", "Inventář", "Archiv");
+        Zamestnanec employee = zamestnanecRepository.findById(currentUser.getIdUzivatel()).orElse(null);
+        Zakaznik customer = zakaznikRepository.findById(currentUser.getIdUzivatel()).orElse(null);
+        Dodavatel supplier = dodavatelRepository.findById(currentUser.getIdUzivatel()).orElse(null);
+        String roleName = currentUser.getRole() != null ? currentUser.getRole().getNazev() : "Uživatel";
+        String position = employee != null ? employee.getPozice() : roleName;
+        DashboardResponse.Profile.EmploymentDetails employmentDetails = employee == null ? null :
+                new DashboardResponse.Profile.EmploymentDetails(
+                        employee.getPozice(),
+                        employee.getMzda() != null ? employee.getMzda().doubleValue() : 0d,
+                        employee.getDatumNastupa() != null ? employee.getDatumNastupa().toString() : ""
+                );
+
+        List<String> permissions = currentUser.getRole() == null
+                ? List.of()
+                : rolePravoRepository.findByRoleIdRole(currentUser.getRole().getIdRole())
+                .stream()
+                .map(rolePravo -> rolePravo.getPravo() != null ? rolePravo.getPravo().getKod() : null)
+                .filter(Objects::nonNull)
+                .toList();
 
         List<DashboardResponse.Profile.Activity> activity = logRepository.findTop10ByOrderByDatumZmenyDesc()
                 .stream()
@@ -496,9 +526,19 @@ public class DashboardService {
                 ))
                 .toList();
 
+        String group = resolveProfileGroup(currentUser, employee, customer, supplier);
+        DashboardResponse.Profile.CustomerDetails customerDetails = customer == null ? null :
+                new DashboardResponse.Profile.CustomerDetails(customer.getKartaVernosti());
+        DashboardResponse.Profile.SupplierDetails supplierDetails = supplier == null ? null :
+                new DashboardResponse.Profile.SupplierDetails(supplier.getFirma());
+
         return new DashboardResponse.Profile(
+                currentUser.getJmeno(),
+                currentUser.getPrijmeni(),
                 fullName,
-                currentUser.getRole() != null ? currentUser.getRole().getNazev() : "Uživatel",
+                position,
+                roleName,
+                group,
                 currentUser.getEmail(),
                 currentUser.getTelefonniCislo(),
                 location,
@@ -511,8 +551,32 @@ public class DashboardService {
                 permissions,
                 new DashboardResponse.Profile.Preferences("Čeština", "Světlé", "Push + e-mail", true),
                 new DashboardResponse.Profile.Security("MFA aktivní", "Web konzole", "127.0.0.1"),
-                activity
+                activity,
+                addressDetails,
+                employmentDetails,
+                customerDetails,
+                supplierDetails
         );
+    }
+
+    private String resolveProfileGroup(Uzivatel currentUser,
+                                       Zamestnanec employee,
+                                       Zakaznik customer,
+                                       Dodavatel supplier) {
+        String roleName = currentUser.getRole() != null ? currentUser.getRole().getNazev() : "";
+        if ("ADMIN".equalsIgnoreCase(roleName)) {
+            return "ADMIN";
+        }
+        if (employee != null) {
+            return "ZAMESTNANEC";
+        }
+        if (customer != null) {
+            return "ZAKAZNIK";
+        }
+        if (supplier != null) {
+            return "DODAVATEL";
+        }
+        return "UZIVATEL";
     }
 
     private String resolveMethod(Platba platba) {

@@ -180,6 +180,11 @@
 <script>
     const form = document.getElementById('register-form');
     const messageEl = document.getElementById('register-msg');
+    const originCandidate = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : '';
+    const guessedLocalApi = (!originCandidate || (window.location.hostname === 'localhost' && window.location.port !== '8082'))
+        ? 'http://localhost:8082'
+        : originCandidate;
+    const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL || guessedLocalApi).replace(/\/$/, '');
 
     form.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -216,7 +221,7 @@
         toggleForm(true);
 
         try {
-            const response = await fetch('http://localhost:8082/auth/register', {
+            const response = await fetch(`${apiBaseUrl}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',

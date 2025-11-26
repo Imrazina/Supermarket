@@ -159,6 +159,11 @@
 <script>
     const loginForm = document.getElementById('login-form');
     const errorMsg = document.getElementById('error-msg');
+    const originCandidate = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : '';
+    const guessedLocalApi = (!originCandidate || (window.location.hostname === 'localhost' && window.location.port !== '8082'))
+        ? 'http://localhost:8082'
+        : originCandidate;
+    const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL || guessedLocalApi).replace(/\/$/, '');
 
     loginForm.addEventListener('submit', async (event) => {
         event.preventDefault();
@@ -176,7 +181,7 @@
         }
 
         try {
-            const response = await fetch('http://localhost:8082/auth/login', {
+            const response = await fetch(`${apiBaseUrl}/auth/login`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ email, password })

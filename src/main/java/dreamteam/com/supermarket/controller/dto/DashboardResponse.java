@@ -115,8 +115,12 @@ public record DashboardResponse(
     ) {}
 
     public record Profile(
+            String firstName,
+            String lastName,
             String fullName,
             String position,
+            String role,
+            String group,
             String email,
             String phone,
             String location,
@@ -129,10 +133,18 @@ public record DashboardResponse(
             List<String> permissions,
             Preferences preferences,
             Security security,
-            List<Activity> activity
+            List<Activity> activity,
+            AddressDetails address,
+            EmploymentDetails employment,
+            CustomerDetails customer,
+            SupplierDetails supplier
     ) {
         public record Preferences(String language, String theme, String notifications, boolean weeklyDigest) {}
         public record Security(String mfa, String devices, String lastIp) {}
         public record Activity(String time, String text, String status) {}
+        public record AddressDetails(String street, String houseNumber, String orientationNumber, String city, String psc) {}
+        public record EmploymentDetails(String position, double salary, String hireDate) {}
+        public record CustomerDetails(String loyaltyCard) {}
+        public record SupplierDetails(String company) {}
     }
 }

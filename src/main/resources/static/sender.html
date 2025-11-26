@@ -12,7 +12,13 @@
     const me = localStorage.getItem("username");
     const receiver = "kiki";
 
-    const socket = new SockJS('http://localhost:8082/ws');
+    const originCandidate = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : '';
+    const guessedLocalApi = (!originCandidate || (window.location.hostname === 'localhost' && window.location.port !== '8082'))
+        ? 'http://localhost:8082'
+        : originCandidate;
+    const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL || guessedLocalApi).replace(/\/$/, '');
+
+    const socket = new SockJS(`${apiBaseUrl}/ws`);
     const client = Stomp.over(socket);
 
     const currentUsername = localStorage.getItem("username");
@@ -22,7 +28,7 @@
     }
 
     client.connect({ Authorization: "Bearer " + token }, () => {
-        console.log("✅ Sender WS connected");
+        console.log("Sender WS connected");
     });
 
     document.getElementById("send").onclick = () => {

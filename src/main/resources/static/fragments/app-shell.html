@@ -42,6 +42,10 @@
                 <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
                 <span>Zákaznická zóna</span>
             </a>
+            <a class="nav-link" data-view="permissions" data-url="permissions.html" href="permissions.html">
+                <span class="material-symbols-rounded" aria-hidden="true">admin_panel_settings</span>
+                <span>Správa práv</span>
+            </a>
         </div>
 
         <div class="sidebar-section">
@@ -82,6 +86,10 @@
                 <button class="nav-link" id="refresh-btn" style="width:auto; gap:6px; padding:8px 12px;">
                     <span class="material-symbols-rounded" aria-hidden="true">cached</span>
                     <span>Obnovit</span>
+                </button>
+                <button class="nav-link" id="impersonation-exit-btn" style="display:none;width:auto;gap:6px;padding:8px 12px;">
+                    <span class="material-symbols-rounded" aria-hidden="true">logout</span>
+                    <span>Zpět k adminovi</span>
                 </button>
                 <div class="user-pill">
                     <div>
@@ -169,25 +177,45 @@
             </section>
 
             <section class="view" data-view="profile">
-                <div class="two-column">
-                    <article class="panel">
-                        <h2>Osobní karta</h2>
-                        <div id="profile-overview"></div>
-                    </article>
-                    <article class="panel">
-                        <h2>Předvolby</h2>
-                        <div id="profile-preferences"></div>
-                    </article>
+                <div class="profile-layout">
+                    <article class="panel profile-hero-panel" id="profile-overview"></article>
+                    <div class="profile-side">
+                        <article class="panel profile-preferences-panel" id="profile-preferences"></article>
+                        <article class="panel profile-security-panel" id="profile-security"></article>
+                    </div>
+                    <article class="panel profile-activity-panel" id="profile-activity"></article>
                 </div>
-                <div class="two-column">
-                    <article class="panel">
-                        <h2>Bezpečnost &amp; role</h2>
-                        <div id="profile-security"></div>
-                    </article>
-                    <article class="panel">
-                        <h2>Aktivita týmu</h2>
-                        <ul id="profile-activity"></ul>
-                    </article>
+            </section>
+
+            <section class="view" data-view="permissions">
+                <div class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <h2 id="permission-form-title">Nové právo</h2>
+                            <p>Definice systémových oprávnění</p>
+                        </div>
+                        <button class="ghost-btn ghost-muted" id="permission-reset-btn">Vyčistit</button>
+                    </div>
+                    <form id="permission-form" class="profile-form-section" style="margin-top:20px;">
+                        <input type="hidden" name="permissionId">
+                        <div class="profile-form-grid">
+                            <label><span>Název</span><input type="text" name="name" required></label>
+                            <label><span>Kód</span><input type="text" name="code" required></label>
+                            <label style="grid-column:1/-1;">
+                                <span>Popis</span>
+                                <textarea name="description" rows="2" style="width:100%;border:1px solid var(--border);border-radius:14px;padding:12px;"></textarea>
+                            </label>
+                        </div>
+                        <div style="margin-top:12px;display:flex;gap:12px;">
+                            <button type="submit" class="ghost-btn ghost-strong">Uložit</button>
+                            <button type="button" class="ghost-btn ghost-muted" id="permission-cancel-btn">Zrušit</button>
+                        </div>
+                    </form>
+                </div>
+                <div class="panel">
+                    <h2>Přehled práv</h2>
+                    <p class="profile-muted" style="margin-top:-8px;">Seznam existujících práv a jejich přiřazení k rolím</p>
+                    <div id="permissions-table" style="margin-top:16px;"></div>
                 </div>
             </section>
 
@@ -314,54 +342,63 @@
             </section>
 
             <section class="view" data-view="people">
-                <article class="panel">
-                    <h2>Zaměstnanci (ZAMESTNANEC)</h2>
-                    <div class="card-list" id="employee-list"></div>
+                <article class="panel" id="role-summary-panel">
+                    <h2>Přehled rolí</h2>
+                    <div id="role-summary-list"></div>
                 </article>
 
-                <div class="two-column">
-                    <article class="panel">
-                        <h2>Zákazníci (ZAKAZNIK)</h2>
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                <tr>
-                                    <th>ID</th>
-                                    <th>Jméno</th>
-                                    <th>Věrnost</th>
-                                    <th>Kontakt</th>
-                                </tr>
-                                </thead>
-                                <tbody id="customer-list"></tbody>
-                            </table>
+                <article class="panel admin-users-panel" id="admin-users-panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+                        <div>
+                            <h2>Uživatelé systému</h2>
+                            <p class="profile-muted">Správa všech registrovaných uživatelů</p>
                         </div>
-                    </article>
-                    <article class="panel">
-                        <h2>Dodavatelé (DODAVATEL)</h2>
-                        <div id="supplier-list"></div>
-                    </article>
-                </div>
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <label style="display:flex;align-items:center;gap:8px;">
+                                <span>Role</span>
+                                <select id="admin-users-role-filter" style="padding:8px 12px;border-radius:12px;border:1px solid var(--border);">
+                                    <option value="">Všechny role</option>
+                                </select>
+                            </label>
+                            <label style="display:flex;align-items:center;gap:8px;">
+                                <span>Hledat</span>
+                                <input type="search" id="admin-users-search" placeholder="Jméno nebo email" style="padding:8px 12px;border-radius:12px;border:1px solid var(--border);">
+                            </label>
+                        </div>
+                    </div>
+                    <div id="admin-users-table" style="margin-top:16px;"></div>
+                </article>
 
-                <div class="two-column">
-                    <article class="panel">
-                        <h2>Přístupová práva (ROLE)</h2>
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                <tr>
-                                    <th>role</th>
-                                    <th>popis</th>
-                                    <th>počet</th>
-                                </tr>
-                                </thead>
-                                <tbody id="role-table-body"></tbody>
-                            </table>
+                <div class="modal" id="user-edit-modal" aria-hidden="true">
+                    <div class="modal-content">
+                        <div class="modal-header">
+                            <h3 id="user-edit-title">Upravit uživatele</h3>
+                            <button type="button" class="ghost-btn ghost-muted" id="user-edit-close">Zavřít</button>
                         </div>
-                    </article>
-                    <article class="panel">
-                        <h2>Adresy &amp; města</h2>
-                        <div id="address-board"></div>
-                    </article>
+                        <form id="user-edit-form" class="profile-form-section">
+                            <div class="profile-form-grid">
+                                <label><span>Jméno</span><input type="text" name="firstName" required></label>
+                                <label><span>Příjmení</span><input type="text" name="lastName" required></label>
+                        <label><span>E-mail</span><input type="email" name="email" required></label>
+                        <label><span>Telefon</span><input type="tel" name="phone" required></label>
+                        <label><span>Role</span><select name="roleCode" required></select></label>
+                        <label data-role-section="employee"><span>Pozice</span><select name="position"></select></label>
+                        <label data-role-section="employee"><span>Mzda (Kč)</span><input type="number" name="salary" min="0" step="0.01"></label>
+                        <label data-role-section="employee"><span>Datum nástupu</span><input type="date" name="hireDate"></label>
+                        <label><span>Ulice</span><input type="text" name="street" required></label>
+                        <label><span>Číslo popisné</span><input type="text" name="houseNumber" required></label>
+                        <label><span>Číslo orientační</span><input type="text" name="orientationNumber" required></label>
+                        <label><span>Město</span><select name="cityPsc" required></select></label>
+                        <label data-role-section="customer"><span>Věrnostní karta</span><input type="text" name="loyaltyCard"></label>
+                        <label data-role-section="supplier"><span>Společnost</span><input type="text" name="supplierCompany"></label>
+                        <label><span>Nové heslo</span><input type="password" name="newPassword"></label>
+                    </div>
+                            <div style="margin-top:16px;display:flex;gap:12px;">
+                                <button type="submit" class="ghost-btn ghost-strong">Uložit</button>
+                                <button type="button" class="ghost-btn ghost-muted" id="user-edit-cancel">Zrušit</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
             </section>
 

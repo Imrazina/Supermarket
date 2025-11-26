@@ -1,3 +1,7 @@
+import ProfileModule from './modules/profile-module.js';
+import PermissionsModule from './modules/permissions-module.js';
+import UsersModule from './modules/users-module.js';
+
 const currencyFormatter = new Intl.NumberFormat('cs-CZ', {
     style: 'currency',
     currency: 'CZK',
@@ -29,8 +33,12 @@ function createEmptyData() {
         customerSuggestions: [],
 
         profile: {
+            firstName: "",
+            lastName: "",
             fullName: "",
             position: "",
+            role: "",
+            group: "UZIVATEL",
             email: "",
             phone: "",
             location: "",
@@ -55,7 +63,11 @@ function createEmptyData() {
                 lastIp: ""
             },
 
-            activity: []
+            activity: [],
+            address: null,
+            employment: null,
+            customer: null,
+            supplier: null
         }
     };
 }
@@ -69,8 +81,20 @@ const state = {
     selectedFolder: null,
     customerCategoryFilter: 'all',
     customerCart: [],
-    data: createEmptyData()
+    data: createEmptyData(),
+    permissionsCatalog: [],
+    profileMeta: { roles: [], cities: [], positions: [] },
+    adminPermissions: [],
+    rolePermissions: [],
+    adminUsers: []
 };
+
+const currentOrigin = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : '';
+const guessedLocalApi = (!currentOrigin || (window.location.hostname === 'localhost' && window.location.port !== '8082'))
+    ? 'http://localhost:8082'
+    : currentOrigin;
+const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL || guessedLocalApi).replace(/\/$/, '');
+const apiUrl = (path) => `${apiBaseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
 
 function mergeDashboardData(payload) {
     const base = createEmptyData();
@@ -101,17 +125,21 @@ function mergeDashboardData(payload) {
 
 async function fetchDashboardSnapshot() {
     const token = localStorage.getItem('token');
+    console.log('[dashboard] starting fetch, token present:', !!token);
     if (!token) {
+        console.warn('[dashboard] missing token, redirecting to login');
         window.location.href = 'login.html';
         return null;
     }
-    const response = await fetch('/api/dashboard', {
+    const response = await fetch(apiUrl('/api/dashboard'), {
         headers: {
             'Authorization': `Bearer ${token}`,
             'Accept': 'application/json'
         }
     });
+    console.log('[dashboard] response status:', response.status);
     if (response.status === 401) {
+        console.error('[dashboard] 401 Unauthorized, clearing storage');
         localStorage.clear();
         window.location.href = 'login.html';
         return null;
@@ -130,6 +158,114 @@ async function fetchDashboardSnapshot() {
             }
         }
         throw new Error(message);
+    }
+    return response.json();
+}
+
+async function fetchPermissionsCatalog() {
+    const token = localStorage.getItem('token');
+    console.log('[permissions] starting fetch, token present:', !!token);
+    if (!token) {
+        return [];
+    }
+    try {
+        const response = await fetch(apiUrl('/api/prava'), {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+            }
+        });
+        if (response.status === 401) {
+            localStorage.clear();
+            window.location.href = 'login.html';
+            return [];
+        }
+        if (!response.ok) {
+            const message = await response.text();
+            console.error('Permissions API error', message);
+            return [];
+        }
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('application/json')) {
+            console.warn('Permissions API returned unexpected content type:', contentType);
+            return [];
+        }
+        return await response.json();
+    } catch (error) {
+        console.error('Failed to load permissions catalog', error);
+        return [];
+    }
+}
+
+async function fetchProfileMeta() {
+    const token = localStorage.getItem('token');
+    console.log('[profileMeta] starting fetch, token present:', !!token);
+    if (!token) {
+        return null;
+    }
+    try {
+        const response = await fetch(apiUrl('/api/profile/meta'), {
+            headers: {
+                'Authorization': `Bearer ${token}`,
+                'Accept': 'application/json'
+            }
+        });
+        if (response.status === 401) {
+            localStorage.clear();
+            window.location.href = 'login.html';
+            return null;
+        }
+        if (!response.ok) {
+            console.error('Profile meta error', await response.text());
+            return null;
+        }
+        return response.json();
+    } catch (error) {
+        console.error('Failed to load profile meta', error);
+        return null;
+    }
+}
+
+async function fetchAdminPermissions() {
+    const role = (localStorage.getItem('role') || '').trim().toUpperCase();
+    console.log('[adminPermissions] current role:', role);
+    if (role !== 'ADMIN') {
+        return [];
+    }
+    const token = localStorage.getItem('token');
+    if (!token) {
+        return [];
+    }
+    const response = await fetch(apiUrl('/api/admin/prava'), {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+        }
+    });
+    if (!response.ok) {
+        return [];
+    }
+    return response.json();
+}
+
+async function fetchRolePermissions() {
+    const role = (localStorage.getItem('role') || '').trim().toUpperCase();
+    console.log('[rolePermissions] current role:', role);
+    if (role !== 'ADMIN') {
+        return [];
+    }
+    const token = localStorage.getItem('token');
+    if (!token) {
+        return [];
+    }
+    const response = await fetch(apiUrl('/api/admin/roles'), {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json'
+        }
+    });
+    if (!response.ok) {
+        return [];
     }
     return response.json();
 }
@@ -159,11 +295,21 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             root.innerHTML = markup;
             root.classList.remove('app-boot');
 
-            const snapshot = await fetchDashboardSnapshot();
+            const [snapshot, permissionsCatalog, profileMeta, adminPermissions, rolePermissions] = await Promise.all([
+                fetchDashboardSnapshot(),
+                fetchPermissionsCatalog(),
+                fetchProfileMeta(),
+                fetchAdminPermissions(),
+                fetchRolePermissions()
+            ]);
             if (!snapshot) {
                 return;
             }
             state.data = mergeDashboardData(snapshot);
+            state.permissionsCatalog = Array.isArray(permissionsCatalog) ? permissionsCatalog : [];
+            state.profileMeta = profileMeta || state.profileMeta;
+            state.adminPermissions = Array.isArray(adminPermissions) ? adminPermissions : [];
+            state.rolePermissions = Array.isArray(rolePermissions) ? rolePermissions : [];
 
             const app = new BDASConsole(state, viewMeta);
             app.init();
@@ -304,90 +450,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
     }
 }
 
-class ProfileModule {
-    constructor(state) {
-        this.state = state;
-        this.overviewEl = document.getElementById('profile-overview');
-        this.preferencesEl = document.getElementById('profile-preferences');
-        this.securityEl = document.getElementById('profile-security');
-        this.activityEl = document.getElementById('profile-activity');
-    }
-
-    render() {
-        const profile = this.state.data.profile;
-        if (!profile) {
-            return;
-        }
-        if (this.overviewEl) {
-            this.overviewEl.innerHTML = `
-                <div class="profile-card">
-                    <div>
-                        <h3>${profile.fullName}</h3>
-                        <p>${profile.position}</p>
-                        <div class="profile-meta">
-                            <span>${profile.location}</span>
-                            <span>${profile.timezone}</span>
-                        </div>
-                    </div>
-                    <div class="profile-contact">
-                        <div>
-                            <strong>E-mail</strong>
-                            <p>${profile.email}</p>
-                        </div>
-                        <div>
-                            <strong>Telefon</strong>
-                            <p>${profile.phone}</p>
-                        </div>
-                        <div>
-                            <strong>Poslední přihlášení</strong>
-                            <p>${profile.lastLogin}</p>
-                        </div>
-                    </div>
-                    <div class="profile-metrics">
-                        <div><span>Prodejny</span><strong>${profile.storesOwned}</strong></div>
-                        <div><span>Schválení</span><strong>${profile.approvals}</strong></div>
-                        <div><span>Escalace</span><strong>${profile.escalations}</strong></div>
-                        <div><span>Automace</span><strong>${profile.automations}</strong></div>
-                    </div>
-                </div>`;
-        }
-
-        if (this.preferencesEl) {
-            this.preferencesEl.innerHTML = `
-                <ul class="profile-list">
-                    <li><span>Jazyk</span><strong>${profile.preferences.language}</strong></li>
-                    <li><span>Téma</span><strong>${profile.preferences.theme}</strong></li>
-                    <li><span>Notifikace</span><strong>${profile.preferences.notifications}</strong></li>
-                    <li><span>Týdenní reporting</span><strong>${profile.preferences.weeklyDigest ? 'Zapnuto' : 'Vypnuto'}</strong></li>
-                </ul>
-                <div class="profile-chips">
-                    ${profile.permissions.map(item => `<span class="chip active">${item}</span>`).join('')}
-                </div>`;
-        }
-
-        if (this.securityEl) {
-            const sec = profile.security;
-            this.securityEl.innerHTML = `
-                <ul class="profile-list">
-                    <li><span>MFA</span><strong>${sec.mfa}</strong></li>
-                    <li><span>Zařízení</span><strong>${sec.devices}</strong></li>
-                    <li><span>Poslední IP</span><strong>${sec.lastIp}</strong></li>
-                </ul>`;
-        }
-
-        if (this.activityEl) {
-            this.activityEl.innerHTML = profile.activity.map(item => `
-                <li class="activity-item">
-                    <strong>${item.time}</strong>
-                    <p>${item.text}</p>
-                    <span class="badge">${item.status}</span>
-                </li>
-            `).join('');
-        }
-    }
-}
-
-class InventoryModule {
+    class InventoryModule {
         constructor(state) {
             this.state = state;
             this.searchInput = document.getElementById('inventory-search');
@@ -582,66 +645,58 @@ class InventoryModule {
     class PeopleModule {
         constructor(state) {
             this.state = state;
-            this.employeeList = document.getElementById('employee-list');
-            this.customerList = document.getElementById('customer-list');
-            this.supplierList = document.getElementById('supplier-list');
-            this.roleTable = document.getElementById('role-table-body');
-            this.addressBoard = document.getElementById('address-board');
+            this.view = document.querySelector('[data-view="people"]');
+            this.navLink = document.querySelector('.nav-link[data-view="people"]');
+            this.roleSummary = document.getElementById('role-summary-list');
+        }
+
+        init() {
+            if (!this.view) {
+                return;
+            }
+            if (!this.hasAccess()) {
+                this.hideView();
+                return;
+            }
+        }
+
+        hasAccess() {
+            const permissions = this.state.data?.profile?.permissions;
+            if (!Array.isArray(permissions)) {
+                return false;
+            }
+            return permissions.includes('MANAGE_USERS') || permissions.includes('MANAGE_SUPPLIERS');
+        }
+
+        hideView() {
+            if (this.view) {
+                this.view.remove();
+                this.view = null;
+            }
+            this.navLink?.remove();
         }
 
         render() {
-            if (this.employeeList) {
-                this.employeeList.innerHTML = this.state.data.employees.map(emp => `
-                    <article class="person-card">
-                        <strong>${emp.name}</strong>
-                        <p>${emp.position}</p>
-                        <small>Ve službě od ${emp.start}</small>
-                        <p>Kontakt: ${emp.phone}</p>
-                    </article>
-                `).join('');
+            if (!this.view || !this.hasAccess()) {
+                return;
             }
+            this.renderRoleSummary();
+        }
 
-            if (this.customerList) {
-                this.customerList.innerHTML = this.state.data.customers.map(client => `
-                    <tr>
-                        <td>${client.id}</td>
-                        <td>${client.name}</td>
-                        <td>${client.loyalty || '—'}</td>
-                        <td>${client.email}<br>${client.phone}</td>
-                    </tr>
-                `).join('');
+        renderRoleSummary() {
+            if (!this.roleSummary) {
+                return;
             }
-
-            if (this.supplierList) {
-                this.supplierList.innerHTML = this.state.data.suppliers.map(s => `
+            const roles = this.state.data.roles || [];
+            this.roleSummary.innerHTML = roles.length
+                ? roles.map(role => `
                     <div class="pill-card">
-                        <strong>${s.company}</strong>
-                        <p>${s.contact}</p>
-                        <small>${s.phone}</small>
-                        <div class="badge">rating ${s.rating}</div>
+                        <strong>${role.name}</strong>
+                        <p>${role.description || 'Bez popisu'}</p>
+                        <small>${role.count} uživatelů</small>
                     </div>
-                `).join('');
-            }
-
-            if (this.roleTable) {
-                this.roleTable.innerHTML = this.state.data.roles.map(role => `
-                    <tr>
-                        <td>${role.name}</td>
-                        <td>${role.description}</td>
-                        <td>${role.count}</td>
-                    </tr>
-                `).join('');
-            }
-
-            if (this.addressBoard) {
-                this.addressBoard.innerHTML = this.state.data.addresses.map(addr => `
-                    <div class="pill-card">
-                        <strong>${addr.store}</strong>
-                        <p>${addr.street}, ${addr.city}</p>
-                        <small>${addr.zip} · ${addr.kraj}</small>
-                    </div>
-                `).join('');
-            }
+                `).join('')
+                : '<p class="profile-muted">Žádné role nejsou k dispozici.</p>';
         }
     }
 
@@ -959,7 +1014,21 @@ class InventoryModule {
             this.authGuard = new AuthGuard(state);
             this.navigation = new NavigationController(state, meta);
             this.dashboard = new DashboardModule(state);
-            this.profile = new ProfileModule(state);
+            this.profile = new ProfileModule(state, this, {
+                apiUrl,
+                fetchDashboardSnapshot,
+                fetchPermissionsCatalog,
+                mergeDashboardData
+            });
+            this.permissionsModule = new PermissionsModule(state, {
+                apiUrl,
+                fetchAdminPermissions,
+                fetchRolePermissions
+            });
+            this.usersModule = new UsersModule(state, {
+                apiUrl,
+                refreshApp: () => this.refreshData()
+            });
             this.inventory = new InventoryModule(state);
             this.orders = new OrdersModule(state);
             this.people = new PeopleModule(state);
@@ -974,8 +1043,11 @@ class InventoryModule {
                 return;
             }
             this.navigation.init();
+            this.permissionsModule.init();
+            this.usersModule.init();
             this.inventory.init();
             this.orders.init();
+            this.people.init();
             this.finance.init();
             this.records.init();
             this.customer.init();
@@ -992,16 +1064,7 @@ class InventoryModule {
                 }
                 refreshBtn.disabled = true;
                 try {
-                    const snapshot = await fetchDashboardSnapshot();
-                    if (!snapshot) {
-                        return;
-                    }
-                    this.state.data = mergeDashboardData(snapshot);
-                    const syncLabel = document.getElementById('sync-time');
-                    if (syncLabel) {
-                        syncLabel.textContent = this.state.data.syncUpdatedAt || new Date().toLocaleString('cs-CZ');
-                    }
-                    this.renderAll();
+                    await this.refreshData();
                 } catch (error) {
                     console.error('Refresh failed', error);
                     alert(error.message || 'Nepodařilo se načíst aktuální data.');
@@ -1013,6 +1076,49 @@ class InventoryModule {
             document.getElementById('new-store-btn')?.addEventListener('click', () => alert('Průvodce otevřením prodejny bude brzy dostupný.'));
             document.getElementById('export-store-btn')?.addEventListener('click', () => alert('Export seznamu prodejen bude brzy připraven.'));
             document.getElementById('upload-btn')?.addEventListener('click', () => alert('Nahrávání souborů přidáme později.'));
+            const exitBtn = document.getElementById('impersonation-exit-btn');
+            if (exitBtn) {
+                const isImpersonating = !!localStorage.getItem('admin_original_token');
+                exitBtn.style.display = isImpersonating ? 'inline-flex' : 'none';
+                exitBtn.addEventListener('click', () => {
+                    const originalToken = localStorage.getItem('admin_original_token');
+                    if (originalToken) {
+                        localStorage.setItem('token', originalToken);
+                        localStorage.setItem('role', localStorage.getItem('admin_original_role') || '');
+                        localStorage.setItem('fullName', localStorage.getItem('admin_original_name') || '');
+                        localStorage.setItem('email', localStorage.getItem('admin_original_email') || '');
+                        localStorage.removeItem('admin_original_token');
+                        localStorage.removeItem('admin_original_role');
+                        localStorage.removeItem('admin_original_name');
+                        localStorage.removeItem('admin_original_email');
+                        window.location.reload();
+                    }
+                });
+            }
+        }
+
+        async refreshData() {
+            const [snapshot, permissionsCatalog, profileMeta, adminPermissions, rolePermissions] = await Promise.all([
+                fetchDashboardSnapshot(),
+                fetchPermissionsCatalog(),
+                fetchProfileMeta(),
+                fetchAdminPermissions(),
+                fetchRolePermissions()
+            ]);
+            if (!snapshot) {
+                return false;
+            }
+            this.state.data = mergeDashboardData(snapshot);
+            this.state.permissionsCatalog = Array.isArray(permissionsCatalog) ? permissionsCatalog : [];
+            this.state.profileMeta = profileMeta || this.state.profileMeta;
+            this.state.adminPermissions = Array.isArray(adminPermissions) ? adminPermissions : this.state.adminPermissions;
+            this.state.rolePermissions = Array.isArray(rolePermissions) ? rolePermissions : this.state.rolePermissions;
+            const syncLabel = document.getElementById('sync-time');
+            if (syncLabel) {
+                syncLabel.textContent = this.state.data.syncUpdatedAt || new Date().toLocaleString('cs-CZ');
+            }
+            this.renderAll();
+            return true;
         }
 
         renderAll() {
@@ -1027,6 +1133,7 @@ class InventoryModule {
             this.finance.render();
             this.records.render();
             this.customer.render();
+            this.permissionsModule.render();
         }
     }
 

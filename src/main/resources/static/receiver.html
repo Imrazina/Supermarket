@@ -3,7 +3,12 @@
     // Konfigurace
     const PUBLIC_KEY = 'BBoYaoc8zDDFcRjeUDuO4HI15lrxOhtqEgdWfcfkn5vqTHmUeZc_DU6yodFwDNcthvOyKSK-K_Us9xdEDVYR_5I';
     const SERVICE_WORKER_PATH = '/sw.js';
-    const API_ENDPOINT = 'http://localhost:8082/api/push/subscribe';
+    const originCandidate = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : '';
+    const guessedLocalApi = (!originCandidate || (window.location.hostname === 'localhost' && window.location.port !== '8082'))
+        ? 'http://localhost:8082'
+        : originCandidate;
+    const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL || guessedLocalApi).replace(/\/$/, '');
+    const API_ENDPOINT = `${apiBaseUrl}/api/push/subscribe`;
 
     async function initPushNotifications() {
         try {
