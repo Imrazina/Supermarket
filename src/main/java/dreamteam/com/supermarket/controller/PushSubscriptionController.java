@@ -79,4 +79,14 @@ public class PushSubscriptionController {
         notifikaceRepository.save(subscription);
         return ResponseEntity.ok().build();
     }
+
+    @DeleteMapping("/unsubscribe")
+    public ResponseEntity<?> unsubscribe(Authentication authentication) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        String email = authentication.getName();
+        notifikaceRepository.findByAdresat(email).ifPresent(notifikaceRepository::delete);
+        return ResponseEntity.noContent().build();
+    }
 }

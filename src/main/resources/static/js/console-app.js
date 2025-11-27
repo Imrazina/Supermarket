@@ -95,6 +95,8 @@ const guessedLocalApi = (!currentOrigin || (window.location.hostname === 'localh
     : currentOrigin;
 const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL || guessedLocalApi).replace(/\/$/, '');
 const apiUrl = (path) => `${apiBaseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
+const webpushPublicKey = document.body.dataset.webpushKey || 'BBoYaoc8zDDFcRjeUDuO4HI15lrxOhtqEgdWfcfkn5vqTHmUeZc_DU6yodFwDNcthvOyKSK-K_Us9xdEDVYR_5I';
+const serviceWorkerPath = document.body.dataset.swPath || '/sw.js';
 
 function mergeDashboardData(payload) {
     const base = createEmptyData();
@@ -278,7 +280,8 @@ const viewMeta = {
     people: { label: 'Lidé & přístupy', title: 'Tým a zákazníci' },
     finance: { label: 'Finanční řízení', title: 'Platby a účtenky' },
     records: { label: 'Archiv', title: 'Soubory, logy, zprávy' },
-    customer: { label: 'Zákaznická zóna', title: 'Self-service objednávky' }
+    customer: { label: 'Zákaznická zóna', title: 'Self-service objednávky' },
+    chat: { label: 'Komunikace', title: 'Chat & push centrum' }
 };
 
 const fragmentUrl = document.body.dataset.fragment || 'fragments/app-shell.html';
@@ -820,9 +823,9 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             if (this.messageList) {
                 this.messageList.innerHTML = this.state.data.messages.map(message => `
                     <div class="message-item">
-                        <strong>${message.sender} → ${message.receiver}</strong>
-                        <small>${message.date}</small>
-                        <p>${message.preview}</p>
+                        <strong>${message.sender || '—'} → ${message.receiver || '—'}</strong>
+                        <small>${message.date || ''}</small>
+                        <p>${message.preview || message.content || ''}</p>
                     </div>
                 `).join('');
             }
@@ -836,6 +839,1022 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 </div>
             `).join('');
             }
+        }
+    }
+
+    class ChatModule {
+        constructor(state, deps) {
+            this.state = state;
+            this.apiUrl = deps.apiUrl;
+            this.publicKey = deps.publicKey;
+            this.serviceWorkerPath = deps.serviceWorkerPath;
+            this.view = document.querySelector('[data-view="chat"]');
+            this.feed = document.getElementById('chat-feed');
+            this.form = document.getElementById('chat-form');
+            this.messageInput = document.getElementById('chat-message');
+            this.receiverInput = document.getElementById('chat-receiver');
+            this.formStatus = document.getElementById('chat-form-status');
+            this.pushToggle = document.getElementById('chat-push-toggle');
+            this.pushToggleLabel = document.getElementById('chat-push-text');
+            this.pushTestBtn = document.getElementById('chat-push-test');
+            this.pushEnabled = false;
+            this.pushToggleLocked = false;
+            this.pushToggleLoading = false;
+            this.subscriberList = document.getElementById('chat-subscriber-list');
+            this.contactsList = document.getElementById('chat-people-list');
+            this.contactSearch = document.getElementById('chat-contact-search');
+            this.selectedLabel = document.getElementById('chat-selected-label');
+            this.grid = document.getElementById('chat-grid');
+            this.collapseBtn = document.getElementById('chat-collapse-btn');
+            this.contactSearchTerm = '';
+            this.contacts = [];
+            this.activeContactEmail = '';
+            this.activeContactLabel = '';
+            this.currentUserEmail = localStorage.getItem('email') || localStorage.getItem('username') || '';
+            this.currentUserNormalized = this.normalizeEmail(this.currentUserEmail);
+            this.client = null;
+            this.connected = false;
+            this.connecting = false;
+            this.swRegistration = null;
+            this.refreshTimer = null;
+            this.refreshInFlight = false;
+            this.manualContacts = new Map();
+            this.directory = [];
+            this.logger = (...args) => console.log('[chat]', ...args);
+            this.messageIds = new Set();
+            this.pushError = '';
+            this.adminUsersRequestPending = false;
+            this.adminUsersLoadFailed = false;
+            this.isPanelOpen = false;
+        }
+
+        getAuthToken(options = { redirect: true }) {
+            const token = localStorage.getItem('token') || '';
+            if (!token && options.redirect) {
+                window.location.href = 'login.html';
+            }
+            return token;
+        }
+
+        init() {
+            if (!this.view) {
+                return;
+            }
+            this.logger('init');
+            this.restoreReceiver();
+            this.bindEvents();
+            this.loadDirectoryUsers();
+            this.refreshPushState();
+            this.setPanelOpen(false);
+            if ('serviceWorker' in navigator) {
+                navigator.serviceWorker.register(this.serviceWorkerPath).then(reg => {
+                    this.swRegistration = reg;
+                    this.refreshPushState();
+                }).catch(error => {
+                    console.warn('Service worker registration failed', error);
+                });
+            }
+            this.initWebsocket();
+            this.refreshMessages();
+            this.startRefreshLoop();
+        }
+
+        restoreReceiver() {
+            const stored = (localStorage.getItem('chat.receiver') || '').trim();
+            if (stored) {
+                this.activeContactEmail = stored;
+            }
+            this.logger('restoreReceiver', stored || '(none)');
+            if (this.receiverInput) {
+                this.receiverInput.value = stored;
+            }
+            this.updateSelectedLabel();
+            this.receiverInput?.addEventListener('input', () => {
+                const value = this.receiverInput.value.trim();
+                if (value) {
+                    localStorage.setItem('chat.receiver', value);
+                } else {
+                    localStorage.removeItem('chat.receiver');
+                }
+                const previousEmail = this.activeContactEmail;
+                this.activeContactEmail = value;
+                if (this.normalizeEmail(previousEmail) !== this.normalizeEmail(value)) {
+                    this.activeContactLabel = '';
+                }
+                if (!value) {
+                    this.activeContactLabel = '';
+                }
+                this.updateSelectedLabel();
+                this.highlightActiveContact();
+                this.renderFeed();
+            });
+        }
+
+        bindEvents() {
+            this.form?.addEventListener('submit', event => {
+                event.preventDefault();
+                this.submitChatMessage();
+            });
+            this.pushToggle?.addEventListener('click', () => this.handlePushToggle());
+            this.pushTestBtn?.addEventListener('click', () => this.sendTestPush());
+            this.contactsList?.addEventListener('click', event => {
+                const item = event.target.closest('[data-contact-email]');
+                if (!item) {
+                    return;
+                }
+                const email = item.dataset.contactEmail;
+                const contact = this.contacts.find(entry => entry.email === email);
+                this.setActiveContact(contact || { email, label: email });
+            });
+            this.contactSearch?.addEventListener('input', () => {
+                this.contactSearchTerm = this.contactSearch.value.trim().toLowerCase();
+                this.renderContacts();
+            });
+            this.collapseBtn?.addEventListener('click', () => this.setPanelOpen(!this.isPanelOpen));
+            this.messageInput?.addEventListener('focus', () => this.setPanelOpen(true));
+            window.addEventListener('beforeunload', () => this.stopRefreshLoop());
+        }
+
+        render() {
+            if (!this.view) {
+                return;
+            }
+            this.renderContacts();
+            this.renderFeed();
+            this.updateSelectedLabel();
+            this.highlightActiveContact();
+        }
+
+        renderPlaceholder(text) {
+            if (!this.feed) {
+                return;
+            }
+            const safeText = this.escapeHtml(text || 'Žádné zprávy zatím nemáme.');
+            this.feed.innerHTML = `<p class="profile-muted chat-empty">${safeText}</p>`;
+            this.scrollFeedToBottom();
+        }
+
+        hasPermission(code) {
+            const permissions = this.state.data?.profile?.permissions;
+            return Array.isArray(permissions) && permissions.includes(code);
+        }
+
+        setPanelOpen(open) {
+            this.isPanelOpen = !!open;
+            const grid = this.grid;
+            if (grid) {
+                grid.classList.toggle('chat-panel-open', this.isPanelOpen);
+                grid.classList.toggle('chat-panel-collapsed', !this.isPanelOpen);
+            }
+            if (this.collapseBtn) {
+                this.collapseBtn.setAttribute('aria-label', this.isPanelOpen ? 'Zavřít chat' : 'Otevřít chat');
+                this.collapseBtn.title = this.isPanelOpen ? 'Zavřít chat' : 'Otevřít chat';
+            }
+        }
+
+        loadDirectoryUsers() {
+            if (this.adminUsersRequestPending) {
+                return;
+            }
+            if (Array.isArray(this.state.adminUsers) && this.state.adminUsers.length) {
+                return;
+            }
+            if (this.adminUsersLoadFailed) {
+                return;
+            }
+            const token = this.getAuthToken({ redirect: false });
+            if (!token) {
+                return;
+            }
+            this.adminUsersRequestPending = true;
+            this.logger('contacts:load directory contacts');
+            fetch(this.apiUrl('/api/chat/contacts'), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            }).then(async response => {
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                const payload = await response.json();
+                this.state.adminUsers = Array.isArray(payload) ? payload : [];
+                this.logger('contacts:directory loaded', this.state.adminUsers.length);
+                this.renderContacts();
+            }).catch(error => {
+                console.warn('contacts:directory fetch failed', error);
+                this.adminUsersLoadFailed = true;
+            }).finally(() => {
+                this.adminUsersRequestPending = false;
+            });
+        }
+
+        renderFeed() {
+            if (!this.feed) {
+                return;
+            }
+            const messages = this.state.data.messages || [];
+            const targetEmail = this.getActiveEmail();
+            const filtered = targetEmail
+                ? messages.filter(message => this.isConversationMessage(message, targetEmail))
+                : messages;
+            if (!filtered.length) {
+                this.renderPlaceholder('Žádné zprávy zatím nemáme.');
+                return;
+            }
+            const ordered = filtered.slice().reverse();
+            this.feed.innerHTML = ordered.map(message => {
+                const normalizedSender = this.normalizeEmail(message.sender);
+                const isOutgoing = normalizedSender && normalizedSender === this.currentUserNormalized;
+                return `
+                <article class="chat-message ${isOutgoing ? 'chat-message-outgoing' : 'chat-message-incoming'}">
+                    <div class="chat-meta">
+                        <time>${this.escapeHtml(message.date || '')}</time>
+                    </div>
+                    <p>${this.escapeHtml(message.content || message.preview || '')}</p>
+                </article>
+            `;
+            }).join('');
+            this.scrollFeedToBottom();
+        }
+
+        renderContacts() {
+            if (!this.contactsList) {
+                return;
+            }
+            this.contacts = this.collectContacts();
+            this.directory = this.collectDirectory();
+            if (!this.directory.length) {
+                this.loadDirectoryUsers();
+            }
+            const term = this.contactSearchTerm;
+            const sourceList = term ? this.directory : this.contacts;
+            const filtered = term
+                ? sourceList.filter(contact => contact.search.includes(term))
+                : sourceList;
+            if (!filtered.length) {
+                this.contactsList.innerHTML = `<p class="profile-muted">${term ? 'Žádné výsledky hledání.' : 'Zatím nemáte žádná vlákna.'}</p>`;
+                return;
+            }
+            this.contactsList.innerHTML = filtered.map(contact => `
+                <div class="chat-person${this.normalizeEmail(contact.email) === this.normalizeEmail(this.activeContactEmail) ? ' active' : ''}" data-contact-email="${this.escapeHtml(contact.email)}">
+                    <div>
+                        <strong>${this.escapeHtml(contact.label)}</strong>
+                        <small>${this.escapeHtml(contact.meta ? `${contact.email} • ${contact.meta}` : contact.email)}</small>
+                    </div>
+                    ${contact.preview ? `<p class="chat-person-preview">${this.escapeHtml(contact.preview)}</p>` : ''}
+                </div>
+            `).join('');
+            this.highlightActiveContact();
+        }
+
+        collectContacts() {
+            const map = new Map();
+            const directoryMap = this.buildDirectoryMap();
+            (this.state.data.messages || []).forEach(message => {
+                const peer = this.resolvePeerFromMessage(message);
+                if (!peer) {
+                    return;
+                }
+                const directoryInfo = directoryMap.get(this.normalizeEmail(peer.email));
+                const descriptor = this.makeContactDescriptor(
+                        peer.email,
+                        directoryInfo?.label || peer.label,
+                        directoryInfo?.meta || '',
+                        message.content || message.preview || '',
+                        message.date || ''
+                );
+                if (!descriptor) {
+                    return;
+                }
+                const key = this.normalizeEmail(descriptor.email);
+                if (!map.has(key)) {
+                    map.set(key, descriptor);
+                }
+            });
+            this.manualContacts.forEach((descriptor, key) => {
+                if (!map.has(key)) {
+                    map.set(key, descriptor);
+                }
+            });
+            return Array.from(map.values());
+        }
+
+        collectDirectory() {
+            const map = new Map();
+            const addDescriptor = (descriptor) => {
+                if (!descriptor) {
+                    return;
+                }
+                const key = this.normalizeEmail(descriptor.email);
+                if (!key || key === this.currentUserNormalized || map.has(key)) {
+                    return;
+                }
+                map.set(key, descriptor);
+            };
+            this.contacts.forEach(addDescriptor);
+            this.manualContacts.forEach(descriptor => addDescriptor(descriptor));
+            (Array.isArray(this.state.adminUsers) ? this.state.adminUsers : []).forEach(user => {
+                if (!user?.email) {
+                    return;
+                }
+                const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+                addDescriptor(this.makeContactDescriptor(
+                        user.email,
+                        fullName || user.email,
+                        user.role || user.roleCode || 'Uživatel'
+                ));
+            });
+            (this.state.data.customers || []).forEach(customer => {
+                if (!customer?.email) {
+                    return;
+                }
+                addDescriptor(this.makeContactDescriptor(
+                        customer.email,
+                        customer.name || customer.email,
+                        'Zákazník'
+                ));
+            });
+            return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'cs'));
+        }
+
+        buildDirectoryMap() {
+            const map = new Map();
+            (Array.isArray(this.state.adminUsers) ? this.state.adminUsers : []).forEach(user => {
+                if (!user?.email) {
+                    return;
+                }
+                const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
+                map.set(this.normalizeEmail(user.email), {
+                    label: fullName || user.email,
+                    meta: user.role || user.roleCode || 'Uživatel'
+                });
+            });
+            (this.state.data.customers || []).forEach(customer => {
+                if (!customer?.email) {
+                    return;
+                }
+                map.set(this.normalizeEmail(customer.email), {
+                    label: customer.name || customer.email,
+                    meta: 'Zákazník'
+                });
+            });
+            return map;
+        }
+
+        setActiveContact(contact) {
+            const descriptor = contact
+                ? (contact.search ? contact : this.makeContactDescriptor(
+                        contact.email,
+                        contact.label || contact.email,
+                        contact.meta || '',
+                        contact.preview || '',
+                        contact.updated || ''
+                ))
+                : null;
+            if (descriptor) {
+                this.activeContactEmail = descriptor.email;
+                this.activeContactLabel = descriptor.label;
+                const normalized = this.normalizeEmail(descriptor.email);
+                if (normalized && !this.manualContacts.has(normalized) && !this.contacts.some(item => this.normalizeEmail(item.email) === normalized)) {
+                    this.manualContacts.set(normalized, descriptor);
+                }
+            } else {
+                this.activeContactEmail = '';
+                this.activeContactLabel = '';
+            }
+            if (this.receiverInput) {
+                this.receiverInput.value = this.activeContactEmail || '';
+            }
+            if (this.activeContactEmail) {
+                localStorage.setItem('chat.receiver', this.activeContactEmail);
+            } else {
+                localStorage.removeItem('chat.receiver');
+            }
+            this.updateSelectedLabel();
+            this.highlightActiveContact();
+            this.renderFeed();
+            this.refreshMessages({ force: true, silent: true });
+            this.loadDirectoryUsers();
+            this.setPanelOpen(!!this.activeContactEmail);
+        }
+
+        updateSelectedLabel() {
+            if (!this.selectedLabel) {
+                return;
+            }
+            const email = this.getActiveEmail();
+            if (email) {
+                const label = this.activeContactLabel || email;
+                this.selectedLabel.textContent = `Komunikace s ${label}`;
+            } else {
+                this.selectedLabel.textContent = 'Vyberte kontakt vlevo nebo použijte vyhledávání.';
+            }
+        }
+
+        getActiveEmail() {
+            const inputValue = this.receiverInput?.value?.trim();
+            const email = this.activeContactEmail || inputValue || '';
+            return email.trim();
+        }
+
+        highlightActiveContact() {
+            if (!this.contactsList) {
+                return;
+            }
+            const active = this.normalizeEmail(this.activeContactEmail);
+            this.contactsList.querySelectorAll('[data-contact-email]').forEach(item => {
+                const email = this.normalizeEmail(item.dataset.contactEmail);
+                item.classList.toggle('active', !!active && email === active);
+            });
+        }
+
+        scrollFeedToBottom() {
+            if (!this.feed) {
+                return;
+            }
+            this.feed.scrollTop = this.feed.scrollHeight;
+        }
+
+        async refreshMessages(options = {}) {
+            if (!this.view) {
+                return;
+            }
+            const token = this.getAuthToken();
+            if (!token) {
+                return;
+            }
+            if (this.refreshInFlight && !options.force) {
+                this.logger('refresh:skip', { reason: 'inflight', peer: this.getActiveEmail() });
+                return;
+            }
+            this.refreshInFlight = true;
+            const activeEmail = this.getActiveEmail();
+            const query = activeEmail ? `?with=${encodeURIComponent(activeEmail)}` : '';
+            this.logger('refresh:start', { peer: activeEmail, force: !!options.force, silent: !!options.silent, inflight: this.refreshInFlight });
+            try {
+                const response = await fetch(this.apiUrl(`/api/chat/messages${query}`), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (response.status === 401) {
+                    localStorage.clear();
+                    window.location.href = 'login.html';
+                    return;
+                }
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                const payload = await response.json();
+                if (Array.isArray(payload)) {
+                    const active = this.getActiveEmail();
+                    const normalizedActive = this.normalizeEmail(active);
+                    const existing = Array.isArray(this.state.data.messages) ? this.state.data.messages : [];
+                    const preserved = normalizedActive
+                        ? existing.filter(msg => !this.isConversationMessage(msg, normalizedActive))
+                        : [];
+                    this.messageIds = new Set(payload.filter(m => m.id).map(m => m.id));
+                    const mapped = payload.map(message => ({
+                        ...message,
+                        preview: message.preview || message.content
+                    }));
+                    this.state.data.messages = [...mapped, ...preserved].slice(0, 100);
+                    this.renderContacts();
+                    this.renderFeed();
+                    this.updateSelectedLabel();
+                    this.highlightActiveContact();
+                    this.logger('refresh:success', { count: this.state.data.messages.length });
+                }
+            } catch (error) {
+                this.logger('refresh:error', { message: error?.message, silent: !!options.silent });
+                if (!options.silent) {
+                    console.error('Failed to refresh chat messages', error);
+                    if (!(this.state.data.messages || []).length) {
+                        this.renderPlaceholder('Nepodařilo se načíst zprávy.');
+                    }
+                    this.setFormStatus('Nepodařilo se načíst zprávy.', false);
+                }
+            } finally {
+                this.refreshInFlight = false;
+                this.logger('refresh:done');
+            }
+        }
+
+        startRefreshLoop() {
+            this.stopRefreshLoop();
+            const tick = async () => {
+                // пытаемся восстановить WS, иначе подхватываем новые сообщения пуллингом
+                if (!this.connected && !this.connecting) {
+                    await this.initWebsocket();
+                }
+                if (!this.connected) {
+                    await this.refreshMessages({ silent: true });
+                }
+            };
+            tick();
+            this.refreshTimer = setInterval(tick, 8000);
+            this.logger('refreshLoop:enabled');
+        }
+
+        stopRefreshLoop() {
+            if (this.refreshTimer) {
+                clearInterval(this.refreshTimer);
+                this.refreshTimer = null;
+                this.logger('refreshLoop:stopped');
+            }
+        }
+
+        isConversationMessage(message, contactEmail) {
+            const contact = this.normalizeEmail(contactEmail);
+            const current = this.currentUserNormalized;
+            if (!contact || !current) {
+                return true;
+            }
+            const sender = this.normalizeEmail(message.sender);
+            const receiver = this.normalizeEmail(message.receiver);
+            return (sender === contact && receiver === current) || (sender === current && receiver === contact);
+        }
+
+        normalizeEmail(value) {
+            return (value || '').toString().trim().toLowerCase();
+        }
+
+        makeContactDescriptor(email, label, meta = '', preview = '', updated = '') {
+            const rawEmail = (email || '').toString().trim();
+            if (!rawEmail) {
+                return null;
+            }
+            const resolvedLabel = (label || '').toString().trim() || rawEmail;
+            const descriptor = {
+                email: rawEmail,
+                label: resolvedLabel,
+                meta: meta,
+                preview: preview || '',
+                updated: updated || '',
+                search: `${resolvedLabel.toLowerCase()} ${rawEmail.toLowerCase()}`
+            };
+            return descriptor;
+        }
+
+        resolvePeerFromMessage(message) {
+            const current = this.currentUserNormalized;
+            const sender = message.sender || '';
+            const receiver = message.receiver || '';
+            const normalizedSender = this.normalizeEmail(sender);
+            const normalizedReceiver = this.normalizeEmail(receiver);
+            if (current && normalizedSender === current && receiver) {
+                return { email: receiver, label: receiver };
+            }
+            if (current && normalizedReceiver === current && sender) {
+                return { email: sender, label: sender };
+            }
+            if (!current && sender) {
+                return { email: sender, label: sender };
+            }
+            return null;
+        }
+
+        isSameMessage(a, b) {
+            if (!a || !b) {
+                return false;
+            }
+            const senderA = this.normalizeEmail(a.sender);
+            const receiverA = this.normalizeEmail(a.receiver);
+            const senderB = this.normalizeEmail(b.sender);
+            const receiverB = this.normalizeEmail(b.receiver);
+            return senderA === senderB && receiverA === receiverB && (a.content || a.preview || '') === (b.content || b.preview || '');
+        }
+
+        truncateWords(text, limit) {
+            if (!text) {
+                return '';
+            }
+            const words = text.trim().split(/\s+/);
+            if (words.length <= limit) {
+                return text.trim();
+            }
+            return words.slice(0, limit).join(' ') + ' …';
+        }
+
+        async showSystemNotification(message) {
+            if (!this.pushEnabled) {
+                return;
+            }
+            // Дополнительный триггер системного уведомления (как кнопка Test), чтобы убедиться, что OS рендерит баннер.
+            try {
+                const current = this.currentUserNormalized;
+                const senderNormalized = this.normalizeEmail(message.sender);
+                if (current && senderNormalized === current) {
+                    return; // не дублируем свои сообщения
+                }
+                if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+                    this.logger('push:local skip', { reason: 'permission', permission: Notification?.permission });
+                    return;
+                }
+                const registration = await this.getServiceWorkerRegistration();
+                const title = message.sender || 'Nová zpráva';
+                const body = this.truncateWords(message.content || message.preview || '', 12);
+                this.logger('push:local show', { title, body });
+                await registration.showNotification(title, {
+                    body,
+                    tag: `bdas-local-${Date.now()}`,
+                    renotify: false
+                });
+            } catch (error) {
+                console.warn('push:local failed', error);
+            }
+        }
+
+        async sendTestPush() {
+            try {
+                this.logger('push:test start');
+                const registration = await this.getServiceWorkerRegistration();
+                const permission = Notification.permission === 'granted'
+                    ? 'granted'
+                    : await Notification.requestPermission();
+                this.logger('push:test permission', permission);
+                if (permission !== 'granted') {
+                    alert('Povolte prosím notifikace v prohlížeči.');
+                    return;
+                }
+                await registration.showNotification('Test push', {
+                    body: 'Tohle je ukázkové upozornění z aplikace.',
+                    tag: `bdas-test-${Date.now()}`,
+                    renotify: false
+                });
+                this.logger('push:test shown');
+            } catch (error) {
+                console.error('Test push failed', error);
+                alert(error.message || 'Test push se nepodařil.');
+            }
+        }
+
+        async refreshPushState() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
+                this.pushToggleLocked = true;
+                this.pushError = 'Push nepodporuje prohlížeč.';
+                this.setPushToggleState(false, 'Push nedostupný');
+                return;
+            }
+            try {
+                const registration = await this.getServiceWorkerRegistration();
+                const subscription = await registration.pushManager.getSubscription();
+                const isGranted = Notification.permission === 'granted';
+                this.pushToggleLocked = false;
+                this.pushError = '';
+                this.setPushToggleState(isGranted && !!subscription);
+                this.logger('push:state', { granted: isGranted, subscribed: !!subscription });
+            } catch (error) {
+                console.warn('Failed to refresh push state', error);
+                this.pushError = error?.message || 'Push není dostupný.';
+                this.pushToggleLocked = true;
+                this.setPushToggleState(false, 'Push nedostupný');
+            }
+        }
+
+        setPushToggleState(enabled, labelOverride) {
+            this.pushEnabled = !!enabled;
+            if (this.pushToggle) {
+                this.pushToggle.classList.toggle('active', this.pushEnabled);
+                this.pushToggle.setAttribute('aria-checked', this.pushEnabled ? 'true' : 'false');
+                this.pushToggle.classList.toggle('disabled', !!this.pushToggleLocked);
+            }
+            if (this.pushToggleLabel) {
+                this.pushToggleLabel.textContent = labelOverride || (this.pushEnabled ? 'Push on' : 'Push off');
+            }
+            const body = document.body;
+            if (body) {
+                body.classList.toggle('push-enabled', this.pushEnabled);
+            }
+        }
+
+        async handlePushToggle() {
+            if (this.pushToggleLocked || this.pushToggleLoading) {
+                if (this.pushError) {
+                    alert(this.pushError);
+                }
+                return;
+            }
+            this.logger('push:toggle click', { enabled: this.pushEnabled });
+            this.pushToggleLoading = true;
+            this.pushToggle?.classList.add('loading');
+            try {
+                if (this.pushEnabled) {
+                    await this.unsubscribeFromPush();
+                    this.setPushToggleState(false);
+                } else {
+                    await this.subscribeToPush();
+                    this.setPushToggleState(true);
+                }
+                await this.refreshPushState();
+            } catch (error) {
+                console.error('Push toggle failed', error);
+                alert(error.message || 'Nepodařilo se změnit stav push upozornění.');
+            } finally {
+                this.pushToggleLoading = false;
+                this.pushToggle?.classList.remove('loading');
+            }
+        }
+
+        async subscribeToPush() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
+                throw new Error('Prohlížeč nepodporuje push notifikace.');
+            }
+            const token = this.getAuthToken();
+            const username = localStorage.getItem('username') || localStorage.getItem('email');
+            if (!token || !username) {
+                throw new Error('Pro přihlášení odběru se nejdřív přihlaste.');
+            }
+            this.logger('push:subscribe request');
+            const registration = await this.getServiceWorkerRegistration();
+            const permission = await Notification.requestPermission();
+            this.logger('push:permission', permission);
+            if (permission !== 'granted') {
+                this.setPushToggleState(false, 'Povolte push v prohlížeči');
+                throw new Error('Povolení pro upozornění bylo zamítnuto. Povolit v nastavení prohlížeče.');
+            }
+            const subscription = await registration.pushManager.subscribe({
+                userVisibleOnly: true,
+                applicationServerKey: this.urlBase64ToUint8Array(this.publicKey)
+            });
+            await this.sendSubscriptionToServer(subscription, token, username);
+            this.logger('push:subscribe success');
+            this.pushError = '';
+        }
+
+        async unsubscribeFromPush() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                return;
+            }
+            this.logger('push:unsubscribe request');
+            const registration = await this.getServiceWorkerRegistration();
+            const subscription = await registration.pushManager.getSubscription();
+            if (subscription) {
+                await subscription.unsubscribe();
+            }
+            const token = this.getAuthToken({ redirect: false });
+            if (token) {
+                try {
+                    await fetch(this.apiUrl('/api/push/unsubscribe'), {
+                        method: 'DELETE',
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+                    this.logger('push:unsubscribe server cleanup done');
+                } catch (error) {
+                    console.warn('Failed to notify server about push unsubscribe', error);
+                }
+            }
+        }
+
+        async getServiceWorkerRegistration() {
+            if (this.swRegistration) {
+                return this.swRegistration;
+            }
+            try {
+                this.swRegistration = await navigator.serviceWorker.register(this.serviceWorkerPath);
+            } catch (error) {
+                this.pushError = error?.message || 'Service worker se nepodařilo zaregistrovat.';
+                this.pushToggleLocked = true;
+                this.setPushToggleState(false, 'Push nedostupný');
+                throw error;
+            }
+            return this.swRegistration;
+        }
+
+        async sendSubscriptionToServer(subscription, token, username) {
+            const payload = {
+                endpoint: subscription.endpoint,
+                keys: {
+                    p256dh: this.bufferToBase64(subscription.getKey('p256dh')),
+                    auth: this.bufferToBase64(subscription.getKey('auth'))
+                },
+                username
+            };
+            const response = await fetch(this.apiUrl('/api/push/subscribe'), {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify(payload)
+            });
+            if (!response.ok) {
+                throw new Error('Server odběr odmítl.');
+            }
+            this.logger('push:server subscription stored');
+            this.pushError = '';
+        }
+
+        bufferToBase64(buffer) {
+            if (!buffer) {
+                return '';
+            }
+            let binary = '';
+            const bytes = new Uint8Array(buffer);
+            bytes.forEach(byte => {
+                binary += String.fromCharCode(byte);
+            });
+            return btoa(binary);
+        }
+
+        urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            return Uint8Array.from([...rawData].map(char => char.charCodeAt(0)));
+        }
+
+        async initWebsocket() {
+            if (!this.view || this.connected || this.connecting) {
+                return;
+            }
+            const token = this.getAuthToken({ redirect: false });
+            if (!token) {
+                return;
+            }
+            this.connecting = true;
+            try {
+                this.logger('websocket:init');
+                await this.ensureSocketLibs();
+                const socket = new window.SockJS(this.apiUrl('/ws'));
+                this.client = window.Stomp.over(socket);
+                if (this.client) {
+                    this.client.debug = null;
+                }
+                this.client?.connect(
+                    { Authorization: `Bearer ${token}` },
+                    () => {
+                        this.connected = true;
+                        this.logger('websocket:connected');
+                        this.client.subscribe('/topic/messages', payload => this.handleIncomingMessage(payload));
+                    },
+                    error => {
+                        console.warn('Chat connection error', error);
+                        this.logger('websocket:error', error?.message || 'unknown');
+                        this.connected = false;
+                    }
+                );
+            } catch (error) {
+                console.error('Failed to init websocket', error);
+            } finally {
+                this.connecting = false;
+            }
+        }
+
+        async ensureSocketLibs() {
+            if (!window.SockJS) {
+                await this.injectScript('https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js');
+            }
+            if (!window.Stomp) {
+                await this.injectScript('https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js');
+            }
+        }
+
+        injectScript(src) {
+            return new Promise((resolve, reject) => {
+                const script = document.createElement('script');
+                script.src = src;
+                script.onload = resolve;
+                script.onerror = () => reject(new Error(`Script load failed: ${src}`));
+                document.head.appendChild(script);
+            });
+        }
+
+        handleIncomingMessage(payload) {
+            if (!payload?.body) {
+                return;
+            }
+            try {
+                const data = JSON.parse(payload.body);
+                const body = data.content || data.preview || '';
+                const message = {
+                    id: data.id || data.messageId,
+                    sender: data.sender?.email || data.senderEmail || data.sender || 'Neznámý',
+                    receiver: data.receiver?.email || data.receiverEmail || data.receiver || 'Broadcast',
+                    content: body,
+                    preview: body,
+                    date: data.datumZasilani
+                        ? new Date(data.datumZasilani).toLocaleString('cs-CZ')
+                        : new Date().toLocaleString('cs-CZ')
+                };
+                const normalizedSender = this.normalizeEmail(message.sender);
+                const normalizedReceiver = this.normalizeEmail(message.receiver);
+                if (this.currentUserNormalized && normalizedSender !== this.currentUserNormalized && normalizedReceiver !== this.currentUserNormalized) {
+                    this.logger('websocket:ignore-foreign', { sender: normalizedSender, receiver: normalizedReceiver });
+                    return;
+                }
+                // Dedup: remove any existing optimistic copy of the same message and skip already delivered IDs
+                if (message.id && this.messageIds.has(message.id)) {
+                    this.logger('websocket:skip-duplicate', message.id);
+                    return;
+                }
+                this.state.data.messages = (this.state.data.messages || []).filter(existing => {
+                    if (message.id) {
+                        if (existing.id && existing.id === message.id) {
+                            return false;
+                        }
+                        const isTemp = typeof existing.id === 'string' && existing.id.startsWith('temp-');
+                        if (existing.id && isTemp && this.isSameMessage(existing, message)) {
+                            return false;
+                        }
+                        if (!existing.id && this.isSameMessage(existing, message)) {
+                            return false;
+                        }
+                        return true;
+                    }
+                    return !this.isSameMessage(existing, message);
+                });
+                if (message.id) {
+                    this.messageIds.add(message.id);
+                }
+                this.state.data.messages = [message, ...(this.state.data.messages || [])].slice(0, 50);
+                this.renderContacts();
+                this.renderFeed();
+                this.highlightActiveContact();
+                this.logger('websocket:received', message);
+                this.showSystemNotification(message);
+            } catch (error) {
+                console.warn('Failed to parse incoming chat message', error);
+            }
+        }
+
+        async submitChatMessage(customPayload = null) {
+            if (!this.view) {
+                return false;
+            }
+            const content = (customPayload?.content ?? this.messageInput?.value ?? '').trim();
+            const receiver = (customPayload?.receiver ?? this.receiverInput?.value ?? '').trim();
+            if (!content) {
+                this.setFormStatus('Zpráva je prázdná.', false);
+                return false;
+            }
+            if (!receiver) {
+                this.setFormStatus('Vyplňte prosím adresáta.', false);
+                return false;
+            }
+            const token = this.getAuthToken();
+            if (!token) {
+                return false;
+            }
+            try {
+                if (!this.connected) {
+                    await this.initWebsocket();
+                }
+                if (!this.client || !this.connected) {
+                    throw new Error('Spojení s chatem není dostupné.');
+                }
+                this.logger('send:payload', { receiver, length: content.length });
+                this.client.send('/app/chat', { Authorization: `Bearer ${token}` }, JSON.stringify({ content, receiver }));
+                if (!customPayload && this.messageInput) {
+                    this.messageInput.value = '';
+                }
+                const optimisticMessage = {
+                    id: `temp-${Date.now()}`,
+                    sender: this.state.data.profile?.email || this.currentUserEmail || localStorage.getItem('email') || 'já',
+                    receiver,
+                    content,
+                    preview: content,
+                    date: new Date().toLocaleString('cs-CZ')
+                };
+                // remove any previous optimistic duplicates for the same text/receiver before adding
+                this.state.data.messages = (this.state.data.messages || []).filter(existing => !(!existing.id && this.isSameMessage(existing, optimisticMessage)));
+                this.state.data.messages = [optimisticMessage, ...(this.state.data.messages || [])].slice(0, 50);
+                this.messageIds.add(optimisticMessage.id);
+                this.renderContacts();
+                this.renderFeed();
+                this.highlightActiveContact();
+                this.setFormStatus('Zpráva byla odeslána.', true);
+                this.logger('send:optimistic', optimisticMessage);
+                return true;
+            } catch (error) {
+                console.error('Chat send failed', error);
+                this.setFormStatus(error.message || 'Odeslání selhalo.', false);
+                return false;
+            }
+        }
+
+        setFormStatus(text, success) {
+            if (!this.formStatus) {
+                return;
+            }
+            this.formStatus.textContent = text;
+            this.formStatus.classList.toggle('chat-status-success', !!success);
+        }
+
+        escapeHtml(text) {
+            if (!text) {
+                return '';
+            }
+            return text
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
         }
     }
 
@@ -1034,6 +2053,11 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             this.people = new PeopleModule(state);
             this.finance = new FinanceModule(state);
             this.records = new RecordsModule(state);
+            this.chat = new ChatModule(state, {
+                apiUrl,
+                publicKey: webpushPublicKey,
+                serviceWorkerPath
+            });
             this.customer = new CustomerModule(state);
             this.search = new GlobalSearch(state);
         }
@@ -1050,6 +2074,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             this.people.init();
             this.finance.init();
             this.records.init();
+            this.chat.init();
             this.customer.init();
             this.search.init();
             this.registerUtilityButtons();
@@ -1132,6 +2157,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             this.people.render();
             this.finance.render();
             this.records.render();
+            this.chat.render();
             this.customer.render();
             this.permissionsModule.render();
         }

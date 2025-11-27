@@ -42,6 +42,10 @@
                 <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
                 <span>Zákaznická zóna</span>
             </a>
+            <a class="nav-link" data-view="chat" data-url="chat.html" href="chat.html">
+                <span class="material-symbols-rounded" aria-hidden="true">forum</span>
+                <span>Komunikace</span>
+            </a>
             <a class="nav-link" data-view="permissions" data-url="permissions.html" href="permissions.html">
                 <span class="material-symbols-rounded" aria-hidden="true">admin_panel_settings</span>
                 <span>Správa práv</span>
@@ -481,6 +485,55 @@
                         <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
                         <h3>Push odběry (OHLASENY)</h3>
                         <div id="subscriber-list"></div>
+                    </article>
+                </div>
+            </section>
+
+            <section class="view" data-view="chat">
+                <div class="chat-grid" id="chat-grid">
+                    <article class="panel chat-people-panel">
+                        <div class="chat-panel-header">
+                            <div>
+                                <h2>Kontakty</h2>
+                                <p class="profile-muted">Vyberte uživatele nebo zadejte e-mail ručně.</p>
+                            </div>
+                        </div>
+                        <label class="chat-search">
+                            <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                            <input type="search" id="chat-contact-search" placeholder="Hledat podle jména nebo e-mailu…">
+                        </label>
+                        <div id="chat-people-list" class="chat-people-list"></div>
+                    </article>
+                    <article class="panel chat-panel">
+                        <button class="chat-panel-toggle" id="chat-collapse-btn" type="button" aria-label="Zavřít chat" title="Zavřít chat">
+                            <span class="material-symbols-rounded" aria-hidden="true">chevron_left</span>
+                        </button>
+                        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+                            <div>
+                                <h2>Interní chat</h2>
+                                <p id="chat-selected-label" class="profile-muted">Vyberte kontakt vlevo nebo použijte vyhledávání.</p>
+                            </div>
+                            <div class="chat-push-toggle" id="chat-push-toggle" role="switch" aria-checked="false">
+                                <div class="chat-push-track">
+                                    <span class="chat-push-text" id="chat-push-text">Push off</span>
+                                    <div class="chat-push-knob"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="chat-feed" id="chat-feed"></div>
+                        <form id="chat-form" class="chat-form">
+                            <input type="hidden" id="chat-receiver">
+                            <div class="chat-form-grid">
+                                <label class="chat-message-field">
+                                    <span>Zpráva</span>
+                                    <textarea id="chat-message" rows="3" placeholder="Napište zprávu…"></textarea>
+                                </label>
+                            </div>
+                            <div class="chat-form-actions">
+                                <button type="submit" class="ghost-btn ghost-strong">Odeslat</button>
+                                <span id="chat-form-status" class="profile-muted"></span>
+                            </div>
+                        </form>
                     </article>
                 </div>
             </section>

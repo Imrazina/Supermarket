@@ -208,7 +208,8 @@
 
             showMessage('Přihlášení proběhlo úspěšně, přesměrovávám…', true);
             setTimeout(() => {
-                window.location.href = 'index.html';
+                const target = (data.role || '').toUpperCase() === 'NEW_USER' ? 'role-request.html' : 'index.html';
+                window.location.href = target;
             }, 600);
         } catch (error) {
             console.error('Chyba přihlášení:', error);

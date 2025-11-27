@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Žádost o roli | BDAS Supermarket</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        :root {
+            font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            --bg: #f5f7ff;
+            --card: #ffffff;
+            --text: #0c1535;
+            --muted: rgba(12, 21, 53, 0.65);
+            --primary: #4361ee;
+            --border: rgba(12, 21, 53, 0.08);
+        }
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            min-height: 100vh;
+            background: radial-gradient(circle at 12% 18%, rgba(67, 97, 238, 0.18), transparent 45%),
+                        radial-gradient(circle at 82% 0%, rgba(255, 159, 67, 0.22), transparent 42%),
+                        linear-gradient(135deg, #eef2ff 0%, #f7f9ff 55%, #ffffff 100%);
+            color: var(--text);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 28px;
+        }
+        .wrap {
+            width: min(1080px, 100%);
+            display: grid;
+            gap: 22px;
+        }
+        h1 { margin: 0 0 6px; font-size: clamp(26px, 3vw, 32px); }
+        p.subtitle { margin: 0 0 18px; color: var(--muted); }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 18px;
+        }
+        .card {
+            background: linear-gradient(160deg, rgba(255,255,255,0.95) 0%, rgba(255,255,255,0.8) 60%, rgba(255,255,255,0.65) 100%);
+            border-radius: 22px;
+            padding: 18px;
+            border: 1px solid rgba(12, 21, 53, 0.08);
+            box-shadow: 0 22px 44px rgba(12, 21, 53, 0.12);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            min-height: 190px;
+            position: relative;
+            overflow: hidden;
+        }
+        .card::after {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: radial-gradient(circle at 20% 20%, rgba(67, 97, 238, 0.18), transparent 40%),
+                        radial-gradient(circle at 80% 0%, rgba(255, 159, 67, 0.18), transparent 45%);
+            opacity: 0.9;
+        }
+        .card-content { position: relative; z-index: 1; display:flex; flex-direction:column; gap:10px; height: 100%; }
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 12px;
+            border-radius: 14px;
+            background: rgba(67, 97, 238, 0.12);
+            color: var(--primary);
+            font-weight: 700;
+            font-size: 13px;
+            border: 1px solid rgba(67, 97, 238, 0.24);
+        }
+        .muted { color: var(--muted); margin: 0; line-height:1.5; }
+        button.primary {
+            border: none;
+            border-radius: 14px;
+            padding: 12px 16px;
+            background: var(--primary);
+            color: #fff;
+            font-weight: 700;
+            cursor: pointer;
+            box-shadow: 0 10px 22px rgba(67, 97, 238, 0.25);
+            transition: transform 0.1s ease, box-shadow 0.2s ease, background 0.2s ease;
+        }
+        button.primary:hover { background: #3046d3; box-shadow: 0 12px 26px rgba(67, 97, 238, 0.28); }
+        button.primary:active { transform: translateY(1px); }
+        button.primary:disabled { opacity: 0.6; cursor: not-allowed; box-shadow: none; }
+        .status {
+            padding: 12px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: rgba(67, 97, 238, 0.05);
+            color: var(--text);
+            font-weight: 600;
+        }
+        .status.error { background: rgba(255, 107, 107, 0.1); border-color: rgba(255, 107, 107, 0.3); color: #b91c1c; }
+        .status.success { background: rgba(67, 160, 71, 0.12); border-color: rgba(67, 160, 71, 0.3); color: #256029; }
+        .top {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            justify-content: space-between;
+            flex-wrap: wrap;
+        }
+        .logout {
+            border: none;
+            background: transparent;
+            color: var(--muted);
+            cursor: pointer;
+            font-weight: 600;
+        }
+    </style>
+</head>
+<body>
+<div class="wrap">
+    <div class="top">
+        <div>
+            <h1>Žádost o roli</h1>
+            <p class="subtitle">Vyberte, k čemu chcete přístup. Pošleme zprávu adminovi.</p>
+        </div>
+        <button class="logout" id="back-btn">zpět na login</button>
+    </div>
+    <div class="grid" id="role-grid"></div>
+    <div id="status" class="status" style="display:none;"></div>
+</div>
+
+<script>
+    const roles = [
+        { code: 'ZAMESTNANEC', label: 'Zaměstnanec', desc: 'Přístup do interních modulů a skladů.' },
+        { code: 'ZAKAZNIK', label: 'Zákazník', desc: 'Správa objednávek a zákaznického košíku.' },
+        { code: 'DODAVATEL', label: 'Dodavatel', desc: 'Výmena dokladů a komunikace s nákupem.' }
+    ];
+
+    const originCandidate = (window.location.origin && window.location.origin !== 'null') ? window.location.origin : '';
+    const guessedLocalApi = (!originCandidate || (window.location.hostname === 'localhost' && window.location.port !== '8082'))
+        ? 'http://localhost:8082'
+        : originCandidate;
+    const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL || guessedLocalApi).replace(/\/$/, '');
+    const token = localStorage.getItem('token') || '';
+
+    if (!token) {
+        window.location.href = 'login.html';
+    }
+
+    const grid = document.getElementById('role-grid');
+    const statusEl = document.getElementById('status');
+    const backBtn = document.getElementById('back-btn');
+
+    backBtn.addEventListener('click', () => {
+        localStorage.clear();
+        window.location.href = 'login.html';
+    });
+
+    grid.innerHTML = roles.map(role => `
+        <article class="card">
+            <div class="card-content">
+                <div class="pill">${role.label}</div>
+                <p class="muted">${role.desc}</p>
+                <button class="primary" data-role="${role.code}" style="margin-top:auto;">Požádat o ${role.label}</button>
+            </div>
+        </article>
+    `).join('');
+
+    grid.addEventListener('click', async (event) => {
+        const btn = event.target.closest('button[data-role]');
+        if (!btn) return;
+        const roleCode = btn.dataset.role;
+        setStatus('Odesílám žádost…', 'info');
+        disableButtons(true);
+        try {
+            const response = await fetch(`${apiBaseUrl}/api/role-request`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ roleCode })
+            });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(data.message || 'Žádost se nepodařila.');
+            }
+            setStatus(data.message || 'Žádost byla odeslána.', 'success');
+        } catch (error) {
+            setStatus(error.message || 'Žádost se nepodařila.', 'error');
+        } finally {
+            disableButtons(false);
+        }
+    });
+
+    function disableButtons(flag) {
+        grid.querySelectorAll('button[data-role]').forEach(btn => btn.disabled = flag);
+    }
+
+    function setStatus(text, type) {
+        statusEl.textContent = text;
+        statusEl.style.display = 'block';
+        statusEl.className = 'status' + (type === 'success' ? ' success' : type === 'error' ? ' error' : '');
+    }
+</script>
+</body>
+</html>

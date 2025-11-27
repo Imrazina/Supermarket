@@ -18,6 +18,8 @@ export default class UsersModule {
         this.roleChangeHandler = null;
         this.previousFocus = null;
         this.searchTerm = '';
+        this.isLoading = false;
+        this.lastError = '';
     }
 
     init() {
@@ -45,11 +47,18 @@ export default class UsersModule {
         }
         this.bindEvents();
         this.populateFilter();
+        this.renderTable(); // inicializační placeholder
         this.fetchUsers();
     }
 
     bindEvents() {
-        this.filterEl?.addEventListener('change', () => this.fetchUsers(this.filterEl.value));
+        this.filterEl?.addEventListener('change', () => {
+            if (this.searchEl) {
+                this.searchEl.value = '';
+            }
+            this.searchTerm = '';
+            this.fetchUsers(this.filterEl.value);
+        });
         this.searchEl?.addEventListener('input', () => {
             this.searchTerm = this.searchEl.value.trim().toLowerCase();
             this.renderTable();
@@ -85,12 +94,29 @@ export default class UsersModule {
             .join('');
     }
 
+    setLoading(flag) {
+        this.isLoading = !!flag;
+        if (flag) {
+            this.lastError = '';
+        }
+    }
+
+    renderStatus(message) {
+        if (!this.tableEl) {
+            return;
+        }
+        this.tableEl.innerHTML = `<p class="profile-muted">${message}</p>`;
+    }
+
     async fetchUsers(role = '') {
         const token = localStorage.getItem('token');
         if (!token) {
+            window.location.href = 'login.html';
             return;
         }
         const params = role ? `?role=${encodeURIComponent(role)}` : '';
+        this.setLoading(true);
+        this.renderStatus('Načítám uživatele…');
         try {
             const response = await fetch(this.apiUrl(`/api/admin/users${params}`), {
                 headers: {
@@ -103,10 +129,13 @@ export default class UsersModule {
             }
             const users = await response.json();
             this.state.adminUsers = Array.isArray(users) ? users : [];
-            this.renderTable();
+            this.lastError = '';
         } catch (error) {
             console.error('Failed to load users', error);
-            this.tableEl.innerHTML = `<p class="profile-muted">${error.message || 'Nepodařilo se načíst uživatele.'}</p>`;
+            this.lastError = error.message || 'Nepodařilo se načíst uživatele.';
+        } finally {
+            this.setLoading(false);
+            this.renderTable();
         }
     }
 
@@ -114,8 +143,20 @@ export default class UsersModule {
         if (!this.tableEl) {
             return;
         }
+        if (this.isLoading) {
+            this.renderStatus('Načítám uživatele…');
+            return;
+        }
+        if (this.lastError) {
+            this.renderStatus(this.lastError);
+            return;
+        }
         const users = this.state.adminUsers || [];
-        const filtered = this.applySearch(users);
+        const filtered = this.applySearch(users).sort((a, b) => {
+            const left = `${(a.lastName || '').toLowerCase()} ${(a.firstName || '').toLowerCase()}`;
+            const right = `${(b.lastName || '').toLowerCase()} ${(b.firstName || '').toLowerCase()}`;
+            return left.localeCompare(right, 'cs');
+        });
         if (!filtered.length) {
             this.tableEl.innerHTML = '<p class="profile-muted">Žádní uživatelé k zobrazení.</p>';
             return;
@@ -135,10 +176,10 @@ export default class UsersModule {
                     <tbody>
                         ${filtered.map(user => `
                             <tr>
-                                <td>${user.firstName} ${user.lastName}</td>
-                                <td>${user.role}</td>
-                                <td>${user.email}</td>
-                                <td>${user.phone}</td>
+                                <td>${this.escapeHtml(user.firstName)} ${this.escapeHtml(user.lastName)}</td>
+                                <td>${this.escapeHtml(user.role)}</td>
+                                <td>${this.escapeHtml(user.email)}</td>
+                                <td>${this.escapeHtml(user.phone)}</td>
                                 <td style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button type="button" class="ghost-btn" data-edit="${user.id}">Upravit</button>
                                     <button type="button" class="ghost-btn ghost-muted" data-impersonate="${user.id}">Simulovat</button>
@@ -158,6 +199,18 @@ export default class UsersModule {
             const id = Number(btn.dataset.impersonate);
             btn.addEventListener('click', () => this.impersonateUser(id));
         });
+    }
+
+    escapeHtml(text) {
+        if (!text) {
+            return '';
+        }
+        return text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
     }
 
     openModal(user) {
@@ -275,7 +328,8 @@ export default class UsersModule {
         return list.filter(user => {
             const fullName = `${user.firstName || ''} ${user.lastName || ''}`.toLowerCase();
             const email = (user.email || '').toLowerCase();
-            return fullName.includes(this.searchTerm) || email.includes(this.searchTerm);
+            const phone = (user.phone || '').toLowerCase();
+            return fullName.includes(this.searchTerm) || email.includes(this.searchTerm) || phone.includes(this.searchTerm);
         });
     }
 
@@ -336,7 +390,10 @@ export default class UsersModule {
             return;
         }
         const formData = new FormData(this.modalForm);
-        const payload = Object.fromEntries(formData.entries());
+        const payload = {};
+        formData.forEach((value, key) => {
+            payload[key] = typeof value === 'string' ? value.trim() : value;
+        });
         const role = (payload.roleCode || '').trim();
         if (this.isEmployeeRole(role)) {
             payload.salary = Number(payload.salary) || 0;
@@ -356,6 +413,15 @@ export default class UsersModule {
         } else {
             delete payload.supplierCompany;
         }
+        payload.firstName = (payload.firstName || '').trim();
+        payload.lastName = (payload.lastName || '').trim();
+        payload.email = (payload.email || '').trim();
+        payload.phone = (payload.phone || '').trim();
+        payload.street = (payload.street || '').trim();
+        payload.houseNumber = (payload.houseNumber || '').trim();
+        payload.orientationNumber = (payload.orientationNumber || '').trim();
+        payload.cityPsc = (payload.cityPsc || '').trim();
+        payload.newPassword = (payload.newPassword || '').trim();
         await this.updateUser(this.modalForm.dataset.userId, payload);
     }
 
