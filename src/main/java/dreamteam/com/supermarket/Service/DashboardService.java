@@ -79,9 +79,10 @@ public class DashboardService {
         List<Zakaznik> customers = zakaznikRepository.findAll();
         List<Dodavatel> suppliers = dodavatelRepository.findAll();
         List<Platba> payments = platbaRepository.findAll();
-        List<Log> logs = logRepository.findTop10ByOrderByDatumZmenyDesc();
+        List<LogRepository.LogWithPath> logs = logRepository.findRecentWithPath();
         List<Zpravy> messages = zpravyRepository.findTop10ByOrderByDatumZasilaniDesc();
         List<Notifikace> subscribers = notifikaceRepository.findAll();
+        List<ArchivRepository.ArchivHierarchy> archiveTree = archivRepository.findHierarchy();
         List<Archiv> archives = archivRepository.findAll();
         List<Role> roles = roleRepository.findAll();
         List<Uzivatel> allUsers = uzivatelRepository.findAll();
@@ -302,11 +303,11 @@ public class DashboardService {
 
         List<DashboardResponse.LogInfo> logInfos = logs.stream()
                 .map(log -> new DashboardResponse.LogInfo(
-                        log.getTabulkaNazev(),
-                        log.getOperace(),
-                        "system",
-                        log.getDatumZmeny() != null ? log.getDatumZmeny().format(DATE_TIME_FORMAT) : "",
-                        log.getPopis() != null ? log.getPopis() : "-"
+                        log.getTableName(),
+                        log.getOperation(),
+                        log.getArchivPath() != null ? log.getArchivPath() : "Archiv",
+                        log.getTimestamp() != null ? DATE_TIME_FORMAT.format(log.getTimestamp().toLocalDateTime()) : "",
+                        log.getPopis() != null ? log.getPopis() : ("ID " + log.getIdRekord())
                 ))
                 .toList();
 
@@ -347,7 +348,7 @@ public class DashboardService {
                 })
                 .toList();
 
-        List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archives);
+        List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archiveTree, archives);
 
         List<DashboardResponse.CustomerProduct> customerProducts = goods.stream()
                 .sorted(Comparator.comparing(Zbozi::getMnozstvi))
@@ -371,6 +372,16 @@ public class DashboardService {
 
         DashboardResponse.Profile profile = buildProfile(currentUser, now, storeInfos.size(), orders.size(), logs.size());
 
+        List<DashboardResponse.ArchiveNode> archiveNodes = archiveTree.stream()
+                .map(node -> new DashboardResponse.ArchiveNode(
+                        node.getIdArchiv(),
+                        node.getNazev(),
+                        node.getParentId(),
+                        node.getLvl() == null ? 0 : node.getLvl(),
+                        node.getCesta()
+                ))
+                .toList();
+
         return new DashboardResponse(
                 now.format(DATE_TIME_FORMAT),
                 buildWeeklyDemand(orders),
@@ -393,7 +404,8 @@ public class DashboardService {
                 profile,
                 folderInfos,
                 customerProducts,
-                suggestions
+                suggestions,
+                archiveNodes
         );
     }
 
@@ -451,14 +463,22 @@ public class DashboardService {
                 .toList();
     }
 
-    private List<DashboardResponse.FolderInfo> buildFolders(List<Archiv> archives) {
-        if (archives.isEmpty()) {
+    private List<DashboardResponse.FolderInfo> buildFolders(List<ArchivRepository.ArchivHierarchy> archiveTree,
+                                                           List<Archiv> archives) {
+        if (archiveTree.isEmpty()) {
             return List.of();
         }
+        Map<Long, Archiv> archivById = archives.stream()
+                .filter(archiv -> archiv.getIdArchiv() != null)
+                .collect(Collectors.toMap(Archiv::getIdArchiv, Function.identity()));
         List<String> colors = List.of("#ff9f43", "#34d399", "#a855f7", "#4361ee", "#f87171");
         AtomicInteger index = new AtomicInteger(0);
-        return archives.stream()
-                .map(archiv -> {
+        return archiveTree.stream()
+                .map(node -> {
+                    Archiv archiv = archivById.get(node.getIdArchiv());
+                    if (archiv == null) {
+                        return null;
+                    }
                     String color = colors.get(index.getAndIncrement() % colors.size());
                     List<Soubor> files = souborRepository.findByArchivOrderByDatumModifikaceDesc(archiv);
                     List<DashboardResponse.FileInfo> fileInfos = files.stream()
@@ -474,6 +494,7 @@ public class DashboardService {
                             .toList();
                     return new DashboardResponse.FolderInfo(archiv.getNazev(), color, fileInfos);
                 })
+                .filter(Objects::nonNull)
                 .toList();
     }
 

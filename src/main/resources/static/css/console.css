@@ -1640,3 +1640,266 @@ label[data-role-section] {
                 padding: 20px;
             }
         }
+
+        /* Archive page */
+        .archive-body {
+            background: radial-gradient(circle at 10% 20%, #f4f7ff, #f9fbff 40%, #ffffff 70%);
+            min-height: 100vh;
+            font-family: 'Inter', sans-serif;
+            color: #0f172a;
+            padding: 32px;
+        }
+
+        .archive-hero {
+            display: flex;
+            justify-content: space-between;
+            gap: 24px;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .archive-hero h1 {
+            font-size: 32px;
+            margin: 4px 0;
+        }
+
+        .archive-hero .muted {
+            max-width: 640px;
+        }
+
+        .hero-actions {
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .archive-layout {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 16px;
+        }
+
+        .section-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 12px;
+        }
+
+        .search-field {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 10px 12px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+        }
+
+        .search-field input {
+            border: none;
+            outline: none;
+            font-size: 14px;
+        }
+
+        .archive-tree {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 12px;
+        }
+
+        .archive-folder {
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 12px;
+            background: #fff;
+            transition: transform 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+            cursor: pointer;
+        }
+
+        .archive-folder:hover {
+            transform: translateY(-2px);
+            border-color: #cdd7ff;
+            box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+        }
+
+        .folder-head {
+            display: grid;
+            grid-template-columns: auto 1fr auto;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .folder-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+        }
+
+        .folder-files {
+            margin-top: 10px;
+            display: grid;
+            gap: 8px;
+        }
+
+        .file-chip {
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 10px;
+            border-radius: 10px;
+            background: #f7f9ff;
+            border: 1px dashed #d6defa;
+        }
+
+        .badge {
+            background: #eef2ff;
+            color: #4338ca;
+            padding: 6px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .pill-row {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-top: 8px;
+        }
+
+        .pill {
+            background: #f7f9ff;
+            border: 1px solid #e2e8f0;
+            padding: 6px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .filters {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filters select {
+            padding: 10px 12px;
+            border-radius: 10px;
+            border: 1px solid var(--border);
+            background: #fff;
+        }
+
+        .folder-pill {
+            display: inline-flex;
+            align-items: center;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+
+        .archive-timeline {
+            display: grid;
+            gap: 12px;
+        }
+
+        .log-item {
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 12px;
+            background: #fff;
+        }
+
+        .log-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 6px;
+        }
+
+        .muted {
+            color: #6b7280;
+        }
+
+        .log-detail {
+            margin-top: 12px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .archive-layout > section:last-child {
+            grid-column: 1 / -1;
+        }
+
+        .table-wrapper.scroll-x {
+            overflow-x: auto;
+        }
+
+        .tree-list {
+            list-style: none;
+            padding-left: 14px;
+            margin: 0;
+        }
+
+        .tree-list > li {
+            margin: 4px 0;
+        }
+
+        .tree-node {
+            width: 100%;
+            display: grid;
+            grid-template-columns: auto 1fr;
+            gap: 8px;
+            align-items: center;
+            padding: 8px 10px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: #fff;
+            cursor: pointer;
+            text-align: left;
+            transition: border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .tree-node:hover {
+            border-color: #cdd7ff;
+            box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
+        }
+
+        .tree-node strong {
+            font-size: 14px;
+        }
+
+        .tree-node small {
+            display: block;
+            font-size: 12px;
+        }
+
+        .tree-item .tree-list {
+            display: none;
+            margin-left: 12px;
+        }
+
+        .tree-item.expanded > .tree-list {
+            display: block;
+        }
+
+        @media (max-width: 768px) {
+            .archive-body {
+                padding: 20px;
+            }
+
+            .archive-hero {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+        }

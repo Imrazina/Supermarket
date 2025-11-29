@@ -24,7 +24,8 @@ public record DashboardResponse(
         Profile profile,
         List<FolderInfo> folders,
         List<CustomerProduct> customerProducts,
-        List<String> customerSuggestions
+        List<String> customerSuggestions,
+        List<ArchiveNode> archiveTree
 ) {
 
     public record WeeklyDemandPoint(String label, long value) {}
@@ -103,6 +104,8 @@ public record DashboardResponse(
     public record FolderInfo(String name, String color, List<FileInfo> files) {}
 
     public record FileInfo(String name, String type, String archive, String owner, String updated) {}
+
+    public record ArchiveNode(Long id, String name, Long parentId, int level, String path) {}
 
     public record CustomerProduct(
             String sku,

@@ -25,4 +25,7 @@ public class Archiv {
     @Lob
     @Column(name = "POPIS")
     private String popis;
+
+    @Column(name = "PARENT_ID")
+    private Long parentId;
 }

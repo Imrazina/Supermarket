@@ -1,6 +1,7 @@
 import ProfileModule from './modules/profile-module.js';
 import PermissionsModule from './modules/permissions-module.js';
 import UsersModule from './modules/users-module.js';
+import RecordsModule from './modules/archive-module.js';
 
 const currencyFormatter = new Intl.NumberFormat('cs-CZ', {
     style: 'currency',
@@ -29,6 +30,7 @@ function createEmptyData() {
         subscribers: [],
         stores: [],
         folders: [],
+        archiveTree: [],
         customerProducts: [],
         customerSuggestions: [],
 
@@ -759,85 +761,6 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                     .filter(p => p.receipt)
                     .map(p => `<li>Účtenka k ${p.orderId} — ${currencyFormatter.format(p.amount)} (${p.method})</li>`)
                     .join('');
-            }
-        }
-    }
-
-    class RecordsModule {
-        constructor(state) {
-            this.state = state;
-            this.fileTable = document.getElementById('file-table-body');
-            this.folderList = document.getElementById('folder-list');
-            this.logTimeline = document.getElementById('log-timeline');
-            this.messageList = document.getElementById('message-list');
-            this.subscriberList = document.getElementById('subscriber-list');
-        }
-        init() {
-            if (!this.state.selectedFolder && this.state.data.folders.length) {
-                this.state.selectedFolder = this.state.data.folders[0].name;
-            }
-            this.folderList?.addEventListener('click', event => {
-                const btn = event.target.closest('button[data-folder]');
-                if (!btn) return;
-                this.state.selectedFolder = btn.dataset.folder;
-                this.render();
-            });
-        }
-
-        render() {
-            const folders = this.state.data.folders || [];
-            const activeFolder = this.state.selectedFolder || folders[0]?.name;
-            if (this.folderList) {
-                this.folderList.innerHTML = folders.length
-                    ? folders.map(folder => `
-                        <button class="chip ${folder.name === activeFolder ? 'active' : ''}" data-folder="${folder.name}">
-                            ${folder.name}
-                        </button>`).join('')
-                    : '<p>Žádné složky.</p>';
-            }
-
-            if (this.fileTable) {
-                const files = folders.find(folder => folder.name === activeFolder)?.files || [];
-                this.fileTable.innerHTML = files.length
-                    ? files.map(file => `
-                        <tr>
-                            <td>${file.name}</td>
-                            <td>${file.type}</td>
-                            <td>${file.archive}</td>
-                            <td>${file.owner}</td>
-                            <td>${file.updated}</td>
-                        </tr>`).join('')
-                    : '<tr><td colspan="5">Vybraná složka je prázdná.</td></tr>';
-            }
-
-            if (this.logTimeline) {
-                this.logTimeline.innerHTML = this.state.data.logs.map(log => `
-                    <div class="log-item">
-                        <strong>${log.table}</strong> · ${log.operation}<br>
-                        <small>${log.timestamp} · ${log.user}</small>
-                        <p>${log.descr}</p>
-                    </div>
-                `).join('');
-            }
-
-            if (this.messageList) {
-                this.messageList.innerHTML = this.state.data.messages.map(message => `
-                    <div class="message-item">
-                        <strong>${message.sender || '—'} → ${message.receiver || '—'}</strong>
-                        <small>${message.date || ''}</small>
-                        <p>${message.preview || message.content || ''}</p>
-                    </div>
-                `).join('');
-            }
-
-            if (this.subscriberList) {
-                this.subscriberList.innerHTML = this.state.data.subscribers.map(sub => `
-                <div class="pill-card">
-                    <strong>${sub.endpoint}</strong>
-                    <p>auth ${sub.auth}</p>
-                    <small>aktualizováno ${sub.updated}</small>
-                </div>
-            `).join('');
             }
         }
     }

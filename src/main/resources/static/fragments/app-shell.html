@@ -449,43 +449,55 @@
             </section>
 
             <section class="view" data-view="records">
-                <article class="panel">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div>
-                            <h2>Archiv &amp; soubory</h2>
-                            <p>ARCHIV • SOUBOR</p>
-                        </div>
-                        <button class="logout-btn" id="upload-btn">Nahrát soubor</button>
+                <header class="archive-hero" style="margin-bottom:16px;">
+                    <div>
+                        <p class="eyebrow">ARCHIV</p>
+                        <h2>Archiv &amp; audit</h2>
+                        <p class="muted">Hierarchie složek, soubory, poslední logy.</p>
                     </div>
-                    <div id="folder-list" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;"></div>
-                    <div class="table-wrapper">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>soubor</th>
-                                <th>typ</th>
-                                <th>archiv</th>
-                                <th>odpovědný</th>
-                                <th>aktualizováno</th>
-                            </tr>
-                            </thead>
-                            <tbody id="file-table-body"></tbody>
-                        </table>
+                    <div class="hero-actions">
+                        <button class="logout-btn" id="refresh-btn" type="button">Obnovit</button>
+                        <button class="logout-btn primary" id="upload-btn" type="button">Nahrát soubor</button>
                     </div>
-                </article>
+                </header>
 
-                <div class="two-column">
-                    <article class="panel">
-                        <h2>Auditní log (LOG)</h2>
-                        <div id="log-timeline"></div>
-                    </article>
-                    <article class="panel">
-                        <h2>Komunikace (ZPRAVY)</h2>
-                        <div id="message-list"></div>
-                        <hr style="border:none;border-top:1px solid var(--border);margin:18px 0;">
-                        <h3>Push odběry (OHLASENY)</h3>
-                        <div id="subscriber-list"></div>
-                    </article>
+                <div class="archive-layout">
+                    <section class="panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="eyebrow">Struktura</p>
+                                <h3>Strom složek</h3>
+                            </div>
+                        </div>
+                        <div id="folder-tree" class="archive-tree"></div>
+                    </section>
+
+                    <section class="panel">
+                        <div class="section-head">
+                            <div>
+                                <p class="eyebrow">Audit</p>
+                                <h3>Auditní záznamy</h3>
+                            </div>
+                        </div>
+                        <div class="table-wrapper scroll-x">
+                            <table>
+                                <thead>
+                                <tr>
+                                    <th>tabulka</th>
+                                    <th>operace</th>
+                                    <th>archiv</th>
+                                    <th>záznam</th>
+                                    <th>čas</th>
+                                    <th>nová data</th>
+                                    <th>stará data</th>
+                                    <th>popis</th>
+                                </tr>
+                                </thead>
+                                <tbody id="file-table-body"></tbody>
+                            </table>
+                        </div>
+                        <div id="log-detail" class="log-detail"></div>
+                    </section>
                 </div>
             </section>
 
