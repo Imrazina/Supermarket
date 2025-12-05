@@ -552,25 +552,81 @@
 
             <section class="view" data-view="customer">
                 <article class="panel">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
                         <div>
                             <h2>Zákaznický výběr produktů</h2>
                             <p>Filtrujte podle kategorií a přidejte položky do košíku.</p>
                         </div>
-                        <div id="customer-category-chips"></div>
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <a class="nav-link cart-icon" id="customer-cart-button" data-view="customer-cart" href="cart.html" aria-label="Můj košík">
+                                <span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span>
+                                <span class="cart-count" id="customer-cart-count">0</span>
+                            </a>
+                            <div class="search" style="max-width:260px;min-width:200px;">
+                                <span class="material-symbols-rounded" aria-hidden="true">search</span>
+                                <input type="search" id="customer-search" placeholder="Hledat produkt podle názvu nebo SKU">
+                            </div>
+                            <div id="customer-category-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
+                        </div>
                     </div>
                     <div id="customer-product-grid" class="card-list" style="margin-top:12px;"></div>
                 </article>
-                <div class="two-column">
-                    <article class="panel">
-                        <h2>Můj košík</h2>
-                        <div id="customer-cart"></div>
-                    </article>
-                    <article class="panel">
-                        <h2>Doporučení</h2>
-                        <div id="customer-suggestions"></div>
-                    </article>
-                </div>
+                <article class="panel">
+                    <h2>Doporučení</h2>
+                    <div id="customer-suggestions"></div>
+                </article>
+            </section>
+
+            <section class="view" data-view="customer-cart">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <h2>Můj košík</h2>
+                            <p>Upravte množství položek, poté pokračujte k platbě.</p>
+                        </div>
+                        <a class="nav-link" data-view="customer" href="customer.html" style="width:auto;gap:8px;padding:8px 12px;">Zpet</a>
+                    </div>
+                    <div id="customer-cart-page" data-customer-cart style="margin-top:12px;"></div>
+                </article>
+            </section>
+
+            <section class="view" data-view="customer-payment">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <h2>Platba</h2>
+                            <p>Zvolte metodu platby a potvrďte částku.</p>
+                        </div>
+                        <a class="nav-link" data-view="customer-cart" href="cart.html" style="width:auto;gap:8px;padding:8px 12px;">Zpet do kosiku</a>
+                    </div>
+                    <form id="payment-form" class="profile-form-section" style="margin-top:16px;">
+                        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
+                            <label style="display:flex;align-items:center;gap:6px;">
+                                <input type="radio" name="paymentType" value="CASH" checked> Hotovost
+                            </label>
+                            <label style="display:flex;align-items:center;gap:6px;">
+                                <input type="radio" name="paymentType" value="CARD"> Karta
+                            </label>
+                            <strong>Celkem: <span id="payment-total">0 Kč</span></strong>
+                        </div>
+
+                        <div id="cash-section" style="margin-top:12px;display:block;">
+                            <label><span>Přijato (Kč)</span><input type="number" step="0.01" name="cashGiven" id="cash-given" required></label>
+                            <p class="profile-muted" style="margin-top:6px;">Vrátit: <span id="cash-change">0 Kč</span></p>
+                        </div>
+
+                        <div id="card-section" style="margin-top:12px;display:none;">
+                            <label><span>Číslo karty</span><input type="text" name="cardNumber" id="card-number" maxlength="19" placeholder="4111 1111 1111 1111"></label>
+                        </div>
+
+                        <p class="profile-muted" id="payment-status" style="margin-top:10px;"></p>
+
+                        <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;">
+                            <button class="cart-submit" type="submit">Zaplatit</button>
+                            <button type="button" class="ghost-btn ghost-muted" id="payment-back">Zpet do kosiku</button>
+                        </div>
+                    </form>
+                </article>
             </section>
         </div>
     </div>
