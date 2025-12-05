@@ -3,6 +3,7 @@ import PermissionsModule from './modules/permissions-module.js';
 import DbObjectsModule from './modules/dbobjects-module.js';
 import UsersModule from './modules/users-module.js';
 import RecordsModule from './modules/archive-module.js';
+import CustomerOrdersView from './modules/customer-orders-view.js';
 
 const currencyFormatter = new Intl.NumberFormat('cs-CZ', {
     style: 'currency',
@@ -333,6 +334,7 @@ const viewMeta = {
     records: { label: 'Archiv', title: 'Soubory, logy, zprávy' },
     dbobjects: { label: 'DB objekty', title: 'Systémový katalog' },
     customer: { label: 'Zákaznická zóna', title: 'Self-service objednávky' },
+    'customer-orders': { label: 'Moje objednávky', title: 'Objednávky zákazníka' },
     chat: { label: 'Komunikace', title: 'Chat & push centrum' }
 };
 
@@ -2207,6 +2209,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             `).join('');
         }
 
+
         loadCart() {
             try {
                 const raw = localStorage.getItem('customerCart');
@@ -2291,11 +2294,11 @@ class GlobalSearch {
             this.state = state;
             this.messagePoller = null;
             this.authGuard = new AuthGuard(state);
-            this.navigation = new NavigationController(state, meta);
-            this.dashboard = new DashboardModule(state);
-            this.profile = new ProfileModule(state, this, {
-                apiUrl,
-                fetchDashboardSnapshot,
+        this.navigation = new NavigationController(state, meta);
+        this.dashboard = new DashboardModule(state);
+        this.profile = new ProfileModule(state, this, {
+            apiUrl,
+            fetchDashboardSnapshot,
                 fetchPermissionsCatalog,
                 mergeDashboardData
             });
@@ -2314,14 +2317,14 @@ class GlobalSearch {
             this.people = new PeopleModule(state);
             this.finance = new FinanceModule(state);
             this.records = new RecordsModule(state);
-            this.chat = new ChatModule(state, {
-                apiUrl,
-                publicKey: webpushPublicKey,
-                serviceWorkerPath
-            });
-            this.customer = new CustomerModule(state);
-            this.payment = new PaymentModule(state, { apiUrl });
-            this.search = new GlobalSearch(state);
+        this.chat = new ChatModule(state, {
+            apiUrl,
+            publicKey: webpushPublicKey,
+            serviceWorkerPath
+        });
+        this.customer = new CustomerModule(state);
+        this.customerOrders = new CustomerOrdersView(state, currencyFormatter);
+        this.search = new GlobalSearch(state);
         }
 
         init() {
@@ -2339,7 +2342,7 @@ class GlobalSearch {
             this.records.init();
             this.chat.init();
             this.customer.init();
-            this.payment.init();
+            this.customerOrders.render();
             this.search.init();
             this.registerUtilityButtons();
             this.renderAll();
@@ -2443,6 +2446,7 @@ class GlobalSearch {
             this.records.render();
             this.chat.render();
             this.customer.render();
+            this.customerOrders.render();
             this.permissionsModule.render();
         }
     }

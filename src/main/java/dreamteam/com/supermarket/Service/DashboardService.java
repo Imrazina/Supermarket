@@ -72,13 +72,19 @@ public class DashboardService {
         List<Zbozi> goods = zboziRepository.findAll();
         List<Sklad> warehouses = skladRepository.findAll();
         List<Supermarket> supermarkets = supermarketRepository.findAll();
-        List<Objednavka> orders = objednavkaRepository.findAll();
+        List<Objednavka> orders = objednavkaRepository.findByUzivatel(currentUser);
         List<ObjednavkaStatus> statuses = objednavkaStatusRepository.findAll();
-        List<ObjednavkaZbozi> orderLines = objednavkaZboziRepository.findAll();
+        List<ObjednavkaZbozi> orderLines = objednavkaZboziRepository.findAll()
+                .stream()
+                .filter(line -> orders.stream().anyMatch(o -> o.getIdObjednavka().equals(line.getObjednavka().getIdObjednavka())))
+                .toList();
         List<Zamestnanec> employees = zamestnanecRepository.findAll();
         List<Zakaznik> customers = zakaznikRepository.findAll();
         List<Dodavatel> suppliers = dodavatelRepository.findAll();
-        List<Platba> payments = platbaRepository.findAll();
+        List<Long> orderIds = orders.stream().map(Objednavka::getIdObjednavka).toList();
+        List<Platba> payments = platbaRepository.findAll().stream()
+                .filter(p -> p.getObjednavka() != null && orderIds.contains(p.getObjednavka().getIdObjednavka()))
+                .toList();
         List<LogRepository.LogWithPath> logs = logRepository.findRecentWithPath();
         List<Zpravy> messages = zpravyRepository.findTop10ByOrderByDatumZasilaniDesc();
         List<Notifikace> subscribers = notifikaceRepository.findAll();

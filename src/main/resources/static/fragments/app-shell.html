@@ -660,6 +660,7 @@
                                 <span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span>
                                 <span class="cart-count" id="customer-cart-count">0</span>
                             </a>
+                            <a class="nav-link" data-view="customer-orders" href="customer-orders.html" style="width:auto;gap:8px;padding:8px 12px;">Moje objednávky</a>
                             <div class="search" style="max-width:260px;min-width:200px;">
                                 <span class="material-symbols-rounded" aria-hidden="true">search</span>
                                 <input type="search" id="customer-search" placeholder="Hledat produkt podle názvu nebo SKU">
@@ -688,42 +689,30 @@
                 </article>
             </section>
 
-            <section class="view" data-view="customer-payment">
+            <section class="view" data-view="customer-orders">
                 <article class="panel">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                         <div>
-                            <h2>Platba</h2>
-                            <p>Zvolte metodu platby a potvrďte částku.</p>
+                            <h2>Moje objednávky</h2>
+                            <p>Seznam objednávek s detailem a možností zrušit.</p>
                         </div>
-                        <a class="nav-link" data-view="customer-cart" href="cart.html" style="width:auto;gap:8px;padding:8px 12px;">Zpet do kosiku</a>
+                        <a class="nav-link" data-view="customer" href="customer.html" style="width:auto;gap:8px;padding:8px 12px;">Zpět do zóny</a>
                     </div>
-                    <form id="payment-form" class="profile-form-section" style="margin-top:16px;">
-                        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;">
-                            <label style="display:flex;align-items:center;gap:6px;">
-                                <input type="radio" name="paymentType" value="CASH" checked> Hotovost
-                            </label>
-                            <label style="display:flex;align-items:center;gap:6px;">
-                                <input type="radio" name="paymentType" value="CARD"> Karta
-                            </label>
-                            <strong>Celkem: <span id="payment-total">0 Kč</span></strong>
-                        </div>
-
-                        <div id="cash-section" style="margin-top:12px;display:block;">
-                            <label><span>Přijato (Kč)</span><input type="number" step="0.01" name="cashGiven" id="cash-given" required></label>
-                            <p class="profile-muted" style="margin-top:6px;">Vrátit: <span id="cash-change">0 Kč</span></p>
-                        </div>
-
-                        <div id="card-section" style="margin-top:12px;display:none;">
-                            <label><span>Číslo karty</span><input type="text" name="cardNumber" id="card-number" maxlength="19" placeholder="4111 1111 1111 1111"></label>
-                        </div>
-
-                        <p class="profile-muted" id="payment-status" style="margin-top:10px;"></p>
-
-                        <div style="margin-top:16px;display:flex;gap:12px;flex-wrap:wrap;">
-                            <button class="cart-submit" type="submit">Zaplatit</button>
-                            <button type="button" class="ghost-btn ghost-muted" id="payment-back">Zpet do kosiku</button>
-                        </div>
-                    </form>
+                    <div id="customer-orders-table" class="table-wrapper" style="margin-top:12px;">
+                        <table>
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Prodejna</th>
+                                <th>Status</th>
+                                <th>Datum</th>
+                                <th>Částka</th>
+                                <th>Akce</th>
+                            </tr>
+                            </thead>
+                            <tbody id="customer-orders-body"></tbody>
+                        </table>
+                    </div>
                 </article>
             </section>
         </div>

@@ -68,6 +68,13 @@ public class CheckoutService {
             Zbozi zbozi = zboziRepository.findById(zboziId)
                     .orElseThrow(() -> new IllegalArgumentException("Zbozi " + item.sku() + " nenalezeno."));
 
+            int available = Optional.ofNullable(zbozi.getMnozstvi()).orElse(0);
+            if (item.qty() > available) {
+                throw new IllegalArgumentException("Nedostatek zasob pro " + zbozi.getNazev() + " (k dispozici " + available + ")");
+            }
+            zbozi.setMnozstvi(available - item.qty());
+            zboziRepository.save(zbozi);
+
             ObjednavkaZbozi link = ObjednavkaZbozi.builder()
                     .id(new ObjednavkaZboziId(objednavka.getIdObjednavka(), zbozi.getIdZbozi()))
                     .objednavka(objednavka)
@@ -76,7 +83,8 @@ public class CheckoutService {
                     .build();
             objednavkaZboziRepository.save(link);
 
-            BigDecimal linePrice = zbozi.getCena().multiply(BigDecimal.valueOf(item.qty()));
+            BigDecimal linePrice = Optional.ofNullable(zbozi.getCena()).orElse(BigDecimal.ZERO)
+                    .multiply(BigDecimal.valueOf(item.qty()));
             total = total.add(linePrice);
 
             responseLines.add(new CheckoutResponse.Line(
