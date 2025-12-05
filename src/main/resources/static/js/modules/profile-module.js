@@ -25,6 +25,7 @@ export default class ProfileModule {
         const employment = profile.employment || {};
         const customer = profile.customer || {};
         const supplier = profile.supplier || {};
+        const cityValue = address.city || address.name || address.psc || '';
         return {
             firstName: profile.firstName || '',
             lastName: profile.lastName || '',
@@ -37,7 +38,7 @@ export default class ProfileModule {
             street: address.street || '',
             houseNumber: address.houseNumber || '',
             orientationNumber: address.orientationNumber || '',
-            cityPsc: address.psc || '',
+            cityPsc: cityValue,
             newPassword: '',
             confirmPassword: '',
             loyaltyCard: customer.loyaltyCard || '',
@@ -68,6 +69,9 @@ export default class ProfileModule {
             return;
         }
         this.formState[name] = value;
+        if (name === 'newPassword' || name === 'confirmPassword') {
+            this.showPasswordMatchHint();
+        }
     }
 
     async saveProfile() {
@@ -94,7 +98,7 @@ export default class ProfileModule {
             street: this.formState.street,
             houseNumber: this.formState.houseNumber,
             orientationNumber: this.formState.orientationNumber,
-            cityPsc: this.formState.cityPsc,
+            cityPsc: this.normalizeCityValue(this.formState.cityPsc || ''),
             newPassword
         };
         if (this.shouldIncludeEmploymentSection()) {
@@ -176,6 +180,7 @@ export default class ProfileModule {
             this.activityEl.innerHTML = this.renderActivityBlock(activity);
         }
         this.attachAdminHandlers(isAdmin);
+        this.showPasswordMatchHint();
     }
 
     renderOverview(profile, isAdmin) {
@@ -185,6 +190,7 @@ export default class ProfileModule {
             : Number(employment.salary || 0);
         const salaryLabel = salaryValue > 0 ? `${salaryValue.toLocaleString('cs-CZ')} Kč` : '—';
         const showEmployment = Boolean(employment.position || employment.hireDate || salaryValue > 0);
+        const inboxUnread = (typeof this.state.data.unreadMessages === 'number') ? this.state.data.unreadMessages : '—';
         return `
             <div class="profile-hero">
                 <div class="profile-identity">
@@ -201,6 +207,24 @@ export default class ProfileModule {
                 <div><span>E-mail</span><p>${profile.email || '—'}</p></div>
                 <div><span>Telefon</span><p>${profile.phone || '—'}</p></div>
                 <div><span>Role</span><p>${profile.role || '—'}</p></div>
+            </div>
+            <div class="profile-impact-grid">
+                <div class="profile-stat-card impact">
+                    <span>Prodejny pod dohledem</span>
+                    <strong>${profile.storesOwned ?? 0}</strong>
+                </div>
+                <div class="profile-stat-card impact">
+                    <span>Objednávky v systému</span>
+                    <strong>${profile.approvals ?? 0}</strong>
+                </div>
+                <div class="profile-stat-card impact">
+                    <span>Automatizace / logy</span>
+                    <strong>${profile.automations ?? 0}</strong>
+                </div>
+                <div class="profile-stat-card impact">
+                    <span>Inbox (nepřečtené)</span>
+                    <strong>${inboxUnread}</strong>
+                </div>
             </div>
             ${showEmployment ? `
             <div class="profile-stat-grid">
@@ -222,9 +246,9 @@ export default class ProfileModule {
         const roleOptions = [`<option value="">Vyberte roli</option>`]
             .concat(meta.roles.map(role => `<option value="${role.name}" ${form.roleCode === role.name ? 'selected' : ''}>${role.name}</option>`))
             .join('');
-        const cityOptions = [`<option value="">Vyberte město</option>`]
-            .concat(meta.cities.map(city => `<option value="${city.psc}" ${form.cityPsc === city.psc ? 'selected' : ''}>${city.psc} – ${city.name}</option>`))
-            .join('');
+        const cityOptions = meta.cities.map(city =>
+            `<option value="${city.name}" label="${city.name}${city.region ? ' · ' + city.region : ''} (${city.psc})"></option>`
+        ).join('');
         const positionOptions = [`<option value="">Vyberte pozici</option>`]
             .concat(meta.positions.map(pos => `<option value="${pos}" ${form.position === pos ? 'selected' : ''}>${pos}</option>`))
             .join('');
@@ -247,7 +271,9 @@ export default class ProfileModule {
                         <label><span>Příjmení</span><input type="text" name="lastName" value="${form.lastName}" required></label>
                         <label><span>E-mail</span><input type="email" name="email" value="${form.email}" required></label>
                         <label><span>Telefon</span><input type="tel" name="phone" value="${form.phone}"></label>
-                        <label><span>Role</span><select name="roleCode" ${roleLocked ? 'disabled' : ''}>${roleOptions}</select></label>
+                        ${roleLocked
+                            ? `<label><span>Role</span><input type="text" value="${form.roleCode}" readonly></label>`
+                            : `<label><span>Role</span><select name="roleCode">${roleOptions}</select></label>`}
                     </div>
                     ${roleLocked ? '<p class="profile-muted">Administrátor si nemůže změnit roli.</p>' : ''}
                 </div>
@@ -257,7 +283,10 @@ export default class ProfileModule {
                         <label><span>Ulice</span><input type="text" name="street" value="${form.street}" required></label>
                         <label><span>Číslo popisné</span><input type="text" name="houseNumber" value="${form.houseNumber}" required></label>
                         <label><span>Číslo orientační</span><input type="text" name="orientationNumber" value="${form.orientationNumber}" required></label>
-                        <label><span>Město</span><select name="cityPsc" required>${cityOptions}</select></label>
+                        <label><span>Město</span>
+                            <input type="text" name="cityPsc" list="profile-city-options" class="city-picker" value="${form.cityPsc}" placeholder="PSČ nebo název" required>
+                            <datalist id="profile-city-options">${cityOptions}</datalist>
+                        </label>
                     </div>
                 </div>
                 ${showEmployment ? `
@@ -288,6 +317,7 @@ export default class ProfileModule {
                     <div class="profile-form-grid">
                         <label><span>Nové heslo</span><input type="password" name="newPassword" autocomplete="new-password"></label>
                         <label><span>Potvrzení hesla</span><input type="password" name="confirmPassword" autocomplete="new-password"></label>
+                        <div class="password-hint" id="password-hint" style="min-height:18px;font-size:12px;color:#c00;"></div>
                     </div>
                 </div>
             </form>
@@ -322,6 +352,21 @@ export default class ProfileModule {
         return Number.isFinite(number) ? number : null;
     }
 
+    normalizeCityValue(value) {
+        if (!value) return '';
+        const trimmed = value.trim();
+        const byName = this.meta.cities.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
+        if (byName) return byName.psc;
+        const direct = this.meta.cities.find(c => c.psc === trimmed);
+        if (direct) return direct.psc;
+        if (trimmed.length >= 5) {
+            const prefix = trimmed.slice(0, 5);
+            const prefixMatch = this.meta.cities.find(c => c.psc === prefix);
+            if (prefixMatch) return prefixMatch.psc;
+        }
+        return trimmed;
+    }
+
     renderAddressBlock(profile) {
         const address = profile.address;
         const locationLine = profile.location
@@ -331,7 +376,7 @@ export default class ProfileModule {
             <h3>Adresa</h3>
             ${address ? `
                 <p>${address.street} ${address.houseNumber}/${address.orientationNumber}</p>
-                <p>${address.psc} ${address.city}</p>
+                <p>${address.city}${address.psc ? ` (${address.psc})` : ''}</p>
             ` : '<p class="profile-muted">Adresa není vyplněna.</p>'}
             ${locationLine}
         `;
@@ -347,6 +392,30 @@ export default class ProfileModule {
             </div>
             <p class="profile-muted">Úpravy bezpečnostních údajů řeší administrátor.</p>
         `;
+    }
+
+    showPasswordMatchHint() {
+        if (!this.formState || !this.editing) {
+            return;
+        }
+        const hintEl = document.getElementById('password-hint');
+        if (!hintEl) {
+            return;
+        }
+        const pwd = (this.formState.newPassword || '').trim();
+        const confirm = (this.formState.confirmPassword || '').trim();
+        if (!pwd && !confirm) {
+            hintEl.textContent = '';
+            hintEl.style.color = '#666';
+            return;
+        }
+        if (pwd === confirm) {
+            hintEl.textContent = 'Hesla se shodují.';
+            hintEl.style.color = 'green';
+        } else {
+            hintEl.textContent = 'Hesla se neshodují.';
+            hintEl.style.color = '#c00';
+        }
     }
 
     renderActivityBlock(activity) {

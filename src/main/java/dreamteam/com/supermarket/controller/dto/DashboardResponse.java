@@ -19,6 +19,8 @@ public record DashboardResponse(
         List<PaymentInfo> payments,
         List<LogInfo> logs,
         List<MessageInfo> messages,
+        long unreadMessages,
+        String lastMessageSummary,
         List<SubscriberInfo> subscribers,
         List<StoreInfo> stores,
         Profile profile,

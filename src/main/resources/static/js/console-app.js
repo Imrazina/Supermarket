@@ -1,5 +1,6 @@
 import ProfileModule from './modules/profile-module.js';
 import PermissionsModule from './modules/permissions-module.js';
+import DbObjectsModule from './modules/dbobjects-module.js';
 import UsersModule from './modules/users-module.js';
 import RecordsModule from './modules/archive-module.js';
 import CustomerOrdersView from './modules/customer-orders-view.js';
@@ -28,6 +29,8 @@ function createEmptyData() {
         payments: [],
         logs: [],
         messages: [],
+        unreadMessages: 0,
+        lastMessageSummary: "",
         subscribers: [],
         stores: [],
         folders: [],
@@ -78,7 +81,14 @@ function createEmptyData() {
 
 const state = {
     activeView: 'dashboard',
-    inventoryFilter: 'all',
+    inventoryFilters: {
+        category: 'all',
+        warehouse: 'all',
+        store: 'all',
+        supplier: 'all',
+        status: 'all',
+        criticalOnly: false
+    },
     paymentFilter: 'all',
     selectedOrderId: null,
     selectedFolder: null,
@@ -102,6 +112,43 @@ const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL
 const apiUrl = (path) => `${apiBaseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
 const webpushPublicKey = document.body.dataset.webpushKey || 'BBoYaoc8zDDFcRjeUDuO4HI15lrxOhtqEgdWfcfkn5vqTHmUeZc_DU6yodFwDNcthvOyKSK-K_Us9xdEDVYR_5I';
 const serviceWorkerPath = document.body.dataset.swPath || '/sw.js';
+
+function updateMessageSidebar(data) {
+    const unreadEl = document.getElementById('message-unread');
+    const timeEl = document.getElementById('message-last-time');
+    const fromEl = document.getElementById('message-last-from');
+    const textEl = document.getElementById('message-last-text');
+    if (!unreadEl || !timeEl || !fromEl || !textEl) {
+        return;
+    }
+    const unread = (data && typeof data.unreadMessages === 'number') ? data.unreadMessages : '—';
+    const rawSummary = (data && data.lastMessageSummary) ? data.lastMessageSummary : 'Žádné zprávy';
+    const parsed = parseMessageSummary(rawSummary);
+    unreadEl.textContent = unread;
+    timeEl.textContent = parsed.time || '—';
+    fromEl.textContent = parsed.from ? `od ${parsed.from}` : '';
+    textEl.textContent = parsed.text || 'Žádné zprávy';
+}
+
+function parseMessageSummary(summary) {
+    if (!summary || summary.toLowerCase().includes('žádné')) {
+        return { time: '', from: '', text: 'Žádné zprávy' };
+    }
+    const parts = summary.split('|');
+    const time = parts[0]?.trim() || '';
+    const rest = parts.slice(1).join('|').trim();
+    let from = '';
+    let text = rest;
+    const colonIdx = rest.indexOf(':');
+    if (colonIdx !== -1) {
+        from = rest.slice(0, colonIdx).replace(/^od\s*/i, '').trim();
+        text = rest.slice(colonIdx + 1).trim();
+    }
+    if (text.length > 120) {
+        text = `${text.slice(0, 117)}…`;
+    }
+    return { time, from, text };
+}
 
 function mergeDashboardData(payload) {
     const base = createEmptyData();
@@ -285,6 +332,7 @@ const viewMeta = {
     people: { label: 'Lidé & přístupy', title: 'Tým a zákazníci' },
     finance: { label: 'Finanční řízení', title: 'Platby a účtenky' },
     records: { label: 'Archiv', title: 'Soubory, logy, zprávy' },
+    dbobjects: { label: 'DB objekty', title: 'Systémový katalog' },
     customer: { label: 'Zákaznická zóna', title: 'Self-service objednávky' },
     'customer-orders': { label: 'Moje objednávky', title: 'Objednávky zákazníka' },
     chat: { label: 'Komunikace', title: 'Chat & push centrum' }
@@ -344,7 +392,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             }
             document.getElementById('user-name').textContent = localStorage.getItem('fullName') || localStorage.getItem('email') || 'Uživatel';
             document.getElementById('user-role').textContent = localStorage.getItem('role') || 'NEW_USER';
-            document.getElementById('sync-time').textContent = this.state.data.syncUpdatedAt || new Date().toLocaleString('cs-CZ');
+            updateMessageSidebar(this.state.data);
             document.getElementById('logout-btn').addEventListener('click', () => {
                 localStorage.clear();
                 window.location.href = 'login.html';
@@ -465,30 +513,139 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             this.searchInput = document.getElementById('inventory-search');
             this.countEl = document.getElementById('inventory-count');
             this.tableBody = document.getElementById('inventory-table-body');
-            this.chipContainer = document.getElementById('inventory-chips');
+            this.activeFilters = document.getElementById('inventory-active-filters');
             this.categoryBoard = document.getElementById('category-board');
             this.warehouseGrid = document.getElementById('warehouse-grid');
             this.form = document.getElementById('new-sku-form');
             this.messageEl = document.getElementById('sku-form-msg');
             this.categorySelect = document.getElementById('sku-category');
             this.warehouseSelect = document.getElementById('sku-warehouse');
+            this.filterCategory = document.getElementById('inventory-filter-category');
+            this.filterWarehouse = document.getElementById('inventory-filter-warehouse');
+            this.filterStore = document.getElementById('inventory-filter-store');
+            this.filterSupplier = document.getElementById('inventory-filter-supplier');
+            this.filterStatus = document.getElementById('inventory-filter-status');
+            this.filterCritical = document.getElementById('inventory-filter-critical');
+            this.resetBtn = document.getElementById('inventory-reset');
+            this.optionsSignature = '';
         }
 
         init() {
             this.searchInput?.addEventListener('input', () => this.render());
             this.form?.addEventListener('submit', event => this.handleSubmit(event));
+            [
+                [this.filterCategory, 'category'],
+                [this.filterWarehouse, 'warehouse'],
+                [this.filterStore, 'store'],
+                [this.filterSupplier, 'supplier'],
+                [this.filterStatus, 'status']
+            ].forEach(([select, key]) => {
+                select?.addEventListener('change', () => {
+                    this.state.inventoryFilters[key] = select.value || 'all';
+                    this.render();
+                });
+            });
+            this.filterCritical?.addEventListener('change', () => {
+                this.state.inventoryFilters.criticalOnly = !!this.filterCritical.checked;
+                this.render();
+            });
+            this.resetBtn?.addEventListener('click', () => this.resetFilters());
             this.populateSelects();
         }
 
+        buildOptionsSignature() {
+            const categories = (this.state.data.categories || []).map(cat => cat.name).filter(Boolean).sort();
+            const warehouses = (this.state.data.warehouses || []).map(w => w.name || w.id).filter(Boolean).sort();
+            const stores = (this.state.data.inventory || []).map(item => item.supermarket).filter(Boolean).sort();
+            const suppliers = (this.state.data.inventory || []).map(item => item.supplier).filter(Boolean).sort();
+            const statuses = (this.state.data.inventory || []).map(item => this.resolveStatus(item)).filter(Boolean).sort();
+            return JSON.stringify({ categories, warehouses, stores, suppliers, statuses });
+        }
+
         populateSelects() {
-            if (this.categorySelect) {
-                this.categorySelect.innerHTML = '<option value="">Vyberte kategorii</option>' +
-                    this.state.data.categories.map(cat => `<option value="${cat.name}">${cat.name}</option>`).join('');
+            const signature = this.buildOptionsSignature();
+            const shouldUpdate = signature !== this.optionsSignature;
+            if (shouldUpdate) {
+                this.optionsSignature = signature;
+                if (this.categorySelect) {
+                    this.categorySelect.innerHTML = '<option value="">Vyberte kategorii</option>' +
+                        (this.state.data.categories || []).map(cat => `<option value="${cat.name}">${cat.name}</option>`).join('');
+                }
+                if (this.warehouseSelect) {
+                    this.warehouseSelect.innerHTML = '<option value="">Vyberte sklad</option>' +
+                        (this.state.data.warehouses || []).map(w => {
+                            const value = w.name || w.id || '';
+                            return `<option value="${value}">${w.id} — ${w.name}</option>`;
+                        }).join('');
+                }
+                const categoryOptions = (this.state.data.categories || []).map(cat => cat.name);
+                const warehouseOptions = (this.state.data.warehouses || []).map(w => w.name || w.id);
+                const storeOptions = (this.state.data.inventory || []).map(item => item.supermarket);
+                const supplierOptions = (this.state.data.inventory || []).map(item => item.supplier);
+                const statusOptions = ['critical', 'ok', 'draft', ...(this.state.data.inventory || []).map(item => this.resolveStatus(item))];
+                this.applyFilterOptions(this.filterCategory, categoryOptions, 'Všechny kategorie', this.state.inventoryFilters.category);
+                this.applyFilterOptions(this.filterWarehouse, warehouseOptions, 'Všechny sklady', this.state.inventoryFilters.warehouse);
+                this.applyFilterOptions(this.filterStore, storeOptions, 'Všechny prodejny', this.state.inventoryFilters.store);
+                this.applyFilterOptions(this.filterSupplier, supplierOptions, 'Všichni dodavatelé', this.state.inventoryFilters.supplier);
+                this.applyFilterOptions(this.filterStatus, statusOptions, 'Všechny stavy', this.state.inventoryFilters.status, {
+                    critical: 'Pod minimem',
+                    ok: 'V normě',
+                    draft: 'Koncept'
+                });
             }
-            if (this.warehouseSelect) {
-                this.warehouseSelect.innerHTML = '<option value="">Vyberte sklad</option>' +
-                    this.state.data.warehouses.map(w => `<option value="${w.id}">${w.id} — ${w.name}</option>`).join('');
+            this.syncFilterControls();
+        }
+
+        applyFilterOptions(select, values, allLabel, currentValue, labelMap = {}) {
+            if (!select) return;
+            const unique = Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b, 'cs'));
+            const options = ['all', ...unique];
+            select.innerHTML = options.map(option => {
+                const label = option === 'all' ? allLabel : (labelMap[option] || option);
+                return `<option value="${option}">${label}</option>`;
+            }).join('');
+            const normalized = options.includes(currentValue) ? currentValue : 'all';
+            select.value = normalized;
+        }
+
+        syncFilterControls() {
+            const filters = this.state.inventoryFilters;
+            const sync = (select, key) => {
+                if (!select) return;
+                const hasOption = Array.from(select.options).some(opt => opt.value === filters[key]);
+                const value = hasOption ? filters[key] : 'all';
+                select.value = value;
+                if (filters[key] !== value) {
+                    filters[key] = value;
+                }
+            };
+            sync(this.filterCategory, 'category');
+            sync(this.filterWarehouse, 'warehouse');
+            sync(this.filterStore, 'store');
+            sync(this.filterSupplier, 'supplier');
+            sync(this.filterStatus, 'status');
+            if (this.filterCritical) {
+                this.filterCritical.checked = !!filters.criticalOnly;
             }
+        }
+
+        resetFilters() {
+            Object.assign(this.state.inventoryFilters, {
+                category: 'all',
+                warehouse: 'all',
+                store: 'all',
+                supplier: 'all',
+                status: 'all',
+                criticalOnly: false
+            });
+            if (this.searchInput) {
+                this.searchInput.value = '';
+            }
+            if (this.filterCritical) {
+                this.filterCritical.checked = false;
+            }
+            this.syncFilterControls();
+            this.render();
         }
 
         handleSubmit(event) {
@@ -516,15 +673,52 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             this.render();
         }
 
+        resolveStatus(item) {
+            if (!item) return 'unknown';
+            if (item.status === 'draft') {
+                return 'draft';
+            }
+            if (Number(item.stock) <= Number(item.minStock)) {
+                return 'critical';
+            }
+            return item.status || 'ok';
+        }
+
+        getStatusLabel(status) {
+            const labels = {
+                critical: 'Pod minimem',
+                ok: 'V normě',
+                draft: 'Koncept',
+                unknown: 'Neznámý'
+            };
+            return labels[status] || status || '—';
+        }
+
+        getStatusClass(status) {
+            if (status === 'critical') return 'danger';
+            if (status === 'draft') return 'info';
+            if (status === 'ok') return 'success';
+            return 'warning';
+        }
+
         render() {
             if (!this.tableBody) return;
-            const searchTerm = (this.searchInput?.value.trim().toLowerCase()) || '';
-            const filtered = this.state.data.inventory.filter(item => {
-                const matchesFilter = this.state.inventoryFilter === 'all' || item.category === this.state.inventoryFilter;
+            this.populateSelects();
+            const rawSearch = (this.searchInput?.value.trim()) || '';
+            const searchTerm = rawSearch.toLowerCase();
+            const filters = this.state.inventoryFilters;
+            const filtered = (this.state.data.inventory || []).filter(item => {
+                const status = this.resolveStatus(item);
+                const matchesCategory = filters.category === 'all' || item.category === filters.category;
+                const matchesWarehouse = filters.warehouse === 'all' || item.warehouse === filters.warehouse;
+                const matchesStore = filters.store === 'all' || item.supermarket === filters.store;
+                const matchesSupplier = filters.supplier === 'all' || item.supplier === filters.supplier;
+                const matchesStatus = filters.status === 'all' || status === filters.status;
+                const matchesCritical = !filters.criticalOnly || status === 'critical';
                 const matchesSearch = !searchTerm ||
-                    item.name.toLowerCase().includes(searchTerm) ||
-                    item.sku.toLowerCase().includes(searchTerm);
-                return matchesFilter && matchesSearch;
+                    (item.name && item.name.toLowerCase().includes(searchTerm)) ||
+                    (item.sku && item.sku.toLowerCase().includes(searchTerm));
+                return matchesCategory && matchesWarehouse && matchesStore && matchesSupplier && matchesStatus && matchesCritical && matchesSearch;
             });
             this.countEl.textContent = filtered.length;
             this.tableBody.innerHTML = filtered.map(item => `
@@ -537,10 +731,11 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                     <td>${item.supplier}</td>
                     <td>${item.stock}</td>
                     <td>${item.minStock}</td>
+                    <td><span class="status-badge ${this.getStatusClass(this.resolveStatus(item))}">${this.getStatusLabel(this.resolveStatus(item))}</span></td>
                 </tr>
             `).join('');
 
-            this.renderChips();
+            this.renderActiveFilters(rawSearch);
             this.categoryBoard.innerHTML = this.state.data.categories.map(cat => `
                 <div class="pill-card">
                     <strong>${cat.name}</strong>
@@ -561,19 +756,51 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             `).join('');
         }
 
-        renderChips() {
-            const categories = ['all', ...new Set(this.state.data.inventory.map(item => item.category))];
-            this.chipContainer.innerHTML = categories.map(cat => `
-                <button class="chip ${this.state.inventoryFilter === cat ? 'active' : ''}" data-category="${cat}">
-                    ${cat === 'all' ? 'Všechny kategorie' : cat}
+        renderActiveFilters(searchTerm = '') {
+            if (!this.activeFilters) return;
+            const filters = this.state.inventoryFilters;
+            const chips = [];
+            if (filters.category !== 'all') chips.push({ key: 'category', label: `Kategorie: ${filters.category}` });
+            if (filters.warehouse !== 'all') chips.push({ key: 'warehouse', label: `Sklad: ${filters.warehouse}` });
+            if (filters.store !== 'all') chips.push({ key: 'store', label: `Prodejna: ${filters.store}` });
+            if (filters.supplier !== 'all') chips.push({ key: 'supplier', label: `Dodavatel: ${filters.supplier}` });
+            if (filters.status !== 'all') chips.push({ key: 'status', label: `Stav: ${this.getStatusLabel(filters.status)}` });
+            if (filters.criticalOnly) chips.push({ key: 'criticalOnly', label: 'Jen pod minimem' });
+            if (searchTerm) chips.push({ key: 'search', label: `Hledat: ${searchTerm}` });
+
+            if (!chips.length) {
+                this.activeFilters.innerHTML = '<p class="profile-muted" style="margin:4px 0;">Žádné filtry nejsou použité.</p>';
+                this.resetBtn?.setAttribute('disabled', 'disabled');
+                return;
+            }
+            this.resetBtn?.removeAttribute('disabled');
+            this.activeFilters.innerHTML = chips.map(chip => `
+                <button class="chip active" data-filter-key="${chip.key}">
+                    ${chip.label}
+                    <span aria-hidden="true">×</span>
                 </button>
             `).join('');
-            this.chipContainer.querySelectorAll('.chip').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    this.state.inventoryFilter = btn.dataset.category;
-                    this.render();
-                });
+            this.activeFilters.querySelectorAll('[data-filter-key]').forEach(btn => {
+                btn.addEventListener('click', () => this.clearFilter(btn.dataset.filterKey));
             });
+        }
+
+        clearFilter(key) {
+            if (!key) return;
+            if (key === 'search') {
+                if (this.searchInput) {
+                    this.searchInput.value = '';
+                }
+            } else if (key === 'criticalOnly') {
+                this.state.inventoryFilters.criticalOnly = false;
+                if (this.filterCritical) {
+                    this.filterCritical.checked = false;
+                }
+            } else if (this.state.inventoryFilters.hasOwnProperty(key)) {
+                this.state.inventoryFilters[key] = 'all';
+            }
+            this.syncFilterControls();
+            this.render();
         }
     }
 
@@ -2065,6 +2292,7 @@ class GlobalSearch {
     class BDASConsole {
         constructor(state, meta) {
             this.state = state;
+            this.messagePoller = null;
             this.authGuard = new AuthGuard(state);
         this.navigation = new NavigationController(state, meta);
         this.dashboard = new DashboardModule(state);
@@ -2079,6 +2307,7 @@ class GlobalSearch {
                 fetchAdminPermissions,
                 fetchRolePermissions
             });
+            this.dbObjects = new DbObjectsModule(state, { apiUrl });
             this.usersModule = new UsersModule(state, {
                 apiUrl,
                 refreshApp: () => this.refreshData()
@@ -2104,6 +2333,7 @@ class GlobalSearch {
             }
             this.navigation.init();
             this.permissionsModule.init();
+            this.dbObjects.init();
             this.usersModule.init();
             this.inventory.init();
             this.orders.init();
@@ -2116,6 +2346,7 @@ class GlobalSearch {
             this.search.init();
             this.registerUtilityButtons();
             this.renderAll();
+            this.startMessagePolling();
         }
 
         registerUtilityButtons() {
@@ -2175,12 +2406,31 @@ class GlobalSearch {
             this.state.profileMeta = profileMeta || this.state.profileMeta;
             this.state.adminPermissions = Array.isArray(adminPermissions) ? adminPermissions : this.state.adminPermissions;
             this.state.rolePermissions = Array.isArray(rolePermissions) ? rolePermissions : this.state.rolePermissions;
-            const syncLabel = document.getElementById('sync-time');
-            if (syncLabel) {
-                syncLabel.textContent = this.state.data.syncUpdatedAt || new Date().toLocaleString('cs-CZ');
-            }
+            updateMessageSidebar(this.state.data);
             this.renderAll();
             return true;
+        }
+
+        startMessagePolling() {
+            const poll = async () => {
+                try {
+                    const snapshot = await fetchDashboardSnapshot();
+                    if (!snapshot) {
+                        return;
+                    }
+                    this.state.data.unreadMessages = snapshot.unreadMessages ?? this.state.data.unreadMessages;
+                    this.state.data.lastMessageSummary = snapshot.lastMessageSummary ?? this.state.data.lastMessageSummary;
+                    this.state.data.messages = snapshot.messages ?? this.state.data.messages;
+                    updateMessageSidebar(this.state.data);
+                } catch (err) {
+                    console.warn('Message poll failed', err);
+                }
+            };
+            poll();
+            if (this.messagePoller) {
+                clearInterval(this.messagePoller);
+            }
+            this.messagePoller = setInterval(poll, 20000);
         }
 
         renderAll() {

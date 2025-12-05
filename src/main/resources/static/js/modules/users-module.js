@@ -221,7 +221,7 @@ export default class UsersModule {
         this.previousFocus = document.activeElement;
         this.populateRoleSelect(meta.roles, user.role);
         this.populatePositionSelect(meta.positions, user.position);
-        this.populateCitySelect(meta.cities, user.address?.psc);
+        this.populateCityOptions(meta.cities, user.address?.psc);
         this.modalForm.elements.firstName.value = user.firstName || '';
         this.modalForm.elements.lastName.value = user.lastName || '';
         this.modalForm.elements.email.value = user.email || '';
@@ -231,7 +231,7 @@ export default class UsersModule {
         this.modalForm.elements.street.value = user.address?.street || '';
         this.modalForm.elements.houseNumber.value = user.address?.houseNumber || '';
         this.modalForm.elements.orientationNumber.value = user.address?.orientationNumber || '';
-        this.modalForm.elements.cityPsc.value = user.address?.psc || '';
+        this.modalForm.elements.cityPsc.value = this.formatCityValue(meta.cities, user.address?.psc);
         if (this.modalForm.elements.loyaltyCard) {
             this.modalForm.elements.loyaltyCard.value = user.loyaltyCard || '';
         }
@@ -353,14 +353,18 @@ export default class UsersModule {
         selectEl.innerHTML = positions.map(pos => `<option value="${pos}" ${pos === current ? 'selected' : ''}>${pos}</option>`).join('');
     }
 
-    populateCitySelect(cities, current) {
-        const selectEl = this.modalForm?.elements.cityPsc;
-        if (!selectEl) return;
+    populateCityOptions(cities, current) {
+        const inputEl = this.modalForm?.elements.cityPsc;
+        const dataList = document.getElementById('admin-city-options');
+        if (!inputEl || !dataList) return;
         if (!cities.length) {
-            selectEl.innerHTML = '<option value="">—</option>';
+            dataList.innerHTML = '';
             return;
         }
-        selectEl.innerHTML = cities.map(city => `<option value="${city.psc}" ${city.psc === current ? 'selected' : ''}>${city.psc} – ${city.name}</option>`).join('');
+        dataList.innerHTML = cities.map(city =>
+            `<option value="${city.name}" label="${city.name}${city.region ? ' · ' + city.region : ''} (${city.psc})"></option>`
+        ).join('');
+        inputEl.value = this.formatCityValue(cities, current);
     }
 
     closeModal() {
@@ -420,9 +424,30 @@ export default class UsersModule {
         payload.street = (payload.street || '').trim();
         payload.houseNumber = (payload.houseNumber || '').trim();
         payload.orientationNumber = (payload.orientationNumber || '').trim();
-        payload.cityPsc = (payload.cityPsc || '').trim();
+        payload.cityPsc = this.normalizeCityValue(payload.cityPsc || '', this.profileMeta().cities);
         payload.newPassword = (payload.newPassword || '').trim();
         await this.updateUser(this.modalForm.dataset.userId, payload);
+    }
+
+    formatCityValue(cities, psc) {
+        if (!psc) return '';
+        const match = cities.find(c => c.psc === psc);
+        return match ? match.name : psc;
+    }
+
+    normalizeCityValue(value, cities) {
+        if (!value) return '';
+        const trimmed = value.trim();
+        const byName = cities.find(c => c.name.toLowerCase() === trimmed.toLowerCase());
+        if (byName) return byName.psc;
+        const direct = cities.find(c => c.psc === trimmed);
+        if (direct) return direct.psc;
+        if (trimmed.length >= 5) {
+            const prefix = trimmed.slice(0, 5);
+            const prefixMatch = cities.find(c => c.psc === prefix);
+            if (prefixMatch) return prefixMatch.psc;
+        }
+        return trimmed;
     }
 
     async updateUser(userId, payload) {

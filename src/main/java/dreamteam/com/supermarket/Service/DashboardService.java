@@ -399,6 +399,18 @@ public class DashboardService {
                 ))
                 .toList();
 
+        Long unreadMessages = 0L;
+        String lastMessageSummary = "Žádné zprávy";
+        if (currentUser != null && currentUser.getIdUzivatel() != null) {
+            Long userId = currentUser.getIdUzivatel();
+            Number unreadNumber = zpravyRepository.findUnreadCount(userId);
+            unreadMessages = unreadNumber == null ? 0L : unreadNumber.longValue();
+            lastMessageSummary = Objects.requireNonNullElse(
+                    zpravyRepository.findLastMessageSummary(userId),
+                    "Žádné zprávy"
+            );
+        }
+
         return new DashboardResponse(
                 now.format(DATE_TIME_FORMAT),
                 buildWeeklyDemand(orders),
@@ -416,6 +428,8 @@ public class DashboardService {
                 paymentInfos,
                 logInfos,
                 messageInfos,
+                unreadMessages,
+                lastMessageSummary,
                 subscriberInfos,
                 storeInfos,
                 profile,
@@ -503,8 +517,8 @@ public class DashboardService {
                                     file.getNazev(),
                                     file.getTyp(),
                                     archiv.getNazev(),
-                                    file.getVlastnik() != null && file.getVlastnik().getUzivatel() != null
-                                            ? file.getVlastnik().getUzivatel().getJmeno() + " " + file.getVlastnik().getUzivatel().getPrijmeni()
+                                    file.getVlastnik() != null
+                                            ? file.getVlastnik().getJmeno() + " " + file.getVlastnik().getPrijmeni()
                                             : "N/A",
                                     file.getDatumModifikace() != null ? file.getDatumModifikace().format(DATE_FORMAT) : ""
                             ))

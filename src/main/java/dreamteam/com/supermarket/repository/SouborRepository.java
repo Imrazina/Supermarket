@@ -17,16 +17,19 @@ public interface SouborRepository extends JpaRepository<Soubor, Long> {
      * Vrací metadatový výpis souborů bez obsahu.
      */
     @Query(value = """
-            SELECT s.ID_SOUBOR      AS idSoubor,
-                   s.NAZEV          AS nazev,
-                   s.TYP            AS typ,
-                   a.NAZEV          AS archiv,
+            SELECT s.ID_SOUBOR       AS idSoubor,
+                   s.NAZEV           AS nazev,
+                   s.PRIPONA         AS pripona,
+                   s.TYP             AS typ,
+                   a.NAZEV           AS archiv,
+                   s.DATUMNAHRANI    AS datumNahrani,
                    s.DATUMMODIFIKACE AS datumModifikace,
-                   CONCAT(u.JMENO, ' ', u.PRIJMENI) AS owner
+                   LENGTH(s.OBSAH)   AS velikost,
+                   CAST(s.POPIS AS VARCHAR2(4000)) AS popis,
+                   (u.JMENO || ' ' || u.PRIJMENI) AS owner
             FROM SOUBOR s
             JOIN ARCHIV a ON a.ID_ARCHIV = s.ID_ARCHIV
-            LEFT JOIN ZAMESTNANEC z ON z.ID_UZIVATELU = s.ID_UZIVATELU
-            LEFT JOIN UZIVATEL u ON u.ID_UZIVATEL = z.ID_UZIVATELU
+            LEFT JOIN UZIVATEL u ON u.ID_UZIVATEL = s.ID_UZIVATELU
             WHERE (:archivId IS NULL OR s.ID_ARCHIV = :archivId)
               AND (:q IS NULL OR LOWER(s.NAZEV) LIKE '%' || LOWER(:q) || '%' OR LOWER(s.TYP) LIKE '%' || LOWER(:q) || '%')
             ORDER BY s.DATUMMODIFIKACE DESC
@@ -38,9 +41,13 @@ public interface SouborRepository extends JpaRepository<Soubor, Long> {
     interface FileMeta {
         Long getIdSoubor();
         String getNazev();
+        String getPripona();
         String getTyp();
         String getArchiv();
+        LocalDateTime getDatumNahrani();
         LocalDateTime getDatumModifikace();
+        Long getVelikost();
+        String getPopis();
         String getOwner();
     }
 }

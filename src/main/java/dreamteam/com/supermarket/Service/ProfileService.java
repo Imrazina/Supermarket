@@ -8,6 +8,7 @@ import dreamteam.com.supermarket.model.location.Mesto;
 import dreamteam.com.supermarket.model.user.*;
 import dreamteam.com.supermarket.repository.*;
 import lombok.RequiredArgsConstructor;
+import dreamteam.com.supermarket.repository.RoleChangeDao;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -39,6 +40,7 @@ public class ProfileService {
     private final DodavatelRepository dodavatelRepository;
     private final PasswordEncoder passwordEncoder;
     private final PravoRepository pravoRepository;
+    private final RoleChangeDao roleChangeDao;
 
     @Transactional(readOnly = true)
     public List<PravoResponse> getPermissions() {
@@ -69,19 +71,36 @@ public class ProfileService {
 
     @Transactional
     public void updateProfile(Uzivatel currentUser, ProfileUpdateRequest request) {
-        applyPersonalData(currentUser, request);
-        applyRole(currentUser, request.getRoleCode());
-        applyPassword(currentUser, request.getNewPassword());
-        updateAddress(currentUser, request);
-        uzivatelRepository.save(currentUser);
+        Uzivatel user = uzivatelRepository.findById(currentUser.getIdUzivatel())
+                .orElseThrow(() -> new IllegalArgumentException("Uživatel neexistuje."));
 
-        Zamestnanec employee = zamestnanecRepository.findById(currentUser.getIdUzivatel()).orElse(null);
-        Zakaznik customer = zakaznikRepository.findById(currentUser.getIdUzivatel()).orElse(null);
-        Dodavatel supplier = dodavatelRepository.findById(currentUser.getIdUzivatel()).orElse(null);
+        Long oldRoleId = user.getRole() != null ? user.getRole().getIdRole() : null;
+        applyPersonalData(user, request);
+        Role newRole = applyRole(user, request.getRoleCode());
+        applyPassword(user, request.getNewPassword());
+        updateAddress(user, request);
+        uzivatelRepository.save(user);
 
-        updateEmployeeData(currentUser, employee, request);
-        updateCustomerData(customer, request);
-        updateSupplierData(supplier, request);
+        boolean roleChanged = oldRoleId == null || !oldRoleId.equals(newRole.getIdRole());
+        if (roleChanged) {
+            roleChangeDao.changeRole(
+                    user.getIdUzivatel(),
+                    newRole.getIdRole(),
+                    request.getSupplierCompany(),
+                    request.getLoyaltyCard(),
+                    request.getSalary(),
+                    parseDate(request.getHireDate()),
+                    request.getPosition()
+            );
+        } else {
+            Zamestnanec employee = zamestnanecRepository.findById(user.getIdUzivatel()).orElse(null);
+            Zakaznik customer = zakaznikRepository.findById(user.getIdUzivatel()).orElse(null);
+            Dodavatel supplier = dodavatelRepository.findById(user.getIdUzivatel()).orElse(null);
+
+            updateEmployeeData(user, employee, request);
+            updateCustomerData(customer, request);
+            updateSupplierData(supplier, request);
+        }
     }
 
     private void applyPersonalData(Uzivatel user, ProfileUpdateRequest request) {
@@ -115,9 +134,9 @@ public class ProfileService {
                 });
     }
 
-    private void applyRole(Uzivatel user, String roleCode) {
+    private Role applyRole(Uzivatel user, String roleCode) {
         if (!StringUtils.hasText(roleCode)) {
-            return;
+            return user.getRole();
         }
         String requested = roleCode.trim();
         String currentRole = user.getRole() != null ? user.getRole().getNazev() : "";
@@ -127,6 +146,7 @@ public class ProfileService {
         Role role = roleRepository.findByNazev(requested)
                 .orElseThrow(() -> new IllegalArgumentException("Role " + roleCode + " neexistuje."));
         user.setRole(role);
+        return role;
     }
 
     private void applyPassword(Uzivatel user, String newPassword) {
@@ -203,5 +223,12 @@ public class ProfileService {
         }
         supplier.setFirma(request.getSupplierCompany().trim());
         dodavatelRepository.save(supplier);
+    }
+
+    private LocalDate parseDate(String date) {
+        if (!StringUtils.hasText(date)) {
+            return null;
+        }
+        return LocalDate.parse(date.trim());
     }
 }

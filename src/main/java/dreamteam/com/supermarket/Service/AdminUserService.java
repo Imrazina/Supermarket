@@ -8,6 +8,7 @@ import dreamteam.com.supermarket.model.location.Mesto;
 import dreamteam.com.supermarket.model.user.*;
 import dreamteam.com.supermarket.repository.*;
 import dreamteam.com.supermarket.jwt.JwtUtil;
+import dreamteam.com.supermarket.repository.RoleChangeDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -35,6 +36,7 @@ public class AdminUserService {
     private final DodavatelRepository dodavatelRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
+    private final RoleChangeDao roleChangeDao;
 
     @Transactional(readOnly = true)
     public List<AdminUserResponse> listUsers(String roleFilter) {
@@ -54,14 +56,29 @@ public class AdminUserService {
     public void updateUser(Long userId, AdminUserUpdateRequest request) {
         Uzivatel user = uzivatelRepository.findById(userId)
                 .orElseThrow(() -> new IllegalArgumentException("Uživatel s ID " + userId + " neexistuje."));
+        Long oldRoleId = user.getRole() != null ? user.getRole().getIdRole() : null;
         applyPersonalData(user, request);
-        applyRole(user, request.getRoleCode());
+        Role newRole = applyRole(user, request.getRoleCode());
         applyPassword(user, request.getNewPassword());
         updateAddress(user, request);
         uzivatelRepository.save(user);
-        updateEmployeeData(user, request);
-        updateCustomerData(user, request);
-        updateSupplierData(user, request);
+
+        boolean roleChanged = oldRoleId == null || !oldRoleId.equals(newRole.getIdRole());
+        if (roleChanged) {
+            roleChangeDao.changeRole(
+                    user.getIdUzivatel(),
+                    newRole.getIdRole(),
+                    request.getSupplierCompany(),
+                    request.getLoyaltyCard(),
+                    request.getSalary(),
+                    parseDate(request.getHireDate()),
+                    request.getPosition()
+            );
+        } else {
+            updateEmployeeData(user, request);
+            updateCustomerData(user, request);
+            updateSupplierData(user, request);
+        }
     }
 
     @Transactional
@@ -150,10 +167,11 @@ public class AdminUserService {
                 });
     }
 
-    private void applyRole(Uzivatel user, String roleCode) {
+    private Role applyRole(Uzivatel user, String roleCode) {
         Role role = roleRepository.findByNazev(roleCode.trim())
                 .orElseThrow(() -> new IllegalArgumentException("Role " + roleCode + " neexistuje."));
         user.setRole(role);
+        return role;
     }
 
     private void applyPassword(Uzivatel user, String newPassword) {
@@ -278,5 +296,12 @@ public class AdminUserService {
 
     private boolean isSupplierRole(String roleCode) {
         return StringUtils.hasText(roleCode) && "DODAVATEL".equalsIgnoreCase(roleCode.trim());
+    }
+
+    private LocalDate parseDate(String date) {
+        if (!StringUtils.hasText(date)) {
+            return null;
+        }
+        return LocalDate.parse(date.trim());
     }
 }
