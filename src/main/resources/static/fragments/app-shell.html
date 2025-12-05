@@ -46,6 +46,10 @@
                 <span class="material-symbols-rounded" aria-hidden="true">forum</span>
                 <span>Komunikace</span>
             </a>
+            <a class="nav-link" data-view="dbobjects" data-url="dbobjects.html" href="dbobjects.html">
+                <span class="material-symbols-rounded" aria-hidden="true">database</span>
+                <span>DB objekty</span>
+            </a>
             <a class="nav-link" data-view="permissions" data-url="permissions.html" href="permissions.html">
                 <span class="material-symbols-rounded" aria-hidden="true">admin_panel_settings</span>
                 <span>Správa práv</span>
@@ -66,10 +70,20 @@
 
         <div class="sidebar-footer">
             <div class="sync-card">
-                <strong>Synchronizace s Oracle</strong>
-                <p>Poslední aktualizace: <span id="sync-time">--:--</span></p>
-                <div class="progress">
-                    <span style="width: 68%"></span>
+                <div class="inbox-header">
+                    <span class="material-symbols-rounded" aria-hidden="true">mark_email_unread</span>
+                    <div>
+                        <p class="muted-label">Inbox &amp; chat</p>
+                        <strong><span id="message-unread">—</span> nepřečtené</strong>
+                    </div>
+                </div>
+                <div class="inbox-last">
+                    <p class="muted-label">Poslední zpráva</p>
+                    <div class="inbox-meta">
+                        <span id="message-last-time">—</span>
+                        <span id="message-last-from" class="muted-label"></span>
+                    </div>
+                    <p id="message-last-text" class="inbox-preview">Žádné zprávy</p>
                 </div>
             </div>
         </div>
@@ -227,14 +241,56 @@
                 <div class="two-column">
                     <div class="layout-stack">
                         <article class="panel">
-                            <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                            <div class="inventory-header">
                                 <div>
                                     <h2>Katalog (ZBOZI)</h2>
                                     <p>Počet položek: <span id="inventory-count">0</span></p>
                                 </div>
-                                <input id="inventory-search" type="search" placeholder="Hledat podle názvu nebo SKU" style="max-width:240px;">
+                                <div class="inventory-actions">
+                                    <input id="inventory-search" type="search" placeholder="Hledat podle názvu nebo SKU">
+                                    <button type="button" class="ghost-btn ghost-muted" id="inventory-reset">Vymazat filtry</button>
+                                </div>
                             </div>
-                            <div id="inventory-chips" style="margin-bottom: 12px;"></div>
+                            <div class="filters inventory-filters">
+                                <label class="filter-field">
+                                    <span>Kategorie</span>
+                                    <select id="inventory-filter-category">
+                                        <option value="all">Všechny kategorie</option>
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>Sklad</span>
+                                    <select id="inventory-filter-warehouse">
+                                        <option value="all">Všechny sklady</option>
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>Prodejna</span>
+                                    <select id="inventory-filter-store">
+                                        <option value="all">Všechny prodejny</option>
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>Dodavatel</span>
+                                    <select id="inventory-filter-supplier">
+                                        <option value="all">Všichni dodavatelé</option>
+                                    </select>
+                                </label>
+                                <label class="filter-field">
+                                    <span>Stav</span>
+                                    <select id="inventory-filter-status">
+                                        <option value="all">Všechny stavy</option>
+                                        <option value="critical">Pod minimem</option>
+                                        <option value="ok">V normě</option>
+                                        <option value="draft">Koncept</option>
+                                    </select>
+                                </label>
+                                <label class="filter-toggle">
+                                    <input type="checkbox" id="inventory-filter-critical">
+                                    <span>Jen pod minimem</span>
+                                </label>
+                            </div>
+                            <div id="inventory-active-filters" class="active-filters"></div>
                             <div class="table-wrapper">
                                 <table>
                                     <thead>
@@ -247,6 +303,7 @@
                                         <th>dodavatel</th>
                                         <th>zásoba</th>
                                         <th>min.</th>
+                                        <th>stav</th>
                                     </tr>
                                     </thead>
                                     <tbody id="inventory-table-body"></tbody>
@@ -392,7 +449,10 @@
                         <label><span>Ulice</span><input type="text" name="street" required></label>
                         <label><span>Číslo popisné</span><input type="text" name="houseNumber" required></label>
                         <label><span>Číslo orientační</span><input type="text" name="orientationNumber" required></label>
-                        <label><span>Město</span><select name="cityPsc" required></select></label>
+                        <label><span>Město</span>
+                            <input type="text" name="cityPsc" list="admin-city-options" class="city-picker" placeholder="PSČ nebo název" required>
+                            <datalist id="admin-city-options"></datalist>
+                        </label>
                         <label data-role-section="customer"><span>Věrnostní karta</span><input type="text" name="loyaltyCard"></label>
                         <label data-role-section="supplier"><span>Společnost</span><input type="text" name="supplierCompany"></label>
                         <label><span>Nové heslo</span><input type="password" name="newPassword"></label>
@@ -448,6 +508,54 @@
                 </div>
             </section>
 
+            <section class="view" data-view="dbobjects">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:16px;flex-wrap:wrap;">
+                        <div>
+                            <p class="eyebrow">Systémový katalog</p>
+                            <h2>Databázové objekty</h2>
+                            <p class="profile-muted">Výpis tabulek, pohledů, procedur, triggerů, sekvencí a indexů použitých v semestrálce.</p>
+                        </div>
+                        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                            <input type="search" id="dbobj-search" class="search-field" placeholder="Hledat název nebo typ…" autocomplete="off">
+                            <div class="pill-select">
+                                <span class="pill-label">Typ</span>
+                                <select id="dbobj-type-filter" class="pill-select-control">
+                                    <option value="">Všechny typy</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="table-wrapper" style="margin-top:16px;">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Typ</th>
+                                <th>Název</th>
+                                <th>Vytvořeno</th>
+                                <th>Posl. DDL</th>
+                                <th style="width:120px;">Akce</th>
+                            </tr>
+                            </thead>
+                            <tbody id="dbobj-table-body">
+                            <tr><td colspan="5" style="text-align:center;">Načítám…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </section>
+
+            <div class="modal" id="dbobj-modal" aria-hidden="true">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="dbobj-modal-title">DDL objektu</h3>
+                        <button type="button" class="ghost-btn ghost-muted" id="dbobj-modal-close">Zavřít</button>
+                    </div>
+                    <span id="dbobj-ddl-status" class="profile-muted"></span>
+                    <pre id="dbobj-modal-content" class="code-block" style="max-height:420px;overflow:auto;margin-top:8px;">-- Vyberte objekt a klikněte na Zobrazit</pre>
+                </div>
+            </div>
+
             <section class="view" data-view="records">
                 <header class="archive-hero" style="margin-bottom:16px;">
                     <div>
@@ -455,14 +563,10 @@
                         <h2>Archiv &amp; audit</h2>
                         <p class="muted">Hierarchie složek, soubory, poslední logy.</p>
                     </div>
-                    <div class="hero-actions">
-                        <button class="logout-btn" id="refresh-btn" type="button">Obnovit</button>
-                        <button class="logout-btn primary" id="upload-btn" type="button">Nahrát soubor</button>
-                    </div>
                 </header>
 
                 <div class="archive-layout">
-                    <section class="panel">
+                    <section class="panel" style="grid-area:tree;">
                         <div class="section-head">
                             <div>
                                 <p class="eyebrow">Struktura</p>
@@ -472,31 +576,25 @@
                         <div id="folder-tree" class="archive-tree"></div>
                     </section>
 
-                    <section class="panel">
+                    <section class="panel audit-panel" style="grid-area:audit;">
                         <div class="section-head">
                             <div>
                                 <p class="eyebrow">Audit</p>
                                 <h3>Auditní záznamy</h3>
                             </div>
+                            <div class="upload-row">
+                                <input type="file" id="file-upload-input" style="display:none;" />
+                                <button class="logout-btn primary" id="file-upload-btn" type="button">Nahrát soubor</button>
+                                <small id="upload-hint" class="muted"></small>
+                            </div>
                         </div>
                         <div class="table-wrapper scroll-x">
                             <table>
-                                <thead>
-                                <tr>
-                                    <th>tabulka</th>
-                                    <th>operace</th>
-                                    <th>archiv</th>
-                                    <th>záznam</th>
-                                    <th>čas</th>
-                                    <th>nová data</th>
-                                    <th>stará data</th>
-                                    <th>popis</th>
-                                </tr>
-                                </thead>
+                                <thead id="audit-table-head"></thead>
                                 <tbody id="file-table-body"></tbody>
                             </table>
                         </div>
-                        <div id="log-detail" class="log-detail"></div>
+                        <div id="log-detail-card" class="log-detail-card" aria-live="polite"></div>
                     </section>
                 </div>
             </section>
@@ -572,6 +670,46 @@
                     </article>
                 </div>
             </section>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="file-preview-modal" aria-hidden="true">
+    <div class="modal-content preview-modal">
+        <div class="modal-header" style="align-items:flex-start;">
+            <div>
+                <p class="eyebrow">Náhled</p>
+                <h3 id="file-preview-title">Soubor</h3>
+            </div>
+            <button type="button" class="ghost-btn ghost-muted" id="file-preview-close">Zavřít</button>
+        </div>
+        <div class="preview-actions">
+            <div class="preview-actions-left">
+                <button type="button" class="ghost-btn" id="file-preview-edit" style="display:none;">Upravit</button>
+                <button type="button" class="ghost-btn ghost-strong" id="file-preview-save" style="display:none;">Uložit změny</button>
+            </div>
+            <span id="file-preview-status" class="muted"></span>
+        </div>
+        <textarea id="file-preview-editor" class="preview-editor" style="display:none;" spellcheck="false"></textarea>
+        <div class="preview-body">
+            <iframe id="file-preview-frame" class="preview-frame" title="Náhled souboru"></iframe>
+            <img id="file-preview-image" class="preview-image" alt="Náhled souboru" style="display:none;">
+            <pre id="file-preview-text" class="preview-text" style="display:none;"></pre>
+        </div>
+        <div id="file-preview-error" class="muted" style="display:none;margin-top:10px;"></div>
+    </div>
+</div>
+
+<div class="modal" id="dialog-modal" aria-hidden="true">
+    <div class="modal-content dialog-modal">
+        <div class="modal-header">
+            <h3 id="dialog-title">Potvrzení</h3>
+        </div>
+        <p id="dialog-message" class="muted"></p>
+        <textarea id="dialog-input" class="preview-editor" style="display:none;" spellcheck="false"></textarea>
+        <div class="dialog-actions">
+            <button type="button" class="ghost-btn ghost-muted" id="dialog-cancel">Ne</button>
+            <button type="button" class="ghost-btn ghost-strong" id="dialog-confirm">Ano</button>
         </div>
     </div>
 </div>

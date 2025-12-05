@@ -1,6 +1,6 @@
 package dreamteam.com.supermarket.model;
 
-import dreamteam.com.supermarket.model.user.Zamestnanec;
+import dreamteam.com.supermarket.model.user.Uzivatel;
 import jakarta.persistence.*;
 import lombok.*;
 
@@ -48,7 +48,7 @@ public class Soubor {
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "ID_UZIVATELU", nullable = false)
-    private Zamestnanec vlastnik;
+    private Uzivatel vlastnik;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
     @JoinColumn(name = "ID_ARCHIV", nullable = false)
