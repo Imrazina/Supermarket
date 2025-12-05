@@ -351,17 +351,28 @@ public class DashboardService {
         List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archiveTree, archives);
 
         List<DashboardResponse.CustomerProduct> customerProducts = goods.stream()
-                .sorted(Comparator.comparing(Zbozi::getMnozstvi))
-                .limit(8)
-                .map(zbozi -> new DashboardResponse.CustomerProduct(
-                        "SKU-" + zbozi.getIdZbozi(),
-                        zbozi.getNazev(),
-                        zbozi.getKategorie() != null ? zbozi.getKategorie().getNazev() : "—",
-                        zbozi.getCena() != null ? zbozi.getCena().doubleValue() : 0d,
-                        zbozi.getMnozstvi() <= zbozi.getMinMnozstvi() ? "Doplnit" : "Top",
-                        zbozi.getPopis() != null ? zbozi.getPopis() : "Bez popisu",
-                        "🛒"
-                ))
+                .sorted(Comparator.comparing(
+                        z -> z.getNazev() == null ? "" : z.getNazev().toLowerCase(LOCALE_CZ)))
+                .map(zbozi -> {
+                    long qty = zbozi.getMnozstvi() != null ? zbozi.getMnozstvi() : 0;
+                    long min = zbozi.getMinMnozstvi() != null ? zbozi.getMinMnozstvi() : 0;
+                    String category = (zbozi.getKategorie() != null && zbozi.getKategorie().getNazev() != null)
+                            ? zbozi.getKategorie().getNazev()
+                            : "Bez kategorie";
+                    String description = (zbozi.getPopis() != null && !zbozi.getPopis().isBlank())
+                            ? zbozi.getPopis()
+                            : "Bez popisu";
+                    String badge = qty <= min ? "Doplnit" : "Skladem";
+                    return new DashboardResponse.CustomerProduct(
+                            "SKU-" + zbozi.getIdZbozi(),
+                            zbozi.getNazev(),
+                            category,
+                            zbozi.getCena() != null ? zbozi.getCena().doubleValue() : 0d,
+                            badge,
+                            description,
+                            "🛒"
+                    );
+                })
                 .toList();
 
         List<String> suggestions = inventory.stream()

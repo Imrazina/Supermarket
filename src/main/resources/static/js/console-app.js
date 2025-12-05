@@ -92,7 +92,9 @@ const state = {
     selectedOrderId: null,
     selectedFolder: null,
     customerCategoryFilter: 'all',
+    customerSearchTerm: '',
     customerCart: [],
+    customerCartLoaded: false,
     data: createEmptyData(),
     permissionsCatalog: [],
     profileMeta: { roles: [], cities: [], positions: [] },
@@ -2012,42 +2014,92 @@ state.activeView = document.body.dataset.initialView || state.activeView;
         constructor(state) {
             this.state = state;
             this.categoryContainer = document.getElementById('customer-category-chips');
+            this.searchInput = document.getElementById('customer-search');
             this.grid = document.getElementById('customer-product-grid');
-            this.cartEl = document.getElementById('customer-cart');
+            this.cartEls = Array.from(document.querySelectorAll('[data-customer-cart]'));
+            this.cartCountEl = document.getElementById('customer-cart-count');
             this.suggestionsEl = document.getElementById('customer-suggestions');
         }
 
         init() {
-            this.state.customerCart = this.state.customerCart || [];
-            if (!this.categoryContainer) return;
-            this.categoryContainer.addEventListener('click', event => {
-                const btn = event.target.closest('button[data-category]');
-                if (!btn) return;
-                this.state.customerCategoryFilter = btn.dataset.category;
-                this.render();
-            });
+            if (!this.state.customerCartLoaded) {
+                this.state.customerCart = this.loadCart();
+                this.state.customerCartLoaded = true;
+            }
+            this.state.customerSearchTerm = this.state.customerSearchTerm || '';
+            if (this.categoryContainer) {
+                this.categoryContainer.addEventListener('click', event => {
+                    const btn = event.target.closest('button[data-category]');
+                    if (!btn) return;
+                    this.state.customerCategoryFilter = btn.dataset.category;
+                    this.render();
+                });
+            }
+            if (this.searchInput) {
+                this.searchInput.value = this.state.customerSearchTerm;
+                this.searchInput.addEventListener('input', () => {
+                    this.state.customerSearchTerm = this.searchInput.value.trim();
+                    this.render();
+                });
+            }
             this.grid?.addEventListener('click', event => {
                 const btn = event.target.closest('button[data-add-product]');
                 if (!btn) return;
-                this.addToCart(btn.dataset.sku);
+                const sku = btn.dataset.addProduct;
+                if (!sku) return;
+                this.addToCart(sku, {
+                    sku,
+                    name: btn.dataset.name,
+                    price: Number(btn.dataset.price) || 0
+                });
             });
-            this.cartEl?.addEventListener('click', event => {
-                if (event.target.matches('[data-clear-cart]')) {
-                    this.state.customerCart = [];
-                    this.render();
-                }
+            this.cartEls.forEach(cartEl => {
+                cartEl.addEventListener('click', event => {
+                    const minus = event.target.closest('[data-cart-minus]');
+                    const plus = event.target.closest('[data-cart-plus]');
+                    if (minus) {
+                        this.updateQty(minus.dataset.cartMinus, -1);
+                        return;
+                    }
+                    if (plus) {
+                        this.updateQty(plus.dataset.cartPlus, 1);
+                        return;
+                    }
+                    if (event.target.matches('[data-clear-cart]')) {
+                        this.state.customerCart = [];
+                        this.saveCart();
+                        this.render();
+                        return;
+                    }
+                });
             });
         }
 
-        addToCart(sku) {
-            const product = this.state.data.customerProducts.find(item => item.sku === sku);
-            if (!product) return;
+        addToCart(sku, fallback = {}) {
+            if (!sku) return;
+            const product = this.state.data.customerProducts.find(item => item.sku === sku) || {
+                sku,
+                name: fallback.name || sku,
+                price: fallback.price || 0
+            };
             const existing = this.state.customerCart.find(item => item.sku === sku);
             if (existing) {
                 existing.qty += 1;
             } else {
                 this.state.customerCart.push({ sku, name: product.name, price: product.price, qty: 1 });
             }
+            this.saveCart();
+            this.render();
+        }
+
+        updateQty(sku, delta) {
+            const item = this.state.customerCart.find(row => row.sku === sku);
+            if (!item) return;
+            item.qty += delta;
+            if (item.qty <= 0) {
+                this.state.customerCart = this.state.customerCart.filter(row => row.sku !== sku);
+            }
+            this.saveCart();
             this.render();
         }
 
@@ -2060,10 +2112,10 @@ state.activeView = document.body.dataset.initialView || state.activeView;
 
         renderChips() {
             if (!this.categoryContainer) return;
-            const categories = ['all', ...new Set(this.state.data.customerProducts.map(prod => prod.category))];
+            const categories = ['all', ...new Set(this.state.data.customerProducts.map(prod => prod.category || 'Bez kategorie'))];
             this.categoryContainer.innerHTML = categories.map(category => `
                 <button class="chip ${this.state.customerCategoryFilter === category ? 'active' : ''}" data-category="${category}">
-                    ${category === 'all' ? 'Vše' : category}
+                    ${category === 'all' ? 'Vse' : category}
                 </button>
             `).join('');
         }
@@ -2071,7 +2123,20 @@ state.activeView = document.body.dataset.initialView || state.activeView;
         renderProducts() {
             if (!this.grid) return;
             const filter = this.state.customerCategoryFilter;
-            const products = this.state.data.customerProducts.filter(prod => filter === 'all' || prod.category === filter);
+            const term = (this.state.customerSearchTerm || '').toLowerCase();
+            const products = this.state.data.customerProducts
+                .filter(prod => filter === 'all' || (prod.category || 'Bez kategorie') === filter)
+                .filter(prod => {
+                    if (!term) return true;
+                    const name = (prod.name || '').toLowerCase();
+                    const sku = (prod.sku || '').toLowerCase();
+                    const description = (prod.description || '').toLowerCase();
+                    return name.includes(term) || sku.includes(term) || description.includes(term);
+                });
+            if (!products.length) {
+                this.grid.innerHTML = '<p>Zadne produkty pro zadany filtr.</p>';
+                return;
+            }
             this.grid.innerHTML = products.map(prod => `
                 <article class="product-card">
                     <div class="product-icon">${prod.image || '🛒'}</div>
@@ -2081,38 +2146,56 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                     </div>
                     <div class="product-meta">
                         <span>${prod.category}</span>
-                        <span class="badge">${prod.badge}</span>
+                        <span class="badge">${prod.badge || ''}</span>
                     </div>
                     <div class="product-footer">
                         <strong>${currencyFormatter.format(prod.price)}</strong>
-                        <button data-add-product="${prod.sku}">Do košíku</button>
+                        <button type="button" data-add-product="${prod.sku}" data-name="${prod.name}" data-price="${prod.price}">Do kosiku</button>
                     </div>
                 </article>
             `).join('');
         }
 
         renderCart() {
-            if (!this.cartEl) return;
             const cart = this.state.customerCart;
+            const itemsCount = cart.reduce((sum, item) => sum + item.qty, 0);
+            if (this.cartCountEl) {
+                this.cartCountEl.textContent = itemsCount;
+            }
+            if (!this.cartEls.length) return;
             if (!cart.length) {
-                this.cartEl.innerHTML = '<p>Košík je prázdný.</p>';
+                this.cartEls.forEach(el => el.innerHTML = '<p>Kosik je prazdny.</p>');
                 return;
             }
             const total = cart.reduce((sum, item) => sum + item.price * item.qty, 0);
-            this.cartEl.innerHTML = `
+            const markup = `
                 <div class="cart-card">
                     <ul>
-                        ${cart.map(item => `<li>${item.qty} × ${item.name}<span>${currencyFormatter.format(item.price * item.qty)}</span></li>`).join('')}
+                        ${cart.map(item => `
+                            <li class="cart-line">
+                                <div>
+                                    <strong>${item.name}</strong>
+                                    <p style="margin:0;">${item.sku}</p>
+                                </div>
+                                <div class="cart-qty">
+                                    <button type="button" data-cart-minus="${item.sku}" aria-label="Odebrat">-</button>
+                                    <span>${item.qty}</span>
+                                    <button type="button" data-cart-plus="${item.sku}" aria-label="Pridat">+</button>
+                                </div>
+                                <span>${currencyFormatter.format(item.price * item.qty)}</span>
+                            </li>
+                        `).join('')}
                     </ul>
                     <div class="cart-total">
                         <strong>Celkem</strong>
                         <span>${currencyFormatter.format(total)}</span>
                     </div>
                     <div class="cart-actions">
-                        <button data-clear-cart>Vyprázdnit</button>
-                        <button class="cart-submit" type="button">Odeslat požadavek</button>
+                        <button data-clear-cart type="button">Vyprzdnit</button>
+                        <a class="cart-submit" data-view="customer-payment" href="pay.html">Zaplatit</a>
                     </div>
                 </div>`;
+            this.cartEls.forEach(el => el.innerHTML = markup);
         }
 
         renderSuggestions() {
@@ -2123,9 +2206,35 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 </div>
             `).join('');
         }
+
+        loadCart() {
+            try {
+                const raw = localStorage.getItem('customerCart');
+                if (!raw) return [];
+                const parsed = JSON.parse(raw);
+                if (!Array.isArray(parsed)) return [];
+                return parsed.filter(item => item?.sku).map(item => ({
+                    sku: item.sku,
+                    name: item.name || item.sku,
+                    price: Number(item.price) || 0,
+                    qty: Number(item.qty) || 0
+                })).filter(item => item.qty > 0);
+            } catch (e) {
+                console.warn('Failed to load cart from storage', e);
+                return [];
+            }
+        }
+
+        saveCart() {
+            try {
+                localStorage.setItem('customerCart', JSON.stringify(this.state.customerCart));
+            } catch (e) {
+                console.warn('Failed to save cart', e);
+            }
+        }
     }
 
-    class GlobalSearch {
+class GlobalSearch {
         constructor(state) {
             this.state = state;
             this.input = document.getElementById('global-search');
@@ -2211,6 +2320,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 serviceWorkerPath
             });
             this.customer = new CustomerModule(state);
+            this.payment = new PaymentModule(state, { apiUrl });
             this.search = new GlobalSearch(state);
         }
 
@@ -2229,6 +2339,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             this.records.init();
             this.chat.init();
             this.customer.init();
+            this.payment.init();
             this.search.init();
             this.registerUtilityButtons();
             this.renderAll();
@@ -2337,3 +2448,104 @@ state.activeView = document.body.dataset.initialView || state.activeView;
     }
 
     document.addEventListener('DOMContentLoaded', bootstrapConsole);
+
+
+    class PaymentModule {
+        constructor(state, opts) {
+            this.state = state;
+            this.apiUrl = opts.apiUrl;
+            this.form = document.getElementById('payment-form');
+            this.totalEl = document.getElementById('payment-total');
+            this.cashGiven = document.getElementById('cash-given');
+            this.cashChange = document.getElementById('cash-change');
+            this.cardNumber = document.getElementById('card-number');
+            this.cashSection = document.getElementById('cash-section');
+            this.cardSection = document.getElementById('card-section');
+            this.statusEl = document.getElementById('payment-status');
+            this.backBtn = document.getElementById('payment-back');
+        }
+
+        init() {
+            if (!this.form) return;
+            if (!this.state.customerCart.length) {
+                if (this.statusEl) {
+                    this.statusEl.textContent = 'Kosik je prazdny. Vratte se a pridejte zbozi.';
+                }
+                this.form.querySelector('button[type="submit"]')?.setAttribute('disabled', 'disabled');
+                return;
+            }
+            this.renderTotal();
+            this.form.addEventListener('change', () => {
+                this.updateMethod();
+                this.updateChange();
+            });
+            this.form.addEventListener('input', () => this.updateChange());
+            this.form.addEventListener('submit', (e) => this.handleSubmit(e));
+            this.backBtn?.addEventListener('click', () => {
+                window.location.href = 'cart.html';
+            });
+            this.updateMethod();
+            this.updateChange();
+        }
+
+        renderTotal() {
+            const total = this.state.customerCart.reduce((sum, item) => sum + item.price * item.qty, 0);
+            this.totalEl.textContent = currencyFormatter.format(total);
+            this.totalAmount = total;
+        }
+
+        updateMethod() {
+            const method = new FormData(this.form).get('paymentType');
+            const isCash = method === 'CASH';
+            this.cashSection.style.display = isCash ? 'block' : 'none';
+            this.cardSection.style.display = isCash ? 'none' : 'block';
+            this.cashGiven.required = isCash;
+            this.cardNumber.required = !isCash;
+        }
+
+        updateChange() {
+            const method = new FormData(this.form).get('paymentType');
+            if (method !== 'CASH') {
+                this.cashChange.textContent = currencyFormatter.format(0);
+                return;
+            }
+            const given = Number(this.cashGiven.value || 0);
+            const change = Math.max(0, given - this.totalAmount);
+            this.cashChange.textContent = currencyFormatter.format(change);
+        }
+
+        async handleSubmit(event) {
+            event.preventDefault();
+            const method = new FormData(this.form).get('paymentType');
+            const payload = {
+                items: this.state.customerCart.map(item => ({ sku: item.sku, qty: item.qty })),
+                paymentType: method,
+                cashGiven: method === 'CASH' ? Number(this.cashGiven.value || 0) : null,
+                cardNumber: method === 'CARD' ? (this.cardNumber.value || '').replace(/\s+/g, '') : null,
+                note: ''
+            };
+            this.statusEl.textContent = 'Zpracovavam platbu...';
+            this.statusEl.classList.remove('chat-status-success');
+            try {
+                const token = localStorage.getItem('token');
+                const response = await fetch(this.apiUrl('/api/customer/checkout'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Platbu se nepodarilo dokoncit.');
+                }
+                this.state.customerCart = [];
+                try { localStorage.removeItem('customerCart'); } catch (e) {}
+                this.statusEl.textContent = 'Objednavka a platba byly ulozeny.';
+                this.statusEl.classList.add('chat-status-success');
+            } catch (error) {
+                this.statusEl.textContent = error.message;
+            }
+        }
+    }
