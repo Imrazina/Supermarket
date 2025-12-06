@@ -9,6 +9,19 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@500&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,400,0,0">
     <link rel="stylesheet" href="css/console.css">
+    <script>
+        // Redirect unauthenticated users to the landing page instead of the login form.
+        (function () {
+            try {
+                const hasToken = !!localStorage.getItem('token');
+                if (!hasToken) {
+                    window.location.replace('landing.html');
+                }
+            } catch (e) {
+                window.location.replace('landing.html');
+            }
+        })();
+    </script>
 </head>
 <body data-initial-view="dashboard" data-fragment="fragments/app-shell.html">
 <div id="app-root" class="app-boot">

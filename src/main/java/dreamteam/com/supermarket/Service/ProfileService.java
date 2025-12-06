@@ -6,9 +6,15 @@ import dreamteam.com.supermarket.controller.dto.ProfileUpdateRequest;
 import dreamteam.com.supermarket.model.location.Adresa;
 import dreamteam.com.supermarket.model.location.Mesto;
 import dreamteam.com.supermarket.model.user.*;
-import dreamteam.com.supermarket.repository.*;
-import lombok.RequiredArgsConstructor;
+import dreamteam.com.supermarket.Service.AdresaJdbcService;
+import dreamteam.com.supermarket.Service.MestoJdbcService;
+import dreamteam.com.supermarket.Service.RoleJdbcService;
+import dreamteam.com.supermarket.Service.ZamestnanecJdbcService;
+import dreamteam.com.supermarket.Service.ZakaznikJdbcService;
+import dreamteam.com.supermarket.Service.DodavatelJdbcService;
+import dreamteam.com.supermarket.Service.PravoJdbcService;
 import dreamteam.com.supermarket.repository.RoleChangeDao;
+import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -31,20 +37,20 @@ public class ProfileService {
             "HR manažer"
     );
 
-    private final UzivatelRepository uzivatelRepository;
-    private final RoleRepository roleRepository;
-    private final AdresaRepository adresaRepository;
-    private final MestoRepository mestoRepository;
-    private final ZamestnanecRepository zamestnanecRepository;
-    private final ZakaznikRepository zakaznikRepository;
-    private final DodavatelRepository dodavatelRepository;
+    private final UserJdbcService userJdbcService;
+    private final RoleJdbcService roleJdbcService;
+    private final AdresaJdbcService adresaJdbcService;
+    private final MestoJdbcService mestoJdbcService;
+    private final ZamestnanecJdbcService zamestnanecJdbcService;
+    private final ZakaznikJdbcService zakaznikJdbcService;
+    private final DodavatelJdbcService dodavatelJdbcService;
     private final PasswordEncoder passwordEncoder;
-    private final PravoRepository pravoRepository;
+    private final PravoJdbcService pravoJdbcService;
     private final RoleChangeDao roleChangeDao;
 
     @Transactional(readOnly = true)
     public List<PravoResponse> getPermissions() {
-        return pravoRepository.findAll().stream()
+        return pravoJdbcService.findAll().stream()
                 .map(pravo -> new PravoResponse(
                         pravo.getIdPravo(),
                         pravo.getKod(),
@@ -56,13 +62,13 @@ public class ProfileService {
 
     @Transactional(readOnly = true)
     public ProfileMetaResponse getProfileMeta() {
-        List<ProfileMetaResponse.RoleOption> roles = roleRepository.findAll().stream()
+        List<ProfileMetaResponse.RoleOption> roles = roleJdbcService.findAll().stream()
                 .map(role -> new ProfileMetaResponse.RoleOption(role.getIdRole(), role.getNazev()))
                 .toList();
-        List<ProfileMetaResponse.CityOption> cities = mestoRepository.findAll().stream()
+        List<ProfileMetaResponse.CityOption> cities = mestoJdbcService.findAll().stream()
                 .map(city -> new ProfileMetaResponse.CityOption(city.getPsc(), city.getNazev(), city.getKraj()))
                 .toList();
-        List<String> positions = zamestnanecRepository.findDistinctPositions();
+        List<String> positions = zamestnanecJdbcService.findDistinctPositions();
         if (positions.isEmpty()) {
             positions = DEFAULT_POSITIONS;
         }
@@ -71,15 +77,17 @@ public class ProfileService {
 
     @Transactional
     public void updateProfile(Uzivatel currentUser, ProfileUpdateRequest request) {
-        Uzivatel user = uzivatelRepository.findById(currentUser.getIdUzivatel())
-                .orElseThrow(() -> new IllegalArgumentException("Uživatel neexistuje."));
+        Uzivatel user = userJdbcService.findById(currentUser.getIdUzivatel());
+        if (user == null) {
+            throw new IllegalArgumentException("Uzivatel neexistuje.");
+        }
 
         Long oldRoleId = user.getRole() != null ? user.getRole().getIdRole() : null;
         applyPersonalData(user, request);
         Role newRole = applyRole(user, request.getRoleCode());
         applyPassword(user, request.getNewPassword());
         updateAddress(user, request);
-        uzivatelRepository.save(user);
+        userJdbcService.updateCore(user);
 
         boolean roleChanged = oldRoleId == null || !oldRoleId.equals(newRole.getIdRole());
         if (roleChanged) {
@@ -93,9 +101,9 @@ public class ProfileService {
                     request.getPosition()
             );
         } else {
-            Zamestnanec employee = zamestnanecRepository.findById(user.getIdUzivatel()).orElse(null);
-            Zakaznik customer = zakaznikRepository.findById(user.getIdUzivatel()).orElse(null);
-            Dodavatel supplier = dodavatelRepository.findById(user.getIdUzivatel()).orElse(null);
+            Zamestnanec employee = zamestnanecJdbcService.findById(user.getIdUzivatel());
+            Zakaznik customer = zakaznikJdbcService.findById(user.getIdUzivatel());
+            Dodavatel supplier = dodavatelJdbcService.findById(user.getIdUzivatel());
 
             updateEmployeeData(user, employee, request);
             updateCustomerData(customer, request);
@@ -116,22 +124,18 @@ public class ProfileService {
         if (!StringUtils.hasText(email)) {
             return;
         }
-        uzivatelRepository.findByEmail(email.trim().toLowerCase(Locale.ROOT))
-                .filter(other -> !other.getIdUzivatel().equals(currentUser.getIdUzivatel()))
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Email již používá jiný uživatel.");
-                });
+        if (userJdbcService.emailUsedByOther(email.trim().toLowerCase(Locale.ROOT), currentUser.getIdUzivatel())) {
+            throw new IllegalArgumentException("Email uz pouziva jiny uzivatel.");
+        }
     }
 
     private void validateUniquePhone(Uzivatel currentUser, String phone) {
         if (!StringUtils.hasText(phone)) {
             return;
         }
-        uzivatelRepository.findByTelefonniCislo(phone.trim())
-                .filter(other -> !other.getIdUzivatel().equals(currentUser.getIdUzivatel()))
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Telefon již používá jiný uživatel.");
-                });
+        if (userJdbcService.phoneUsedByOther(phone.trim(), currentUser.getIdUzivatel())) {
+            throw new IllegalArgumentException("Telefon uz pouziva jiny uzivatel.");
+        }
     }
 
     private Role applyRole(Uzivatel user, String roleCode) {
@@ -141,10 +145,12 @@ public class ProfileService {
         String requested = roleCode.trim();
         String currentRole = user.getRole() != null ? user.getRole().getNazev() : "";
         if ("ADMIN".equalsIgnoreCase(currentRole) && !requested.equalsIgnoreCase(currentRole)) {
-            throw new IllegalArgumentException("Administrátor si nemůže změnit roli.");
+            throw new IllegalArgumentException("Administrator si nemuze zmenit roli.");
         }
-        Role role = roleRepository.findByNazev(requested)
-                .orElseThrow(() -> new IllegalArgumentException("Role " + roleCode + " neexistuje."));
+        Role role = roleJdbcService.findByNazev(requested);
+        if (role == null) {
+            throw new IllegalArgumentException("Role " + roleCode + " neexistuje.");
+        }
         user.setRole(role);
         return role;
     }
@@ -160,8 +166,10 @@ public class ProfileService {
         if (!StringUtils.hasText(request.getStreet()) || !StringUtils.hasText(request.getCityPsc())) {
             return;
         }
-        Mesto mesto = mestoRepository.findById(request.getCityPsc().trim())
-                .orElseThrow(() -> new IllegalArgumentException("Město s PSČ " + request.getCityPsc() + " neexistuje."));
+        Mesto mesto = mestoJdbcService.findById(request.getCityPsc().trim());
+        if (mesto == null) {
+            throw new IllegalArgumentException("Mesto s PSC " + request.getCityPsc() + " neexistuje.");
+        }
         Adresa adresa = user.getAdresa();
         if (adresa == null) {
             adresa = new Adresa();
@@ -170,7 +178,7 @@ public class ProfileService {
         adresa.setCisloPopisne(request.getHouseNumber().trim());
         adresa.setCisloOrientacni(request.getOrientationNumber().trim());
         adresa.setMesto(mesto);
-        Adresa saved = adresaRepository.save(adresa);
+        Adresa saved = adresaJdbcService.save(adresa);
         user.setAdresa(saved);
     }
 
@@ -185,21 +193,18 @@ public class ProfileService {
                 || request.getSalary() == null
                 || request.getSalary().compareTo(BigDecimal.ZERO) <= 0
                 || !StringUtils.hasText(request.getHireDate())) {
-            throw new IllegalArgumentException("Zaměstnanci musí mít vyplněnou pozici, mzdu a datum nástupu.");
+            throw new IllegalArgumentException("Zamestnanec musi mit vyplnenou pozici, mzdu a datum nastupu.");
         }
-        Zamestnanec employee = existing;
-        if (employee == null) {
-            employee = Zamestnanec.builder()
-                    .id(user.getIdUzivatel())
-                    .uzivatel(user)
-                    .build();
-        }
+        Zamestnanec employee = existing == null ? Zamestnanec.builder()
+                .id(user.getIdUzivatel())
+                .uzivatel(user)
+                .build() : existing;
         BigDecimal salary = request.getSalary().max(BigDecimal.ZERO);
         employee.setPozice(request.getPosition().trim());
         employee.setMzda(salary);
         employee.setDatumNastupa(LocalDate.parse(request.getHireDate().trim()));
         employee.setUzivatel(user);
-        zamestnanecRepository.save(employee);
+        zamestnanecJdbcService.save(employee);
     }
 
     private void updateCustomerData(Zakaznik customer, ProfileUpdateRequest request) {
@@ -211,7 +216,7 @@ public class ProfileService {
         } else {
             customer.setKartaVernosti(null);
         }
-        zakaznikRepository.save(customer);
+        zakaznikJdbcService.save(customer);
     }
 
     private void updateSupplierData(Dodavatel supplier, ProfileUpdateRequest request) {
@@ -219,10 +224,10 @@ public class ProfileService {
             return;
         }
         if (!StringUtils.hasText(request.getSupplierCompany())) {
-            throw new IllegalArgumentException("Dodavatel musí mít uvedenou společnost.");
+            throw new IllegalArgumentException("Dodavatel musi mit uvedenou spolecnost.");
         }
         supplier.setFirma(request.getSupplierCompany().trim());
-        dodavatelRepository.save(supplier);
+        dodavatelJdbcService.save(supplier);
     }
 
     private LocalDate parseDate(String date) {

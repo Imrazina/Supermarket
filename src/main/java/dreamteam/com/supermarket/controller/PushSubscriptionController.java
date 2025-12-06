@@ -3,9 +3,9 @@ package dreamteam.com.supermarket.controller;
 import dreamteam.com.supermarket.model.user.Notifikace;
 import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.model.user.Zpravy;
-import dreamteam.com.supermarket.repository.MessageRepository;
-import dreamteam.com.supermarket.repository.NotifikaceRepository;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
+import dreamteam.com.supermarket.Service.MessageJdbcService;
+import dreamteam.com.supermarket.Service.NotifikaceJdbcService;
+import dreamteam.com.supermarket.Service.UserJdbcService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -23,13 +23,13 @@ public class PushSubscriptionController {
     private static final String SUBSCRIPTION_MARKER = "__PUSH_SUBSCRIPTION__";
 
     @Autowired
-    private NotifikaceRepository notifikaceRepository;
+    private NotifikaceJdbcService notifikaceJdbcService;
 
     @Autowired
-    private UzivatelRepository uzivatelRepository;
+    private UserJdbcService userJdbcService;
 
     @Autowired
-    private MessageRepository messageRepository;
+    private MessageJdbcService messageJdbcService;
 
     @PostMapping("/subscribe")
     public ResponseEntity<?> subscribe(
@@ -49,26 +49,27 @@ public class PushSubscriptionController {
         String p256dh = (String) keys.get("p256dh");
         String email = (String) request.getOrDefault("username", authentication.getName());
 
-        Uzivatel user = uzivatelRepository.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found: " + email));
+        Uzivatel user = userJdbcService.findByEmail(email);
+        if (user == null) {
+            throw new IllegalArgumentException("User not found: " + email);
+        }
 
-        Zpravy envelope = messageRepository
-                .findFirstBySenderAndReceiverAndContent(user, user, SUBSCRIPTION_MARKER)
-                .orElseGet(() -> messageRepository.save(
-                        Zpravy.builder()
-                                .sender(user)
-                                .receiver(user)
-                                .content(SUBSCRIPTION_MARKER)
-                                .datumZasilani(LocalDateTime.now())
-                                .build()
-                ));
+        Zpravy envelope = messageJdbcService.findFirstBySenderReceiverContent(
+                user.getIdUzivatel(), user.getIdUzivatel(), SUBSCRIPTION_MARKER
+        );
+        if (envelope == null) {
+            envelope = Zpravy.builder()
+                    .sender(user)
+                    .receiver(user)
+                    .content(SUBSCRIPTION_MARKER)
+                    .datumZasilani(LocalDateTime.now())
+                    .build();
+            envelope = messageJdbcService.save(envelope);
+        }
 
-        Notifikace subscription = notifikaceRepository.findByAdresat(user.getEmail())
-                .orElseGet(() -> {
-                    Notifikace notif = new Notifikace();
-                    notif.setZprava(envelope);
-                    return notif;
-                });
+        Notifikace existing = notifikaceJdbcService.findByAdresat(user.getEmail());
+        Notifikace subscription = existing != null ? existing : new Notifikace();
+        subscription.setZprava(envelope);
 
         subscription.setZprava(envelope);
         subscription.setAdresat(user.getEmail());
@@ -76,7 +77,7 @@ public class PushSubscriptionController {
         subscription.setAuthToken(auth);
         subscription.setP256dh(p256dh);
 
-        notifikaceRepository.save(subscription);
+        notifikaceJdbcService.save(subscription);
         return ResponseEntity.ok().build();
     }
 
@@ -86,7 +87,7 @@ public class PushSubscriptionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         String email = authentication.getName();
-        notifikaceRepository.findByAdresat(email).ifPresent(notifikaceRepository::delete);
+        notifikaceJdbcService.deleteByAdresat(email);
         return ResponseEntity.noContent().build();
     }
 }

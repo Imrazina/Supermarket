@@ -7,16 +7,17 @@ import dreamteam.com.supermarket.model.Soubor;
 import dreamteam.com.supermarket.model.market.Zbozi;
 import dreamteam.com.supermarket.model.market.Objednavka;
 import dreamteam.com.supermarket.model.market.Sklad;
+import dreamteam.com.supermarket.model.market.Supermarket;
 import dreamteam.com.supermarket.model.user.Uzivatel;
-import dreamteam.com.supermarket.repository.ArchivRepository;
-import dreamteam.com.supermarket.repository.LogRepository;
-import dreamteam.com.supermarket.repository.SouborRepository;
-import dreamteam.com.supermarket.repository.ObjednavkaRepository;
-import dreamteam.com.supermarket.repository.ObjednavkaStatusRepository;
-import dreamteam.com.supermarket.repository.ZboziRepository;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
-import dreamteam.com.supermarket.repository.SkladRepository;
-import dreamteam.com.supermarket.repository.SupermarketRepository;
+import dreamteam.com.supermarket.Service.ArchivJdbcService;
+import dreamteam.com.supermarket.Service.LogJdbcService;
+import dreamteam.com.supermarket.Service.SouborJdbcService;
+import dreamteam.com.supermarket.Service.ObjednavkaJdbcService;
+import dreamteam.com.supermarket.Service.ObjednavkaStatusJdbcService;
+import dreamteam.com.supermarket.Service.ZboziJdbcService;
+import dreamteam.com.supermarket.Service.UserJdbcService;
+import dreamteam.com.supermarket.Service.SkladJdbcService;
+import dreamteam.com.supermarket.Service.SupermarketJdbcService;
 import lombok.RequiredArgsConstructor;
 import org.apache.poi.openxml4j.exceptions.InvalidFormatException;
 import org.apache.poi.ss.usermodel.*;
@@ -24,8 +25,6 @@ import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
 import org.apache.poi.xwpf.usermodel.XWPFDocument;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.core.io.ByteArrayResource;
-import org.springframework.data.domain.PageRequest;
-import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -63,15 +62,15 @@ public class ArchiveController {
 
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
-    private final ArchivRepository archivRepository;
-    private final SouborRepository souborRepository;
-    private final LogRepository logRepository;
-    private final ZboziRepository zboziRepository;
-    private final ObjednavkaRepository objednavkaRepository;
-    private final ObjednavkaStatusRepository objednavkaStatusRepository;
-    private final UzivatelRepository uzivatelRepository;
-    private final SkladRepository skladRepository;
-    private final SupermarketRepository supermarketRepository;
+    private final ArchivJdbcService archivJdbcService;
+    private final SouborJdbcService souborJdbcService;
+    private final LogJdbcService logJdbcService;
+    private final ZboziJdbcService zboziJdbcService;
+    private final ObjednavkaJdbcService objednavkaJdbcService;
+    private final ObjednavkaStatusJdbcService objednavkaStatusJdbcService;
+    private final UserJdbcService userJdbcService;
+    private final SkladJdbcService skladJdbcService;
+    private final SupermarketJdbcService supermarketJdbcService;
 
     private String safeQuery(String q) {
         if (q == null) return null;
@@ -96,13 +95,13 @@ public class ArchiveController {
 
     @GetMapping("/tree")
     public List<DashboardResponse.ArchiveNode> tree() {
-        return archivRepository.findHierarchy().stream()
+        return archivJdbcService.findHierarchy().stream()
                 .map(node -> new DashboardResponse.ArchiveNode(
-                        node.getIdArchiv(),
-                        node.getNazev(),
-                        node.getParentId(),
-                        node.getLvl() == null ? 0 : node.getLvl(),
-                        node.getCesta()
+                        node.idArchiv(),
+                        node.nazev(),
+                        node.parentId(),
+                        node.lvl() == null ? 0 : node.lvl(),
+                        node.cesta()
                 ))
                 .toList();
     }
@@ -111,19 +110,18 @@ public class ArchiveController {
     public List<FileItem> files(@RequestParam(name = "archiveId", required = false) Long archiveId,
                                 @RequestParam(name = "q", required = false) String query,
                                 @RequestParam(name = "size", defaultValue = "100") int size) {
-        Pageable pageable = PageRequest.of(0, Math.max(1, Math.min(size, 500)));
-        return souborRepository.searchMeta(archiveId, safeQuery(query), pageable).stream()
+        return souborJdbcService.searchMeta(archiveId, safeQuery(query), size).stream()
                 .map(meta -> new FileItem(
-                        meta.getIdSoubor(),
-                        meta.getNazev(),
-                        meta.getPripona(),
-                        meta.getTyp(),
-                        meta.getArchiv(),
-                        meta.getOwner(),
-                        meta.getPopis(),
-                        formatDate(meta.getDatumNahrani(), meta.getDatumModifikace()),
-                        formatDate(meta.getDatumModifikace(), meta.getDatumNahrani()),
-                        meta.getVelikost()
+                        meta.idSoubor(),
+                        meta.nazev(),
+                        meta.pripona(),
+                        meta.typ(),
+                        meta.archiv(),
+                        meta.owner(),
+                        meta.popis(),
+                        formatDate(meta.datumNahrani(), meta.datumModifikace()),
+                        formatDate(meta.datumModifikace(), meta.datumNahrani()),
+                        meta.velikost()
                 ))
                 .toList();
     }
@@ -135,18 +133,20 @@ public class ArchiveController {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Soubor je prázdný.");
         }
-        var archiv = archivRepository.findById(archiveId)
-                .orElseThrow(() -> new IllegalArgumentException("Archiv neexistuje"));
+        var archiv = archivJdbcService.findById(archiveId);
+        if (archiv == null) {
+            throw new IllegalArgumentException("Archiv neexistuje");
+        }
         // blokujeme LOG složku a její děti
         if (isLogFolder(archiv)) {
             throw new IllegalArgumentException("Nahrávání do LOG není povoleno.");
         }
 
         Uzivatel owner = authentication != null
-                ? uzivatelRepository.findByEmail(authentication.getName()).orElse(null)
+                ? userJdbcService.findByEmail(authentication.getName())
                 : null;
         if (owner == null) {
-            owner = uzivatelRepository.findAll().stream().findFirst().orElse(null);
+            owner = userJdbcService.findAll().stream().findFirst().orElse(null);
         }
         if (owner == null) {
             throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Nelze nahrát: není dostupný žádný uživatel pro vlastnictví souboru.");
@@ -169,7 +169,7 @@ public class ArchiveController {
                 .vlastnik(owner)
                 .archiv(archiv)
                 .build();
-        souborRepository.save(soubor);
+        souborJdbcService.save(soubor);
 
         return new FileItem(
                 soubor.getIdSoubor(),
@@ -187,8 +187,10 @@ public class ArchiveController {
 
     @GetMapping("/files/{id}/data")
     public ResponseEntity<ByteArrayResource> download(@PathVariable Long id) {
-        Soubor soubor = souborRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Soubor not found"));
+        Soubor soubor = souborJdbcService.findById(id);
+        if (soubor == null) {
+            throw new IllegalArgumentException("Soubor not found");
+        }
         ByteArrayResource resource = new ByteArrayResource(soubor.getObsah());
         String filename = soubor.getNazev() + "." + soubor.getPripona();
         return ResponseEntity.ok()
@@ -200,8 +202,10 @@ public class ArchiveController {
 
     @GetMapping("/files/{id}/preview")
     public ResponseEntity<String> preview(@PathVariable Long id) {
-        Soubor soubor = souborRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Soubor not found"));
+        Soubor soubor = souborJdbcService.findById(id);
+        if (soubor == null) {
+            throw new IllegalArgumentException("Soubor not found");
+        }
         String ext = Optional.ofNullable(soubor.getPripona()).orElse("").toLowerCase(Locale.ROOT);
         String text = extractPreviewText(soubor.getObsah(), ext);
         if (text == null) {
@@ -216,8 +220,10 @@ public class ArchiveController {
 
     @PutMapping(value = "/files/{id}/edit", consumes = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<Void> edit(@PathVariable Long id, @org.springframework.web.bind.annotation.RequestBody String newContent) {
-        Soubor soubor = souborRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Soubor not found"));
+        Soubor soubor = souborJdbcService.findById(id);
+        if (soubor == null) {
+            throw new IllegalArgumentException("Soubor not found");
+        }
         String ext = Optional.ofNullable(soubor.getPripona()).orElse("").toLowerCase(Locale.ROOT);
         byte[] updated = buildEditedContent(ext, Optional.ofNullable(newContent).orElse(""));
         if (updated == null) {
@@ -225,44 +231,50 @@ public class ArchiveController {
         }
         soubor.setObsah(updated);
         soubor.setDatumModifikace(LocalDateTime.now());
-        souborRepository.save(soubor);
+        souborJdbcService.save(soubor);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/files/{id}")
     public ResponseEntity<Void> delete(@PathVariable Long id) {
-        Soubor soubor = souborRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Soubor not found"));
-        souborRepository.delete(soubor);
+        Soubor soubor = souborJdbcService.findById(id);
+        if (soubor == null) {
+            throw new IllegalArgumentException("Soubor not found");
+        }
+        souborJdbcService.deleteById(soubor.getIdSoubor());
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping(value = "/files/{id}/description", consumes = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<Void> updateDescription(@PathVariable Long id, @org.springframework.web.bind.annotation.RequestBody String description) {
-        Soubor soubor = souborRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Soubor not found"));
+        Soubor soubor = souborJdbcService.findById(id);
+        if (soubor == null) {
+            throw new IllegalArgumentException("Soubor not found");
+        }
         soubor.setPopis(description);
         soubor.setDatumModifikace(LocalDateTime.now());
-        souborRepository.save(soubor);
+        souborJdbcService.save(soubor);
         return ResponseEntity.noContent().build();
     }
 
     @PutMapping(value = "/logs/{id}/description", consumes = MediaType.TEXT_PLAIN_VALUE)
     public ResponseEntity<Void> updateLogDescription(@PathVariable Long id, @org.springframework.web.bind.annotation.RequestBody String description) {
-        Log log = logRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Log not found"));
+        Log log = logJdbcService.findById(id);
+        if (log == null) {
+            throw new IllegalArgumentException("Log not found");
+        }
         log.setPopis(description);
         log.setDatumZmeny(LocalDateTime.now());
-        logRepository.save(log);
+        logJdbcService.save(log);
         return ResponseEntity.noContent().build();
     }
 
     @DeleteMapping("/logs/{id}")
     public ResponseEntity<Void> deleteLog(@PathVariable Long id) {
-        if (!logRepository.existsById(id)) {
+        if (!logJdbcService.existsById(id)) {
             throw new IllegalArgumentException("Log not found");
         }
-        logRepository.deleteById(id);
+        logJdbcService.deleteById(id);
         return ResponseEntity.noContent().build();
     }
 
@@ -271,37 +283,36 @@ public class ArchiveController {
                               @RequestParam(name = "table", required = false) String table,
                               @RequestParam(name = "op", required = false) String op,
                               @RequestParam(name = "size", defaultValue = "100") int size) {
-        Pageable pageable = PageRequest.of(0, Math.max(1, Math.min(size, 500)));
-        Map<String, String> statusNames = objednavkaStatusRepository.findAll().stream()
+        Map<String, String> statusNames = objednavkaStatusJdbcService.findAll().stream()
                 .collect(HashMap::new, (m, s) -> {
                     if (s.getIdStatus() != null) {
                         m.put(String.valueOf(s.getIdStatus()), Optional.ofNullable(s.getNazev()).orElse(""));
                     }
                 }, HashMap::putAll);
-        Map<String, String> supermarketNames = supermarketRepository.findAll().stream()
+        Map<String, String> supermarketNames = supermarketJdbcService.findAll().stream()
                 .collect(HashMap::new, (m, s) -> {
                     if (s.getIdSupermarket() != null) {
                         m.put(String.valueOf(s.getIdSupermarket()), Optional.ofNullable(s.getNazev()).orElse(""));
                     }
                 }, HashMap::putAll);
-        Map<String, String> userNames = uzivatelRepository.findAll().stream()
+        Map<String, String> userNames = userJdbcService.findAll().stream()
                 .collect(HashMap::new, (m, u) -> {
                     if (u.getIdUzivatel() != null) {
                         m.put(String.valueOf(u.getIdUzivatel()), (u.getJmeno() + " " + u.getPrijmeni()).trim());
                     }
                 }, HashMap::putAll);
-        return logRepository.findFilteredWithPath(archiveId, safeQuery(table), safeQuery(op), pageable).stream()
+        return logJdbcService.findFilteredWithPath(archiveId, safeQuery(table), safeQuery(op), size).stream()
                 .map(log -> new LogItem(
-                        log.getIdLog(),
-                        log.getTableName(),
-                        log.getOperation(),
-                        log.getTimestamp() != null ? DATE_TIME_FORMAT.format(log.getTimestamp().toLocalDateTime()) : "",
-                        formatDataString(log.getPopis(), statusNames, supermarketNames, userNames),
-                        log.getArchivPath(),
-                        log.getIdRekord(),
-                        resolveRecordName(log.getTableName(), log.getIdRekord()),
-                        formatDataString(log.getNovaData(), statusNames, supermarketNames, userNames),
-                        formatDataString(log.getStaraData(), statusNames, supermarketNames, userNames)
+                        log.idLog(),
+                        log.tableName(),
+                        log.operation(),
+                        log.timestamp() != null ? DATE_TIME_FORMAT.format(log.timestamp()) : "",
+                        formatDataString(log.popis(), statusNames, supermarketNames, userNames),
+                        log.archivPath(),
+                        log.idRekord(),
+                        resolveRecordName(log.tableName(), log.idRekord()),
+                        formatDataString(log.novaData(), statusNames, supermarketNames, userNames),
+                        formatDataString(log.staraData(), statusNames, supermarketNames, userNames)
                 ))
                 .toList();
     }
@@ -462,35 +473,41 @@ public class ArchiveController {
                 return null;
             }
             if (upper.contains("UZIVATEL") || upper.contains("ZAKAZNIK") || upper.contains("ZAMESTNANEC") || upper.contains("DODAVATEL")) {
-                return uzivatelRepository.findById(parsedId)
-                        .map(u -> u.getJmeno() + " " + u.getPrijmeni()).orElse(null);
+                Uzivatel u = userJdbcService.findById(parsedId);
+                return u != null ? (u.getJmeno() + " " + u.getPrijmeni()).trim() : null;
             }
             switch (upper) {
                 case "ZBOZI":
-                    return zboziRepository.findById(parsedId)
-                            .map(Zbozi::getNazev).orElse(null);
+                    Zbozi z = zboziJdbcService.findById(parsedId);
+                    return z != null ? z.getNazev() : null;
                 case "OBJEDNAVKA":
-                    return objednavkaRepository.findWithUser(parsedId)
-                            .map(o -> {
-                                if (o.getUzivatel() != null) {
-                                    return o.getUzivatel().getJmeno() + " " + o.getUzivatel().getPrijmeni();
-                                }
-                                return "Objednavka " + o.getIdObjednavka();
-                            })
-                            .orElse(null);
+                    var order = objednavkaJdbcService.findWithUser(parsedId);
+                    if (order != null) {
+                        if (order.userJmeno() != null || order.userPrijmeni() != null) {
+                            return (order.userJmeno() + " " + order.userPrijmeni()).trim();
+                        }
+                        if (order.userEmail() != null) {
+                            return order.userEmail();
+                        }
+                        return "Objednavka " + order.id();
+                    }
+                    return null;
                 case "OBJEDNAVKA_STATUS":
                 case "OBJEDNAVKA_STATUSY":
                 case "STATUSOBJEDNAVKY":
-                    return objednavkaStatusRepository.findById(parsedId)
+                    return Optional.ofNullable(objednavkaStatusJdbcService.findById(parsedId))
                             .map(s -> s.getNazev() != null ? s.getNazev() : s.getIdStatus().toString())
                             .orElse(null);
-                case "SUPERMARKET":
-                    return supermarketRepository.findById(parsedId)
-                            .map(s -> s.getNazev() != null ? s.getNazev() : s.getIdSupermarket().toString())
-                            .orElse(null);
-                case "SKLAD":
-                    return skladRepository.findById(parsedId)
-                            .map(Sklad::getNazev).orElse(null);
+                case "SUPERMARKET": {
+                    Supermarket sm = supermarketJdbcService.findAll().stream()
+                            .filter(s -> parsedId.equals(s.getIdSupermarket()))
+                            .findFirst().orElse(null);
+                    return sm != null ? (sm.getNazev() != null ? sm.getNazev() : sm.getIdSupermarket().toString()) : null;
+                }
+                case "SKLAD": {
+                    Sklad skl = skladJdbcService.findById(parsedId);
+                    return skl != null ? skl.getNazev() : null;
+                }
                 default:
                     return null;
             }

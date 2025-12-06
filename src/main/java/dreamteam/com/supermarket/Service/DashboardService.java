@@ -9,7 +9,20 @@ import dreamteam.com.supermarket.model.location.Mesto;
 import dreamteam.com.supermarket.model.market.*;
 import dreamteam.com.supermarket.model.payment.Platba;
 import dreamteam.com.supermarket.model.user.*;
-import dreamteam.com.supermarket.repository.*;
+import dreamteam.com.supermarket.Service.UserJdbcService;
+import dreamteam.com.supermarket.Service.RolePravoJdbcService;
+import dreamteam.com.supermarket.Service.MessageJdbcService;
+import dreamteam.com.supermarket.Service.NotifikaceJdbcService;
+import dreamteam.com.supermarket.Service.RoleJdbcService;
+import dreamteam.com.supermarket.Service.ObjednavkaStatusJdbcService;
+import dreamteam.com.supermarket.Service.ObjednavkaZboziJdbcService;
+import dreamteam.com.supermarket.Service.ZamestnanecJdbcService;
+import dreamteam.com.supermarket.Service.ZakaznikJdbcService;
+import dreamteam.com.supermarket.Service.DodavatelJdbcService;
+import dreamteam.com.supermarket.Service.DodavatelZboziJdbcService;
+import dreamteam.com.supermarket.Service.ArchivJdbcService;
+import dreamteam.com.supermarket.Service.SouborJdbcService;
+import dreamteam.com.supermarket.Service.LogJdbcService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -42,57 +55,84 @@ public class DashboardService {
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", LOCALE_CZ);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
 
-    private final ZboziRepository zboziRepository;
-    private final KategorieZboziRepository kategorieZboziRepository;
-    private final SkladRepository skladRepository;
-    private final SupermarketRepository supermarketRepository;
-    private final ObjednavkaRepository objednavkaRepository;
-    private final ObjednavkaStatusRepository objednavkaStatusRepository;
-    private final ObjednavkaZboziRepository objednavkaZboziRepository;
-    private final ZamestnanecRepository zamestnanecRepository;
-    private final ZakaznikRepository zakaznikRepository;
-    private final DodavatelRepository dodavatelRepository;
-    private final DodavatelZboziRepository dodavatelZboziRepository;
-    private final PlatbaRepository platbaRepository;
-    private final LogRepository logRepository;
-    private final SouborRepository souborRepository;
-    private final ArchivRepository archivRepository;
-    private final ZpravyRepository zpravyRepository;
-    private final NotifikaceRepository notifikaceRepository;
-    private final RoleRepository roleRepository;
-    private final UzivatelRepository uzivatelRepository;
-    private final RolePravoRepository rolePravoRepository;
+    private final ZboziJdbcService zboziJdbcService;
+    private final KategorieZboziJdbcService kategorieZboziJdbcService;
+    private final SkladJdbcService skladJdbcService;
+    private final SupermarketJdbcService supermarketJdbcService;
+    private final ObjednavkaJdbcService objednavkaJdbcService;
+    private final ObjednavkaStatusJdbcService objednavkaStatusJdbcService;
+    private final ObjednavkaZboziJdbcService objednavkaZboziJdbcService;
+    private final ZamestnanecJdbcService zamestnanecJdbcService;
+    private final ZakaznikJdbcService zakaznikJdbcService;
+    private final DodavatelJdbcService dodavatelJdbcService;
+    private final DodavatelZboziJdbcService dodavatelZboziJdbcService;
+    private final PlatbaJdbcService platbaJdbcService;
+    private final LogJdbcService logJdbcService;
+    private final SouborJdbcService souborJdbcService;
+    private final ArchivJdbcService archivJdbcService;
+    private final MessageJdbcService messageJdbcService;
+    private final NotifikaceJdbcService notifikaceJdbcService;
+    private final RoleJdbcService roleJdbcService;
+    private final UserJdbcService userJdbcService;
+    private final RolePravoJdbcService rolePravoJdbcService;
 
     @Transactional(readOnly = true)
     public DashboardResponse buildSnapshot(Uzivatel currentUser) {
-        currentUser = uzivatelRepository.findById(currentUser.getIdUzivatel())
-                .orElse(currentUser);
+        currentUser = userJdbcService.findById(currentUser.getIdUzivatel());
+        if (currentUser == null) {
+            throw new IllegalArgumentException("Uzivatel neexistuje.");
+        }
         LocalDateTime now = LocalDateTime.now();
 
-        List<Zbozi> goods = zboziRepository.findAll();
-        List<Sklad> warehouses = skladRepository.findAll();
-        List<Supermarket> supermarkets = supermarketRepository.findAll();
-        List<Objednavka> orders = objednavkaRepository.findByUzivatel(currentUser);
-        List<ObjednavkaStatus> statuses = objednavkaStatusRepository.findAll();
-        List<ObjednavkaZbozi> orderLines = objednavkaZboziRepository.findAll()
+        Uzivatel userForOrders = currentUser;
+        List<Zbozi> goods = zboziJdbcService.findAll();
+        List<Sklad> warehouses = skladJdbcService.findAll();
+        List<Supermarket> supermarkets = supermarketJdbcService.findAll();
+        List<ObjednavkaStatus> statuses = objednavkaStatusJdbcService.findAll();
+        Map<Long, ObjednavkaStatus> statusMap = statuses.stream()
+                .collect(Collectors.toMap(ObjednavkaStatus::getIdStatus, Function.identity()));
+        List<Objednavka> orders = objednavkaJdbcService.findByUserId(userForOrders.getIdUzivatel()).stream()
+                .map(row -> {
+                    Objednavka o = new Objednavka();
+                    o.setIdObjednavka(row.id());
+                    o.setDatum(row.datum());
+                    o.setStatus(statusMap.get(row.statusId()));
+                    o.setTypObjednavka(row.typObjednavka());
+                    o.setUzivatel(userForOrders);
+                    return o;
+                })
+                .toList();
+        List<ObjednavkaZbozi> orderLines = objednavkaZboziJdbcService.findAll()
                 .stream()
                 .filter(line -> orders.stream().anyMatch(o -> o.getIdObjednavka().equals(line.getObjednavka().getIdObjednavka())))
                 .toList();
-        List<Zamestnanec> employees = zamestnanecRepository.findAll();
-        List<Zakaznik> customers = zakaznikRepository.findAll();
-        List<Dodavatel> suppliers = dodavatelRepository.findAll();
+        List<Zamestnanec> employees = zamestnanecJdbcService.findAll();
+        List<Zakaznik> customers = zakaznikJdbcService.findAll();
+        List<Dodavatel> suppliers = dodavatelJdbcService.findAll();
         List<Long> orderIds = orders.stream().map(Objednavka::getIdObjednavka).toList();
-        List<Platba> payments = platbaRepository.findAll().stream()
-                .filter(p -> p.getObjednavka() != null && orderIds.contains(p.getObjednavka().getIdObjednavka()))
+        List<Platba> payments = platbaJdbcService.findByOrderIds(orderIds).stream()
+                .map(row -> {
+                    Platba p = new Platba();
+                    p.setIdPlatba(row.id());
+                    p.setCastka(row.castka());
+                    p.setDatum(row.datum());
+                    p.setPlatbaTyp(row.platbaTyp());
+                    Objednavka o = new Objednavka();
+                    o.setIdObjednavka(row.objednavkaId());
+                    p.setObjednavka(o);
+                    return p;
+                })
                 .toList();
-        List<LogRepository.LogWithPath> logs = logRepository.findRecentWithPath();
-        List<Zpravy> messages = zpravyRepository.findTop10ByOrderByDatumZasilaniDesc();
-        List<Notifikace> subscribers = notifikaceRepository.findAll();
-        List<ArchivRepository.ArchivHierarchy> archiveTree = archivRepository.findHierarchy();
-        List<Archiv> archives = archivRepository.findAll();
-        List<Role> roles = roleRepository.findAll();
-        List<Uzivatel> allUsers = uzivatelRepository.findAll();
-        List<DodavatelZbozi> supplierRelations = dodavatelZboziRepository.findAll();
+        List<LogJdbcService.LogWithPath> logs = logJdbcService.findRecentWithPath();
+        List<Zpravy> messages = messageJdbcService.findTop100WithParticipants().stream()
+                .limit(10)
+                .toList();
+        List<Notifikace> subscribers = notifikaceJdbcService.findAll();
+        List<ArchivJdbcService.ArchivHierarchyRow> archiveTree = archivJdbcService.findHierarchy();
+        List<Archiv> archives = archivJdbcService.findAll();
+        List<Role> roles = roleJdbcService.findAll();
+        List<Uzivatel> allUsers = userJdbcService.findAll();
+        List<DodavatelZbozi> supplierRelations = dodavatelZboziJdbcService.findAll();
 
         Map<Long, List<DodavatelZbozi>> suppliersByZbozi = supplierRelations.stream()
                 .collect(Collectors.groupingBy(rel -> rel.getId().getZboziId()));
@@ -166,7 +206,7 @@ public class DashboardService {
                 })
                 .toList();
 
-        List<DashboardResponse.CategoryStat> categoryStats = kategorieZboziRepository.findAll().stream()
+        List<DashboardResponse.CategoryStat> categoryStats = kategorieZboziJdbcService.findAll().stream()
                 .map(cat -> new DashboardResponse.CategoryStat(
                         cat.getNazev(),
                         goodsPerCategory.getOrDefault(cat.getIdKategorie(), 0L),
@@ -309,11 +349,11 @@ public class DashboardService {
 
         List<DashboardResponse.LogInfo> logInfos = logs.stream()
                 .map(log -> new DashboardResponse.LogInfo(
-                        log.getTableName(),
-                        log.getOperation(),
-                        log.getArchivPath() != null ? log.getArchivPath() : "Archiv",
-                        log.getTimestamp() != null ? DATE_TIME_FORMAT.format(log.getTimestamp().toLocalDateTime()) : "",
-                        log.getPopis() != null ? log.getPopis() : ("ID " + log.getIdRekord())
+                        log.tableName(),
+                        log.operation(),
+                        log.archivPath() != null ? log.archivPath() : "Archiv",
+                        log.timestamp() != null ? DATE_TIME_FORMAT.format(log.timestamp()) : "",
+                        log.popis() != null ? log.popis() : ("ID " + log.idRekord())
                 ))
                 .toList();
 
@@ -391,26 +431,18 @@ public class DashboardService {
 
         List<DashboardResponse.ArchiveNode> archiveNodes = archiveTree.stream()
                 .map(node -> new DashboardResponse.ArchiveNode(
-                        node.getIdArchiv(),
-                        node.getNazev(),
-                        node.getParentId(),
-                        node.getLvl() == null ? 0 : node.getLvl(),
-                        node.getCesta()
+                        node.idArchiv(),
+                        node.nazev(),
+                        node.parentId(),
+                        node.lvl() == null ? 0 : node.lvl(),
+                        node.cesta()
                 ))
                 .toList();
 
         Long unreadMessages = 0L;
-        String lastMessageSummary = "Žádné zprávy";
-        if (currentUser != null && currentUser.getIdUzivatel() != null) {
-            Long userId = currentUser.getIdUzivatel();
-            Number unreadNumber = zpravyRepository.findUnreadCount(userId);
-            unreadMessages = unreadNumber == null ? 0L : unreadNumber.longValue();
-            lastMessageSummary = Objects.requireNonNullElse(
-                    zpravyRepository.findLastMessageSummary(userId),
-                    "Žádné zprávy"
-            );
-        }
-
+        String lastMessageSummary = messages.isEmpty()
+                ? "Zadne zpravy"
+                : Objects.requireNonNullElse(messages.get(0).getContent(), "Zadne zpravy");
         return new DashboardResponse(
                 now.format(DATE_TIME_FORMAT),
                 buildWeeklyDemand(orders),
@@ -494,7 +526,7 @@ public class DashboardService {
                 .toList();
     }
 
-    private List<DashboardResponse.FolderInfo> buildFolders(List<ArchivRepository.ArchivHierarchy> archiveTree,
+    private List<DashboardResponse.FolderInfo> buildFolders(List<ArchivJdbcService.ArchivHierarchyRow> archiveTree,
                                                            List<Archiv> archives) {
         if (archiveTree.isEmpty()) {
             return List.of();
@@ -506,12 +538,12 @@ public class DashboardService {
         AtomicInteger index = new AtomicInteger(0);
         return archiveTree.stream()
                 .map(node -> {
-                    Archiv archiv = archivById.get(node.getIdArchiv());
+                    Archiv archiv = archivById.get(node.idArchiv());
                     if (archiv == null) {
                         return null;
                     }
                     String color = colors.get(index.getAndIncrement() % colors.size());
-                    List<Soubor> files = souborRepository.findByArchivOrderByDatumModifikaceDesc(archiv);
+                    List<Soubor> files = souborJdbcService.findByArchiv(archiv.getIdArchiv());
                     List<DashboardResponse.FileInfo> fileInfos = files.stream()
                             .map(file -> new DashboardResponse.FileInfo(
                                     file.getNazev(),
@@ -548,9 +580,9 @@ public class DashboardService {
                         adresa.getMesto() != null ? adresa.getMesto().getPsc() : ""
                 );
 
-        Zamestnanec employee = zamestnanecRepository.findById(currentUser.getIdUzivatel()).orElse(null);
-        Zakaznik customer = zakaznikRepository.findById(currentUser.getIdUzivatel()).orElse(null);
-        Dodavatel supplier = dodavatelRepository.findById(currentUser.getIdUzivatel()).orElse(null);
+        Zamestnanec employee = zamestnanecJdbcService.findById(currentUser.getIdUzivatel());
+        Zakaznik customer = zakaznikJdbcService.findById(currentUser.getIdUzivatel());
+        Dodavatel supplier = dodavatelJdbcService.findById(currentUser.getIdUzivatel());
         String roleName = currentUser.getRole() != null ? currentUser.getRole().getNazev() : "Uživatel";
         String position = employee != null ? employee.getPozice() : roleName;
         DashboardResponse.Profile.EmploymentDetails employmentDetails = employee == null ? null :
@@ -562,13 +594,9 @@ public class DashboardService {
 
         List<String> permissions = currentUser.getRole() == null
                 ? List.of()
-                : rolePravoRepository.findByRoleIdRole(currentUser.getRole().getIdRole())
-                .stream()
-                .map(rolePravo -> rolePravo.getPravo() != null ? rolePravo.getPravo().getKod() : null)
-                .filter(Objects::nonNull)
-                .toList();
+                : rolePravoJdbcService.findCodesByRoleId(currentUser.getRole().getIdRole());
 
-        List<DashboardResponse.Profile.Activity> activity = logRepository.findTop10ByOrderByDatumZmenyDesc()
+        List<DashboardResponse.Profile.Activity> activity = logJdbcService.findTop10()
                 .stream()
                 .limit(4)
                 .map(log -> new DashboardResponse.Profile.Activity(

@@ -4,6 +4,7 @@ import dreamteam.com.supermarket.jwt.JwtFilter;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.boot.autoconfigure.security.servlet.PathRequest;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -54,6 +55,8 @@ public class SecurityConfig {
                 )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers(HttpMethod.OPTIONS).permitAll()
+                        .requestMatchers(PathRequest.toStaticResources().atCommonLocations()).permitAll()
+                        .requestMatchers("/", "/landing", "/landing.html").permitAll()
                         .requestMatchers("/api/push/subscribe").authenticated()
                         .requestMatchers("/auth/**", "/ws/**").permitAll()
                         .anyRequest().authenticated()

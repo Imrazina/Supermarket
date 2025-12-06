@@ -2,8 +2,8 @@ package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.controller.dto.DashboardResponse;
 import dreamteam.com.supermarket.model.user.Uzivatel;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
 import dreamteam.com.supermarket.Service.DashboardService;
+import dreamteam.com.supermarket.Service.UserJdbcService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -18,11 +18,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class DashboardController {
 
     private final DashboardService dashboardService;
-    private final UzivatelRepository uzivatelRepository;
+    private final UserJdbcService userJdbcService;
 
-    public DashboardController(DashboardService dashboardService, UzivatelRepository uzivatelRepository) {
+    public DashboardController(DashboardService dashboardService, UserJdbcService userJdbcService) {
         this.dashboardService = dashboardService;
-        this.uzivatelRepository = uzivatelRepository;
+        this.userJdbcService = userJdbcService;
     }
 
     @GetMapping
@@ -30,8 +30,7 @@ public class DashboardController {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        Uzivatel currentUser = uzivatelRepository.findByEmail(authentication.getName())
-                .orElse(null);
+        Uzivatel currentUser = userJdbcService.findByEmail(authentication.getName());
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }

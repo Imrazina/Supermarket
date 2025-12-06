@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dreamteam.com.supermarket.Service.PushNotificationService;
 import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.model.user.Zpravy;
-import dreamteam.com.supermarket.repository.MessageRepository;
-import dreamteam.com.supermarket.repository.NotifikaceRepository;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
+import dreamteam.com.supermarket.Service.MessageJdbcService;
+import dreamteam.com.supermarket.Service.NotifikaceJdbcService;
+import dreamteam.com.supermarket.Service.UserJdbcService;
 import nl.martijndwars.webpush.Subscription;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -27,20 +27,20 @@ public class ChatController {
 
     private static final Logger logger = LoggerFactory.getLogger(ChatController.class);
 
-    private final UzivatelRepository uzivatelRepository;
-    private final MessageRepository messageRepository;
-    private final NotifikaceRepository notifikaceRepository;
+    private final UserJdbcService userJdbcService;
+    private final MessageJdbcService messageJdbcService;
+    private final NotifikaceJdbcService notifikaceJdbcService;
     private final PushNotificationService pushNotificationService;
     private final ObjectMapper objectMapper;
 
-    public ChatController(UzivatelRepository uzivatelRepository,
-                          MessageRepository messageRepository,
-                          NotifikaceRepository notifikaceRepository,
+    public ChatController(UserJdbcService userJdbcService,
+                          MessageJdbcService messageJdbcService,
+                          NotifikaceJdbcService notifikaceJdbcService,
                           PushNotificationService pushNotificationService,
                           ObjectMapper objectMapper) {
-        this.uzivatelRepository = uzivatelRepository;
-        this.messageRepository = messageRepository;
-        this.notifikaceRepository = notifikaceRepository;
+        this.userJdbcService = userJdbcService;
+        this.messageJdbcService = messageJdbcService;
+        this.notifikaceJdbcService = notifikaceJdbcService;
         this.pushNotificationService = pushNotificationService;
         this.objectMapper = objectMapper;
     }
@@ -56,67 +56,64 @@ public class ChatController {
         String email = principal.getName();
         logger.info(" Received message from user: {}", email);
 
-        Uzivatel sender = uzivatelRepository.findByEmail(email)
-                .orElseThrow(() -> {
-                    logger.error(" User not found in DB: {}", email);
-                    return new RuntimeException("User not found");
-                });
+        Uzivatel sender = userJdbcService.findByEmail(email);
+        if (sender == null) {
+            logger.error(" User not found in DB: {}", email);
+            throw new RuntimeException("User not found");
+        }
 
         String receiverEmail = payload.get("receiver");
         logger.info(" Receiver from payload: {}", receiverEmail);
         boolean hasExplicitReceiver = receiverEmail != null && !receiverEmail.isEmpty();
         Uzivatel receiver = hasExplicitReceiver
-                ? uzivatelRepository.findByEmail(receiverEmail)
-                .orElseThrow(() -> {
-                    logger.error(" Receiver not found in DB: {}", receiverEmail);
-                    return new RuntimeException("Receiver not found");
-                })
+                ? userJdbcService.findByEmail(receiverEmail)
                 : sender;
+        if (receiver == null) {
+            logger.error(" Receiver not found in DB: {}", receiverEmail);
+            throw new RuntimeException("Receiver not found");
+        }
 
         logger.info(" Receiver resolved to: {}", receiver.getEmail());
 
-        Zpravy message = new Zpravy();
-        message.setSender(sender);
-        message.setReceiver(receiver);
-        message.setContent(payload.get("content"));
-        message.setDatumZasilani(LocalDateTime.now());
-
-        try {
-            message = messageRepository.save(message);
-            logger.info(" Message saved to DB with id: {}, sender: {}, receiver: {}", message.getId(), sender.getEmail(), receiver.getEmail());
-        } catch (Exception e) {
-            logger.error(" Error saving message to DB!", e);
-            throw e;
-        }
+        Zpravy message = Zpravy.builder()
+                .sender(sender)
+                .receiver(receiver)
+                .content(payload.get("content"))
+                .datumZasilani(LocalDateTime.now())
+                .build();
+        message = messageJdbcService.save(message);
+        logger.info(" Message saved to DB with id: {}, sender: {}, receiver: {}", message.getId(), sender.getEmail(), receiver.getEmail());
 
         if (hasExplicitReceiver) {
             final Uzivatel finalReceiver = receiver;
             final Uzivatel finalSender = sender;
             final Zpravy finalMessage = message;
 
-            notifikaceRepository.findByAdresat(finalReceiver.getEmail())
-                    .ifPresentOrElse(subscriptionEntity -> {
-                        try {
-                            logger.info(" Preparing push for message {}, receiver {}", finalMessage.getId(), finalReceiver.getEmail());
-                            Subscription subscription = new Subscription(
-                                    subscriptionEntity.getEndPoint(),
-                                    new Subscription.Keys(
-                                            subscriptionEntity.getP256dh(),
-                                            subscriptionEntity.getAuthToken()
-                                    )
-                            );
+            var subscriptionEntity = notifikaceJdbcService.findByAdresat(finalReceiver.getEmail());
+            if (subscriptionEntity != null) {
+                try {
+                    logger.info(" Preparing push for message {}, receiver {}", finalMessage.getId(), finalReceiver.getEmail());
+                    Subscription subscription = new Subscription(
+                            subscriptionEntity.getEndPoint(),
+                            new Subscription.Keys(
+                                    subscriptionEntity.getP256dh(),
+                                    subscriptionEntity.getAuthToken()
+                            )
+                    );
 
-                            String senderLabel = buildSenderLabel(finalSender);
-                            String preview = buildMessagePreview(finalMessage.getContent(), 5);
-                            String jsonPayload = buildPushPayload(senderLabel, preview);
-                            logger.info(" Push payload: {}", jsonPayload);
-                            pushNotificationService.sendNotification(subscription, jsonPayload);
-                            logger.info(" Push sent to {} (endpoint hash: {})", finalReceiver.getEmail(), maskEndpoint(subscriptionEntity.getEndPoint()));
+                    String senderLabel = buildSenderLabel(finalSender);
+                    String preview = buildMessagePreview(finalMessage.getContent(), 5);
+                    String jsonPayload = buildPushPayload(senderLabel, preview);
+                    logger.info(" Push payload: {}", jsonPayload);
+                    pushNotificationService.sendNotification(subscription, jsonPayload);
+                    logger.info(" Push sent to {} (endpoint hash: {})", finalReceiver.getEmail(), maskEndpoint(subscriptionEntity.getEndPoint()));
 
-                        } catch (Exception e) {
-                            logger.warn(" Push sending failed for message {}: {}", finalMessage.getId(), e.getMessage(), e);
-                        }
-                    }, () -> logger.warn(" Push skipped: no subscription for receiver {}", finalReceiver.getEmail()));
+                } catch (Exception e) {
+                    logger.warn(" Push sending failed for message {}: {}", finalMessage.getId(), e.getMessage(), e);
+                }
+            } else {
+                logger.warn(" Push skipped: no subscription for receiver {}", finalReceiver.getEmail());
+            }
         }
         return new ChatMessageResponse(
                 message.getId(),

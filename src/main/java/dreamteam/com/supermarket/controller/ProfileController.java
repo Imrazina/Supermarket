@@ -5,7 +5,7 @@ import dreamteam.com.supermarket.controller.dto.PravoResponse;
 import dreamteam.com.supermarket.controller.dto.ProfileMetaResponse;
 import dreamteam.com.supermarket.controller.dto.ProfileUpdateRequest;
 import dreamteam.com.supermarket.model.user.Uzivatel;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
+import dreamteam.com.supermarket.Service.UserJdbcService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,11 +25,11 @@ import java.util.List;
 public class ProfileController {
 
     private final ProfileService profileService;
-    private final UzivatelRepository uzivatelRepository;
+    private final UserJdbcService userJdbcService;
 
-    public ProfileController(ProfileService profileService, UzivatelRepository uzivatelRepository) {
+    public ProfileController(ProfileService profileService, UserJdbcService userJdbcService) {
         this.profileService = profileService;
-        this.uzivatelRepository = uzivatelRepository;
+        this.userJdbcService = userJdbcService;
     }
 
     @GetMapping("/prava")
@@ -57,8 +57,7 @@ public class ProfileController {
         if (!hasAdminAuthority(authentication.getAuthorities())) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Pouze ADMIN může upravit profil.");
         }
-        Uzivatel user = uzivatelRepository.findByEmail(authentication.getName())
-                .orElse(null);
+        Uzivatel user = userJdbcService.findByEmail(authentication.getName());
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }

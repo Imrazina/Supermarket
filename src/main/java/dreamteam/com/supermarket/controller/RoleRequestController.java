@@ -5,9 +5,9 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import dreamteam.com.supermarket.Service.PushNotificationService;
 import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.model.user.Zpravy;
-import dreamteam.com.supermarket.repository.MessageRepository;
-import dreamteam.com.supermarket.repository.NotifikaceRepository;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
+import dreamteam.com.supermarket.Service.MessageJdbcService;
+import dreamteam.com.supermarket.Service.UserJdbcService;
+import dreamteam.com.supermarket.Service.NotifikaceJdbcService;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,22 +25,22 @@ public class RoleRequestController {
 
     private static final Set<String> ALLOWED_ROLES = Set.of("ZAMESTNANEC", "ZAKAZNIK", "DODAVATEL");
 
-    private final UzivatelRepository uzivatelRepository;
-    private final MessageRepository messageRepository;
-    private final NotifikaceRepository notifikaceRepository;
+    private final UserJdbcService userJdbcService;
+    private final MessageJdbcService messageJdbcService;
+    private final NotifikaceJdbcService notifikaceJdbcService;
     private final PushNotificationService pushNotificationService;
     private final ObjectMapper objectMapper;
     private final SimpMessagingTemplate messagingTemplate;
 
-    public RoleRequestController(UzivatelRepository uzivatelRepository,
-                                 MessageRepository messageRepository,
-                                 NotifikaceRepository notifikaceRepository,
+    public RoleRequestController(UserJdbcService userJdbcService,
+                                 MessageJdbcService messageJdbcService,
+                                 NotifikaceJdbcService notifikaceJdbcService,
                                  PushNotificationService pushNotificationService,
                                  ObjectMapper objectMapper,
                                  SimpMessagingTemplate messagingTemplate) {
-        this.uzivatelRepository = uzivatelRepository;
-        this.messageRepository = messageRepository;
-        this.notifikaceRepository = notifikaceRepository;
+        this.userJdbcService = userJdbcService;
+        this.messageJdbcService = messageJdbcService;
+        this.notifikaceJdbcService = notifikaceJdbcService;
         this.pushNotificationService = pushNotificationService;
         this.objectMapper = objectMapper;
         this.messagingTemplate = messagingTemplate;
@@ -56,28 +56,28 @@ public class RoleRequestController {
             return ResponseEntity.badRequest().body(Map.of("message", "Nepovolená role."));
         }
         String currentEmail = authentication.getName();
-        Uzivatel sender = uzivatelRepository.findByEmail(currentEmail)
-                .orElse(null);
+        Uzivatel sender = userJdbcService.findByEmail(currentEmail);
         if (sender == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Uživatel nebyl nalezen."));
         }
-        Uzivatel admin = uzivatelRepository.findByRole_NazevIgnoreCase("ADMIN").stream().findFirst().orElse(null);
+        Uzivatel admin = userJdbcService.findByRoleNazevIgnoreCase("ADMIN").stream().findFirst().orElse(null);
         if (admin == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Nebyl nalezen žádný admin pro zpracování žádosti."));
         }
         String content = "Žádám o přidělení role \"" + requested + "\".";
-        Zpravy message = new Zpravy();
-        message.setSender(sender);
-        message.setReceiver(admin);
-        message.setContent(content);
-        message.setDatumZasilani(LocalDateTime.now());
-        try {
-            Zpravy stored = messageRepository.save(message);
-            sendPush(admin, sender, content);
-            broadcastChatMessage(stored, sender, admin, content);
-        } catch (Exception e) {
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Žádost se nepodařilo odeslat."));
-        }
+            Zpravy message = Zpravy.builder()
+                    .sender(sender)
+                    .receiver(admin)
+                    .content(content)
+                    .datumZasilani(LocalDateTime.now())
+                    .build();
+            try {
+                Zpravy stored = messageJdbcService.save(message);
+                sendPush(admin, sender, content);
+                broadcastChatMessage(stored, sender, admin, content);
+            } catch (Exception e) {
+                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Žádost se nepodařilo odeslat."));
+            }
         return ResponseEntity.ok(Map.of(
                 "message", "Žádost odeslána adminovi.",
                 "receiver", admin.getEmail()
@@ -99,26 +99,26 @@ public class RoleRequestController {
     }
 
     private void sendPush(Uzivatel admin, Uzivatel sender, String content) {
-        notifikaceRepository.findByAdresat(admin.getEmail())
-                .ifPresent(subscriptionEntity -> {
-                    try {
-                        var subscription = new nl.martijndwars.webpush.Subscription(
-                                subscriptionEntity.getEndPoint(),
-                                new nl.martijndwars.webpush.Subscription.Keys(
-                                        subscriptionEntity.getP256dh(),
-                                        subscriptionEntity.getAuthToken()
-                                )
-                        );
-                        String payload = objectMapper.writeValueAsString(Map.of(
-                                "title", "Žádost o roli",
-                                "body", (sender.getEmail() + ": " + content)
-                        ));
-                        pushNotificationService.sendNotification(subscription, payload);
-                    } catch (JsonProcessingException e) {
-                        throw new RuntimeException(e);
-                    } catch (Exception e) {
-                        // jen log, nechceme kvůli tomu shodit žádost
-                    }
-                });
+        var subscriptionEntity = notifikaceJdbcService.findByAdresat(admin.getEmail());
+        if (subscriptionEntity != null) {
+            try {
+                var subscription = new nl.martijndwars.webpush.Subscription(
+                        subscriptionEntity.getEndPoint(),
+                        new nl.martijndwars.webpush.Subscription.Keys(
+                                subscriptionEntity.getP256dh(),
+                                subscriptionEntity.getAuthToken()
+                        )
+                );
+                String payload = objectMapper.writeValueAsString(Map.of(
+                        "title", "Žádost o roli",
+                        "body", (sender.getEmail() + ": " + content)
+                ));
+                pushNotificationService.sendNotification(subscription, payload);
+            } catch (JsonProcessingException e) {
+                throw new RuntimeException(e);
+            } catch (Exception e) {
+                // jen log, nechceme kvůli tomu shodit žádost
+            }
+        }
     }
 }

@@ -3,11 +3,16 @@ package dreamteam.com.supermarket.Service;
 import dreamteam.com.supermarket.controller.dto.AdminUserResponse;
 import dreamteam.com.supermarket.controller.dto.AdminUserUpdateRequest;
 import dreamteam.com.supermarket.controller.dto.ImpersonationResponse;
+import dreamteam.com.supermarket.jwt.JwtUtil;
 import dreamteam.com.supermarket.model.location.Adresa;
 import dreamteam.com.supermarket.model.location.Mesto;
 import dreamteam.com.supermarket.model.user.*;
-import dreamteam.com.supermarket.repository.*;
-import dreamteam.com.supermarket.jwt.JwtUtil;
+import dreamteam.com.supermarket.Service.AdresaJdbcService;
+import dreamteam.com.supermarket.Service.MestoJdbcService;
+import dreamteam.com.supermarket.Service.RoleJdbcService;
+import dreamteam.com.supermarket.Service.ZamestnanecJdbcService;
+import dreamteam.com.supermarket.Service.ZakaznikJdbcService;
+import dreamteam.com.supermarket.Service.DodavatelJdbcService;
 import dreamteam.com.supermarket.repository.RoleChangeDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -27,25 +32,23 @@ public class AdminUserService {
 
     private static final Set<String> EMPLOYEE_ROLES = Set.of("MANAGER", "ANALYTIK", "SUPERVISER");
 
-    private final UzivatelRepository uzivatelRepository;
-    private final RoleRepository roleRepository;
-    private final AdresaRepository adresaRepository;
-    private final MestoRepository mestoRepository;
-    private final ZamestnanecRepository zamestnanecRepository;
-    private final ZakaznikRepository zakaznikRepository;
-    private final DodavatelRepository dodavatelRepository;
+    private final UserJdbcService userJdbcService;
+    private final RoleJdbcService roleJdbcService;
+    private final AdresaJdbcService adresaJdbcService;
+    private final MestoJdbcService mestoJdbcService;
+    private final ZamestnanecJdbcService zamestnanecJdbcService;
+    private final ZakaznikJdbcService zakaznikJdbcService;
+    private final DodavatelJdbcService dodavatelJdbcService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RoleChangeDao roleChangeDao;
 
     @Transactional(readOnly = true)
     public List<AdminUserResponse> listUsers(String roleFilter) {
-        List<Uzivatel> users = uzivatelRepository.findAll();
+        List<Uzivatel> users = userJdbcService.findAll();
         return users.stream()
                 .filter(user -> {
-                    if (!StringUtils.hasText(roleFilter)) {
-                        return true;
-                    }
+                    if (!StringUtils.hasText(roleFilter)) return true;
                     return user.getRole() != null && roleFilter.equalsIgnoreCase(user.getRole().getNazev());
                 })
                 .map(this::toResponse)
@@ -54,14 +57,16 @@ public class AdminUserService {
 
     @Transactional
     public void updateUser(Long userId, AdminUserUpdateRequest request) {
-        Uzivatel user = uzivatelRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Uživatel s ID " + userId + " neexistuje."));
+        Uzivatel user = userJdbcService.findById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("Uzivatel s ID " + userId + " neexistuje.");
+        }
         Long oldRoleId = user.getRole() != null ? user.getRole().getIdRole() : null;
         applyPersonalData(user, request);
         Role newRole = applyRole(user, request.getRoleCode());
         applyPassword(user, request.getNewPassword());
         updateAddress(user, request);
-        uzivatelRepository.save(user);
+        userJdbcService.updateCore(user);
 
         boolean roleChanged = oldRoleId == null || !oldRoleId.equals(newRole.getIdRole());
         if (roleChanged) {
@@ -83,17 +88,19 @@ public class AdminUserService {
 
     @Transactional
     public ImpersonationResponse impersonate(Long userId) {
-        Uzivatel user = uzivatelRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("Uživatel s ID " + userId + " neexistuje."));
+        Uzivatel user = userJdbcService.findById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("Uzivatel s ID " + userId + " neexistuje.");
+        }
         String token = jwtUtil.generateToken(user);
-        String role = user.getRole() != null ? user.getRole().getNazev() : "Uživatel";
+        String role = user.getRole() != null ? user.getRole().getNazev() : "Uzivatel";
         String fullName = user.getJmeno() + " " + user.getPrijmeni();
         return new ImpersonationResponse(token, role, fullName, user.getEmail());
     }
 
     @Transactional
     public int encodePlainPasswords() {
-        List<Uzivatel> users = uzivatelRepository.findAll();
+        List<Uzivatel> users = userJdbcService.findAll();
         int updated = 0;
         for (Uzivatel user : users) {
             String current = user.getHeslo();
@@ -101,7 +108,7 @@ public class AdminUserService {
                 continue;
             }
             user.setHeslo(passwordEncoder.encode(current));
-            uzivatelRepository.save(user);
+            userJdbcService.updateCore(user);
             updated++;
         }
         return updated;
@@ -109,9 +116,9 @@ public class AdminUserService {
 
     private AdminUserResponse toResponse(Uzivatel user) {
         Adresa adresa = user.getAdresa();
-        Zamestnanec zam = zamestnanecRepository.findById(user.getIdUzivatel()).orElse(null);
-        Zakaznik zakaznik = zakaznikRepository.findById(user.getIdUzivatel()).orElse(null);
-        Dodavatel dodavatel = dodavatelRepository.findById(user.getIdUzivatel()).orElse(null);
+        Zamestnanec zam = zamestnanecJdbcService.findById(user.getIdUzivatel());
+        Zakaznik zakaznik = zakaznikJdbcService.findById(user.getIdUzivatel());
+        Dodavatel dodavatel = dodavatelJdbcService.findById(user.getIdUzivatel());
         AdminUserResponse.Address address = adresa == null ? null :
                 new AdminUserResponse.Address(
                         adresa.getUlice(),
@@ -149,27 +156,25 @@ public class AdminUserService {
         if (!StringUtils.hasText(email)) {
             return;
         }
-        uzivatelRepository.findByEmail(email.trim().toLowerCase(Locale.ROOT))
-                .filter(other -> !other.getIdUzivatel().equals(currentUser.getIdUzivatel()))
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Email již používá jiný uživatel.");
-                });
+        if (userJdbcService.emailUsedByOther(email.trim().toLowerCase(Locale.ROOT), currentUser.getIdUzivatel())) {
+            throw new IllegalArgumentException("Email jiz pouziva jiny uzivatel.");
+        }
     }
 
     private void validateUniquePhone(Uzivatel currentUser, String phone) {
         if (!StringUtils.hasText(phone)) {
             return;
         }
-        uzivatelRepository.findByTelefonniCislo(phone.trim())
-                .filter(other -> !other.getIdUzivatel().equals(currentUser.getIdUzivatel()))
-                .ifPresent(existing -> {
-                    throw new IllegalArgumentException("Telefon již používá jiný uživatel.");
-                });
+        if (userJdbcService.phoneUsedByOther(phone.trim(), currentUser.getIdUzivatel())) {
+            throw new IllegalArgumentException("Telefon jiz pouziva jiny uzivatel.");
+        }
     }
 
     private Role applyRole(Uzivatel user, String roleCode) {
-        Role role = roleRepository.findByNazev(roleCode.trim())
-                .orElseThrow(() -> new IllegalArgumentException("Role " + roleCode + " neexistuje."));
+        Role role = roleJdbcService.findByNazev(roleCode.trim());
+        if (role == null) {
+            throw new IllegalArgumentException("Role " + roleCode + " neexistuje.");
+        }
         user.setRole(role);
         return role;
     }
@@ -185,8 +190,10 @@ public class AdminUserService {
         if (!StringUtils.hasText(request.getStreet()) || !StringUtils.hasText(request.getCityPsc())) {
             return;
         }
-        Mesto mesto = mestoRepository.findById(request.getCityPsc().trim())
-                .orElseThrow(() -> new IllegalArgumentException("Město s PSČ " + request.getCityPsc() + " neexistuje."));
+        Mesto mesto = mestoJdbcService.findById(request.getCityPsc().trim());
+        if (mesto == null) {
+            throw new IllegalArgumentException("Mesto s PSC " + request.getCityPsc() + " neexistuje.");
+        }
         Adresa adresa = user.getAdresa();
         if (adresa == null) {
             adresa = new Adresa();
@@ -195,32 +202,32 @@ public class AdminUserService {
         adresa.setCisloPopisne(request.getHouseNumber().trim());
         adresa.setCisloOrientacni(request.getOrientationNumber().trim());
         adresa.setMesto(mesto);
-        user.setAdresa(adresaRepository.save(adresa));
+        user.setAdresa(adresaJdbcService.save(adresa));
     }
 
     private void updateEmployeeData(Uzivatel user, AdminUserUpdateRequest request) {
         boolean employeeRole = isEmployeeRole(request.getRoleCode());
-        Zamestnanec existing = zamestnanecRepository.findById(user.getIdUzivatel()).orElse(null);
+        Zamestnanec existing = zamestnanecJdbcService.findById(user.getIdUzivatel());
         boolean payloadProvided = StringUtils.hasText(request.getPosition())
                 || request.getSalary() != null
                 || StringUtils.hasText(request.getHireDate());
 
         if (!employeeRole) {
             if (existing != null) {
-                zamestnanecRepository.delete(existing);
+                zamestnanecJdbcService.deleteById(existing.getId());
             }
             return;
         }
 
         if (existing == null && !payloadProvided) {
-            throw new IllegalArgumentException("Zaměstnanci musí mít vyplněnou pozici, mzdu a datum nástupu.");
+            throw new IllegalArgumentException("Zamestnanci musi mit vyplnenou pozici, mzdu a datum nastupu.");
         }
 
         if (!StringUtils.hasText(request.getPosition())
                 || request.getSalary() == null
                 || request.getSalary().compareTo(BigDecimal.ZERO) <= 0
                 || !StringUtils.hasText(request.getHireDate())) {
-            throw new IllegalArgumentException("Zaměstnanci musí mít vyplněnou pozici, mzdu a datum nástupu.");
+            throw new IllegalArgumentException("Zamestnanci musi mit vyplnenou pozici, mzdu a datum nastupu.");
         }
 
         Zamestnanec zam = existing;
@@ -234,20 +241,20 @@ public class AdminUserService {
         zam.setPozice(request.getPosition().trim());
         zam.setMzda(salary);
         zam.setDatumNastupa(LocalDate.parse(request.getHireDate().trim()));
-        zamestnanecRepository.save(zam);
+        zamestnanecJdbcService.save(zam);
     }
 
     private void updateCustomerData(Uzivatel user, AdminUserUpdateRequest request) {
         boolean customerRole = isCustomerRole(request.getRoleCode());
-        Zakaznik existing = zakaznikRepository.findById(user.getIdUzivatel()).orElse(null);
+        Zakaznik existing = zakaznikJdbcService.findById(user.getIdUzivatel());
         if (!customerRole) {
             if (existing != null) {
-                zakaznikRepository.delete(existing);
+                zakaznikJdbcService.deleteById(existing.getId());
             }
             return;
         }
         if (!StringUtils.hasText(request.getLoyaltyCard())) {
-            throw new IllegalArgumentException("Zákazník musí mít vyplněnou věrnostní kartu.");
+            throw new IllegalArgumentException("Zakaznik musi mit vyplnenou vernostni kartu.");
         }
         Zakaznik zakaznik = existing;
         if (zakaznik == null) {
@@ -257,20 +264,20 @@ public class AdminUserService {
                     .build();
         }
         zakaznik.setKartaVernosti(request.getLoyaltyCard().trim());
-        zakaznikRepository.save(zakaznik);
+        zakaznikJdbcService.save(zakaznik);
     }
 
     private void updateSupplierData(Uzivatel user, AdminUserUpdateRequest request) {
         boolean supplierRole = isSupplierRole(request.getRoleCode());
-        Dodavatel existing = dodavatelRepository.findById(user.getIdUzivatel()).orElse(null);
+        Dodavatel existing = dodavatelJdbcService.findById(user.getIdUzivatel());
         if (!supplierRole) {
             if (existing != null) {
-                dodavatelRepository.delete(existing);
+                dodavatelJdbcService.deleteById(existing.getId());
             }
             return;
         }
         if (!StringUtils.hasText(request.getSupplierCompany())) {
-            throw new IllegalArgumentException("Dodavatel musí mít uvedenou společnost.");
+            throw new IllegalArgumentException("Dodavatel musi mit uvedenou spolecnost.");
         }
         Dodavatel dodavatel = existing;
         if (dodavatel == null) {
@@ -280,7 +287,7 @@ public class AdminUserService {
                     .build();
         }
         dodavatel.setFirma(request.getSupplierCompany().trim());
-        dodavatelRepository.save(dodavatel);
+        dodavatelJdbcService.save(dodavatel);
     }
 
     private boolean isEmployeeRole(String roleCode) {
