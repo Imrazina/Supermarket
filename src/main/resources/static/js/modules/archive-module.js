@@ -119,7 +119,8 @@ export default class ArchiveModule {
 
     isLogLabel(name) {
         if (!name) return false;
-        return /\blog\b/i.test(String(name).toLowerCase());
+        const lower = String(name).toLowerCase();
+        return /\blog\b/i.test(lower) || lower.includes('zpravy') || lower.includes('zpráva') || lower.includes('uzivatele') || lower.includes('uživatele');
     }
 
     isLogPath(path) {
