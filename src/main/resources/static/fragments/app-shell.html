@@ -689,6 +689,57 @@
                 </article>
             </section>
 
+            <section class="view" data-view="customer-payment">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <h2>Platba</h2>
+                            <p>Souhrn objednávky a volba metody platby.</p>
+                        </div>
+                        <a class="nav-link" data-view="customer-cart" href="cart.html" style="width:auto;gap:8px;padding:8px 12px;">Zpět do košíku</a>
+                    </div>
+                    <div class="payment-summary">
+                        <p>Celkem k úhradě: <strong id="payment-total">—</strong></p>
+                    </div>
+                    <form id="payment-form" class="payment-form">
+                        <div class="pill-select">
+                            <span class="pill-label">Metoda</span>
+                            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                                <label style="display:flex;align-items:center;gap:6px;">
+                                    <input type="radio" name="paymentType" value="CASH" checked>
+                                    <span>Hotově</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:6px;">
+                                    <input type="radio" name="paymentType" value="CARD">
+                                    <span>Kartou</span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div id="cash-section" class="payment-section">
+                            <label>
+                                <span>Hotovost přijatá</span>
+                                <input type="number" id="cash-given" name="cashGiven" min="0" step="0.01" placeholder="Zadejte částku">
+                            </label>
+                            <p class="profile-muted">Vrátit: <strong id="cash-change">0 Kč</strong></p>
+                        </div>
+
+                        <div id="card-section" class="payment-section" style="display:none;">
+                            <label>
+                                <span>Číslo karty</span>
+                                <input type="text" id="card-number" name="cardNumber" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456">
+                            </label>
+                        </div>
+
+                        <div class="form-actions" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                            <button type="submit" class="ghost-btn ghost-strong">Zaplatit</button>
+                            <button type="button" class="ghost-btn ghost-muted" id="payment-back">Zpět</button>
+                            <span id="payment-status" class="profile-muted"></span>
+                        </div>
+                    </form>
+                </article>
+            </section>
+
             <section class="view" data-view="customer-orders">
                 <article class="panel">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
