@@ -86,7 +86,7 @@ export default class ProfileModule {
         }
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return;
         }
         const payload = {
@@ -164,7 +164,6 @@ export default class ProfileModule {
             this.formState = null;
         }
         const security = profile.security || {};
-        const activity = Array.isArray(profile.activity) ? profile.activity.slice(0, 4) : [];
         const isAdmin = ((localStorage.getItem('role') || '').trim().toUpperCase() === 'ADMIN');
 
         if (this.overviewEl) {
@@ -177,20 +176,13 @@ export default class ProfileModule {
             this.securityEl.innerHTML = this.renderSecurityBlock(security);
         }
         if (this.activityEl) {
-            this.activityEl.innerHTML = this.renderActivityBlock(activity);
+            this.activityEl.innerHTML = '';
         }
         this.attachAdminHandlers(isAdmin);
         this.showPasswordMatchHint();
     }
 
     renderOverview(profile, isAdmin) {
-        const employment = profile.employment || {};
-        const salaryValue = typeof employment.salary === 'number'
-            ? employment.salary
-            : Number(employment.salary || 0);
-        const salaryLabel = salaryValue > 0 ? `${salaryValue.toLocaleString('cs-CZ')} Kč` : '—';
-        const showEmployment = Boolean(employment.position || employment.hireDate || salaryValue > 0);
-        const inboxUnread = (typeof this.state.data.unreadMessages === 'number') ? this.state.data.unreadMessages : '—';
         return `
             <div class="profile-hero">
                 <div class="profile-identity">
@@ -208,30 +200,6 @@ export default class ProfileModule {
                 <div><span>Telefon</span><p>${profile.phone || '—'}</p></div>
                 <div><span>Role</span><p>${profile.role || '—'}</p></div>
             </div>
-            <div class="profile-impact-grid">
-                <div class="profile-stat-card impact">
-                    <span>Prodejny pod dohledem</span>
-                    <strong>${profile.storesOwned ?? 0}</strong>
-                </div>
-                <div class="profile-stat-card impact">
-                    <span>Objednávky v systému</span>
-                    <strong>${profile.approvals ?? 0}</strong>
-                </div>
-                <div class="profile-stat-card impact">
-                    <span>Automatizace / logy</span>
-                    <strong>${profile.automations ?? 0}</strong>
-                </div>
-                <div class="profile-stat-card impact">
-                    <span>Inbox (nepřečtené)</span>
-                    <strong>${inboxUnread}</strong>
-                </div>
-            </div>
-            ${showEmployment ? `
-            <div class="profile-stat-grid">
-                <div class="profile-stat-card"><span>Pozice</span><strong>${employment.position || profile.position || '—'}</strong></div>
-                <div class="profile-stat-card"><span>Mzda</span><strong>${salaryLabel}</strong></div>
-                <div class="profile-stat-card"><span>Datum nástupu</span><strong>${employment.hireDate || '—'}</strong></div>
-            </div>` : ''}
         `;
     }
 

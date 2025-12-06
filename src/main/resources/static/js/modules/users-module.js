@@ -111,7 +111,7 @@ export default class UsersModule {
     async fetchUsers(role = '') {
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return;
         }
         const params = role ? `?role=${encodeURIComponent(role)}` : '';
@@ -453,7 +453,7 @@ export default class UsersModule {
     async updateUser(userId, payload) {
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return;
         }
         try {

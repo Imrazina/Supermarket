@@ -3,6 +3,7 @@ package dreamteam.com.supermarket.controller;
 import dreamteam.com.supermarket.Service.DbMetadataService;
 import dreamteam.com.supermarket.Service.RolePravoJdbcService;
 import dreamteam.com.supermarket.Service.UserJdbcService;
+import dreamteam.com.supermarket.Service.PermissionService;
 import dreamteam.com.supermarket.controller.dto.DbObjectResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -25,6 +26,7 @@ public class DbMetadataController {
     private final DbMetadataService dbMetadataService;
     private final UserJdbcService userJdbcService;
     private final RolePravoJdbcService rolePravoJdbcService;
+    private final PermissionService permissionService;
 
     public DbMetadataController(DbMetadataService dbMetadataService,
                                 UserJdbcService userJdbcService,
@@ -70,6 +72,7 @@ public class DbMetadataController {
         }
         return rolePravoJdbcService.findCodesByRoleId(user.getRole().getIdRole()).stream()
                 .anyMatch(code -> code != null && code.equalsIgnoreCase("VIEW_DB_OBJECTS"));
+        return permissionService.userHasPermission(email, "VIEW_DB_OBJECTS");
     }
 
     private boolean hasAdminAuthority(Collection<? extends GrantedAuthority> authorities) {

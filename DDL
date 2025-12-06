@@ -549,16 +549,9 @@ ALTER TABLE SOUBOR
     ) 
 ;
 
-ALTER TABLE SOUBOR 
-    ADD CONSTRAINT SOUBOR_ZAMESTNANEC_FK FOREIGN KEY 
-    ( 
-     ID_uzivatelu
-    ) 
-    REFERENCES ZAMESTNANEC 
-    ( 
-     ID_uzivatelu
-    ) 
-;
+ALTER TABLE SOUBOR
+  ADD CONSTRAINT SOUBOR_UZIVATEL_FK
+  FOREIGN KEY (ID_UZIVATELU) REFERENCES UZIVATEL(ID_UZIVATEL);
 
 ALTER TABLE SUPERMARKET 
     ADD CONSTRAINT SUPERMARKET_ADRESA_FK FOREIGN KEY 
@@ -1009,3 +1002,125 @@ BEGIN
     :NEW.ID_Zprava := SEQ_ZPRAVA_ID.NEXTVAL; 
 END;
 /
+
+ALTER TABLE SOUBOR MODIFY TYP VARCHAR2(255);
+ALTER TABLE SOUBOR MODIFY NAZEV VARCHAR2(255);
+
+SELECT id_archiv, nazev, parent_id, LEVEL AS lvl,
+       SYS_CONNECT_BY_PATH(nazev, '/') AS cesta
+FROM archiv
+START WITH parent_id IS NULL
+CONNECT BY PRIOR id_archiv = parent_id
+ORDER SIBLINGS BY nazev;
+
+
+ALTER TABLE ZBOZI
+ADD CONSTRAINT uq_zbozi_sklad UNIQUE (nazev, SKLAD_ID_Sklad);
+
+
+--------------------------------------------------------------------------------
+-- Balíček pro řízení ARC kontrol (umožní je přeskočit v řízené proceduře).
+--------------------------------------------------------------------------------
+CREATE OR REPLACE PACKAGE PKG_ARC_CTRL AS
+  PROCEDURE set_skip_arc(p_value BOOLEAN);
+  FUNCTION skip_arc RETURN BOOLEAN;
+END PKG_ARC_CTRL;
+/
+
+CREATE OR REPLACE PACKAGE BODY PKG_ARC_CTRL AS
+  g_skip_arc BOOLEAN := FALSE;
+
+  PROCEDURE set_skip_arc(p_value BOOLEAN) IS
+  BEGIN
+    g_skip_arc := NVL(p_value, FALSE);
+  END;
+
+  FUNCTION skip_arc RETURN BOOLEAN IS
+  BEGIN
+    RETURN g_skip_arc;
+  END;
+END PKG_ARC_CTRL;
+/
+
+
+DROP TRIGGER ARC_FKArc_1_HOTOVOST;
+DROP TRIGGER ARC_FKArc_1_KARTA;
+
+--------------------------------------------------------------------------------
+-- ARC pravidlo: PLATBA ▷ KARTA
+-- Hlavní kontrola musí být na tabulce PLATBA, ne na KARTA
+-- Tím se odstraní ORA-04091 a zachová se správné ARC chování.
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER ARC_PLATBA_KARTA_CHECK
+AFTER INSERT OR UPDATE ON PLATBA
+DECLARE
+    CURSOR c IS
+        SELECT ID_platba, platbaTyp
+        FROM PLATBA
+        WHERE platbaTyp = 'K';
+    v_count NUMBER;
+BEGIN
+    IF PKG_ARC_CTRL.skip_arc THEN
+        RETURN;
+    END IF;
+
+    -- ARC pravidlo: pokud platbaTyp = 'K', musí existovat přesně jeden řádek v KARTA
+    FOR r IN c LOOP
+        SELECT COUNT(*)
+        INTO v_count
+        FROM KARTA
+        WHERE ID_platba = r.ID_platba;
+
+        IF v_count = 0 THEN
+            RAISE_APPLICATION_ERROR(
+                -20223,
+                'Chybí záznam v KARTA pro PLATBA=' || r.ID_platba
+            );
+        END IF;
+    END LOOP;
+END;
+/
+
+
+--------------------------------------------------------------------------------
+-- ARC pravidlo: PLATBA ▷ HOTOVOST
+-- Kontrola se provádí po INSERT/UPDATE na PLATBA.
+-- Zajišťuje, že pokud platbaTyp = 'H', existuje odpovídající řádek v HOTOVOST.
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER ARC_PLATBA_HOTOVOST_CHECK
+AFTER INSERT OR UPDATE ON PLATBA
+DECLARE
+    CURSOR c IS
+        SELECT ID_platba, platbaTyp
+        FROM PLATBA
+        WHERE platbaTyp = 'H';
+    v_count NUMBER;
+BEGIN
+    IF PKG_ARC_CTRL.skip_arc THEN
+        RETURN;
+    END IF;
+
+    -- Pro každou platbu typu HOTOVOST zkontrolujeme, zda existuje odpovídající záznam
+    FOR r IN c LOOP
+        SELECT COUNT(*)
+        INTO v_count
+        FROM HOTOVOST
+        WHERE ID_platba = r.ID_platba;
+
+        IF v_count = 0 THEN
+            RAISE_APPLICATION_ERROR(
+                -20224,
+                'Chybí záznam v HOTOVOST pro PLATBA=' || r.ID_platba ||
+                ' (ARC pravidlo platbaTyp = H)'
+            );
+        END IF;
+    END LOOP;
+END;
+/
+
+
+
+ALTER TABLE SOUBOR DROP CONSTRAINT SOUBOR_ZAMESTNANEC_FK;
+ALTER TABLE SOUBOR
+  ADD CONSTRAINT SOUBOR_UZIVATEL_FK
+  FOREIGN KEY (ID_UZIVATELU) REFERENCES UZIVATEL(ID_UZIVATEL);

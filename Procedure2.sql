@@ -72,6 +72,114 @@ BEGIN
     END LOOP;
 END;
 /
+--------------------------------------------------------------------------------
+-- PROCEDURA: PROC_CHANGE_USER_ROLE
+-- Popis:
+--   Bezpečně změní roli uživatele a přesune/odstraní záznamy v tabulkách
+--   DODAVATEL / ZAKAZNIK / ZAMESTNANEC podle nové role (zaměstnanec = role 4/5/6).
+--------------------------------------------------------------------------------
+CREATE OR REPLACE PROCEDURE PROC_CHANGE_USER_ROLE(
+    p_user_id        IN UZIVATEL.ID_Uzivatel%TYPE,
+    p_new_role_id    IN APP_ROLE.ID_Role%TYPE,
+    p_firma          IN DODAVATEL.firma%TYPE DEFAULT NULL,
+    p_karta          IN ZAKAZNIK.kartaVernosti%TYPE DEFAULT NULL,
+    p_mzda           IN ZAMESTNANEC.mzda%TYPE DEFAULT NULL,
+    p_datum_nastupa  IN ZAMESTNANEC.datumNastupa%TYPE DEFAULT NULL,
+    p_pozice         IN ZAMESTNANEC.pozice%TYPE DEFAULT NULL
+)
+AS
+    c_role_dodavatel CONSTANT NUMBER := 2;
+    c_role_zakaznik  CONSTANT NUMBER := 3;
+    -- Zaměstnanecké role:
+    c_role_zamestnanec_min CONSTANT NUMBER := 4;
+    c_role_zamestnanec_max CONSTANT NUMBER := 6;
+
+    v_old_role   APP_ROLE.ID_Role%TYPE;
+    v_role_exist NUMBER;
+    v_zbozi_cnt  NUMBER;
+    v_is_old_emp BOOLEAN;
+    v_is_new_emp BOOLEAN;
+BEGIN
+    --------------------------------------------------------------------
+    -- Načti a zamkni uživatele
+    --------------------------------------------------------------------
+    SELECT ID_Role
+    INTO v_old_role
+    FROM UZIVATEL
+    WHERE ID_Uzivatel = p_user_id
+    FOR UPDATE;
+
+    IF v_old_role = p_new_role_id THEN
+        RETURN;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- Ověř platnost nové role
+    --------------------------------------------------------------------
+    SELECT 1 INTO v_role_exist FROM APP_ROLE WHERE ID_Role = p_new_role_id;
+
+    v_is_old_emp := v_old_role BETWEEN c_role_zamestnanec_min AND c_role_zamestnanec_max;
+    v_is_new_emp := p_new_role_id BETWEEN c_role_zamestnanec_min AND c_role_zamestnanec_max;
+
+    --------------------------------------------------------------------
+    -- Ověř závislosti 
+    --------------------------------------------------------------------
+    IF v_old_role = c_role_dodavatel THEN
+        SELECT COUNT(*) INTO v_zbozi_cnt FROM ZBOZI_DODAVATEL WHERE ID_uzivatelu = p_user_id;
+        IF v_zbozi_cnt > 0 THEN
+            raise_application_error(-20001, 'Nelze změnit roli: dodavatel má přiřazené zboží (záznamy v ZBOZI_DODAVATEL).');
+        END IF;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- Odstraň záznamy staré role
+    --------------------------------------------------------------------
+    IF v_old_role = c_role_dodavatel THEN
+        DELETE FROM DODAVATEL WHERE ID_uzivatelu = p_user_id;
+    ELSIF v_old_role = c_role_zakaznik THEN
+        DELETE FROM ZAKAZNIK WHERE ID_uzivatelu = p_user_id;
+    ELSIF v_is_old_emp THEN
+        DELETE FROM ZAMESTNANEC WHERE ID_uzivatelu = p_user_id;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- Nastav novou roli na uživateli
+    --------------------------------------------------------------------
+    UPDATE UZIVATEL
+    SET ID_Role = p_new_role_id
+    WHERE ID_Uzivatel = p_user_id;
+
+    --------------------------------------------------------------------
+    -- Vytvoř záznam nové role
+    --------------------------------------------------------------------
+    IF p_new_role_id = c_role_dodavatel THEN
+        IF p_firma IS NULL THEN
+            raise_application_error(-20002, 'Parametr FIRMA je povinný pro roli dodavatel.');
+        END IF;
+        INSERT INTO DODAVATEL (ID_uzivatelu, firma)
+        VALUES (p_user_id, p_firma);
+    ELSIF p_new_role_id = c_role_zakaznik THEN
+        INSERT INTO ZAKAZNIK (ID_uzivatelu, kartaVernosti)
+        VALUES (p_user_id, p_karta);
+    ELSIF v_is_new_emp THEN
+        IF p_mzda IS NULL OR p_datum_nastupa IS NULL OR p_pozice IS NULL THEN
+            raise_application_error(-20003, 'Parametry mzda, datum_nastupa a pozice jsou povinné pro zaměstnanecké role (4/5/6).');
+        END IF;
+        INSERT INTO ZAMESTNANEC (ID_uzivatelu, mzda, datumNastupa, pozice)
+        VALUES (p_user_id, p_mzda, p_datum_nastupa, p_pozice);
+    END IF;
+
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        raise_application_error(-20004, 'Uživatel nebo role neexistuje.');
+    WHEN DUP_VAL_ON_INDEX THEN
+        raise_application_error(-20005, 'Narušení unikátního omezení při zakládání záznamu nové role.');
+    WHEN OTHERS THEN
+        RAISE;
+END;
+/
+
+
 
 --------------------------------------------------------------------------------
 -- PACKAGE: PKG_APP_CRUD
@@ -86,6 +194,30 @@ END;
 --   - JSON musí obsahovat očekávané klíče (viz jednotlivé větve CASE).
 --   - LOG není povolen, SOUBOR má BLOB, proto není v routingu.
 --------------------------------------------------------------------------------
+ALTER SESSION SET CURRENT_SCHEMA=ST72855;
+
+--------------------------------------------------------------------------------
+-- Balíček pro řízení ARC kontrol (pokud DDL nebylo puštěno předem).
+--------------------------------------------------------------------------------
+CREATE OR REPLACE PACKAGE PKG_ARC_CTRL AS
+  PROCEDURE set_skip_arc(p_value BOOLEAN);
+  FUNCTION skip_arc RETURN BOOLEAN;
+END PKG_ARC_CTRL;
+/
+
+CREATE OR REPLACE PACKAGE BODY PKG_ARC_CTRL AS
+  g_skip_arc BOOLEAN := FALSE;
+  PROCEDURE set_skip_arc(p_value BOOLEAN) IS
+  BEGIN
+    g_skip_arc := NVL(p_value, FALSE);
+  END;
+  FUNCTION skip_arc RETURN BOOLEAN IS
+  BEGIN
+    RETURN g_skip_arc;
+  END;
+END PKG_ARC_CTRL;
+/
+
 CREATE OR REPLACE PACKAGE PKG_APP_CRUD AS
   PROCEDURE edit(
     p_entity    IN  VARCHAR2,   -- např. 'UZIVATEL','ZBOZI','OBJEDNAVKA_ZBOZI'
@@ -285,7 +417,7 @@ CREATE OR REPLACE PACKAGE BODY PKG_APP_CRUD AS
 
       WHEN 'PRAVO' THEN
         IF v_action = 'INS' THEN
-          INSERT INTO PRAVO (nazev, kod, popis)
+          INSERT INTO PRAVO (nazev, kod, pristup, popis)
           VALUES (
             json_value(p_payload, '$.nazev'),
             json_value(p_payload, '$.kod'),
@@ -495,114 +627,42 @@ END PKG_APP_CRUD;
 /
 
 
-BEGIN
-    PROC_INIT_ARCHIV_SUPERMARKETU;
-END;
-/
+-- INSERT adresy
+VAR code NUMBER; VAR msg VARCHAR2(4000); VAR k1 VARCHAR2(100); VAR k2 VARCHAR2(100);
 
---------------------------------------------------------------------------------
--- PROCEDURA: PROC_CHANGE_USER_ROLE
--- Popis:
---   Bezpečně změní roli uživatele a přesune/odstraní záznamy v tabulkách
---   DODAVATEL / ZAKAZNIK / ZAMESTNANEC podle nové role (zaměstnanec = role 4/5/6).
---------------------------------------------------------------------------------
-CREATE OR REPLACE PROCEDURE PROC_CHANGE_USER_ROLE(
-    p_user_id        IN UZIVATEL.ID_Uzivatel%TYPE,
-    p_new_role_id    IN APP_ROLE.ID_Role%TYPE,
-    p_firma          IN DODAVATEL.firma%TYPE DEFAULT NULL,
-    p_karta          IN ZAKAZNIK.kartaVernosti%TYPE DEFAULT NULL,
-    p_mzda           IN ZAMESTNANEC.mzda%TYPE DEFAULT NULL,
-    p_datum_nastupa  IN ZAMESTNANEC.datumNastupa%TYPE DEFAULT NULL,
-    p_pozice         IN ZAMESTNANEC.pozice%TYPE DEFAULT NULL
-)
-AS
-    c_role_dodavatel CONSTANT NUMBER := 2;
-    c_role_zakaznik  CONSTANT NUMBER := 3;
-    -- Zaměstnanecké role:
-    c_role_zamestnanec_min CONSTANT NUMBER := 4;
-    c_role_zamestnanec_max CONSTANT NUMBER := 6;
+CALL PKG_APP_CRUD.edit(
+  p_entity   => 'ADRESA',
+  p_action   => 'INS',
+  p_payload  => '{"ulice":"Test","cisloPopisne":"10","Mesto_PSC":"12345","cisloOrientacni":"A"}',
+  p_out_code => :code,
+  p_out_msg  => :msg,
+  p_out_key1 => :k1,
+  p_out_key2 => :k2
+);
+PRINT code msg k1 k2;
 
-    v_old_role   APP_ROLE.ID_Role%TYPE;
-    v_role_exist NUMBER;
-    v_zbozi_cnt  NUMBER;
-    v_is_old_emp BOOLEAN;
-    v_is_new_emp BOOLEAN;
-BEGIN
-    --------------------------------------------------------------------
-    -- Načti a zamkni uživatele
-    --------------------------------------------------------------------
-    SELECT ID_Role
-    INTO v_old_role
-    FROM UZIVATEL
-    WHERE ID_Uzivatel = p_user_id
-    FOR UPDATE;
 
-    IF v_old_role = p_new_role_id THEN
-        RETURN;
-    END IF;
+-- UPDATE той же
+CALL pkg_app_crud.edit(
+  p_entity   => 'ADRESA',
+  p_action   => 'UPD',
+  p_key1     => :k1,
+  p_payload  => '{"ulice":"Test2","cisloPopisne":"11","Mesto_PSC":"12345","cisloOrientacni":"B"}',
+  p_out_code => :code, p_out_msg => :msg, p_out_key1 => :k1, p_out_key2 => :k2
+);
+PRINT code msg;
 
-    --------------------------------------------------------------------
-    -- Ověř platnost nové role
-    --------------------------------------------------------------------
-    SELECT 1 INTO v_role_exist FROM APP_ROLE WHERE ID_Role = p_new_role_id;
+-- DELETE
+CALL pkg_app_crud.edit(
+  p_entity   => 'ADRESA',
+  p_action   => 'DEL',
+  p_key1     => :k1,
+  p_out_code => :code, p_out_msg => :msg, p_out_key1 => :k1, p_out_key2 => :k2
+);
+PRINT code msg;
 
-    v_is_old_emp := v_old_role BETWEEN c_role_zamestnanec_min AND c_role_zamestnanec_max;
-    v_is_new_emp := p_new_role_id BETWEEN c_role_zamestnanec_min AND c_role_zamestnanec_max;
 
-    --------------------------------------------------------------------
-    -- Ověř závislosti 
-    --------------------------------------------------------------------
-    IF v_old_role = c_role_dodavatel THEN
-        SELECT COUNT(*) INTO v_zbozi_cnt FROM ZBOZI_DODAVATEL WHERE ID_uzivatelu = p_user_id;
-        IF v_zbozi_cnt > 0 THEN
-            raise_application_error(-20001, 'Nelze změnit roli: dodavatel má přiřazené zboží (záznamy v ZBOZI_DODAVATEL).');
-        END IF;
-    END IF;
+SHOW ERRORS PACKAGE PKG_APP_CRUD;
+SHOW ERRORS PACKAGE BODY PKG_APP_CRUD;
 
-    --------------------------------------------------------------------
-    -- Odstraň záznamy staré role
-    --------------------------------------------------------------------
-    IF v_old_role = c_role_dodavatel THEN
-        DELETE FROM DODAVATEL WHERE ID_uzivatelu = p_user_id;
-    ELSIF v_old_role = c_role_zakaznik THEN
-        DELETE FROM ZAKAZNIK WHERE ID_uzivatelu = p_user_id;
-    ELSIF v_is_old_emp THEN
-        DELETE FROM ZAMESTNANEC WHERE ID_uzivatelu = p_user_id;
-    END IF;
-
-    --------------------------------------------------------------------
-    -- Nastav novou roli na uživateli
-    --------------------------------------------------------------------
-    UPDATE UZIVATEL
-    SET ID_Role = p_new_role_id
-    WHERE ID_Uzivatel = p_user_id;
-
-    --------------------------------------------------------------------
-    -- Vytvoř záznam nové role
-    --------------------------------------------------------------------
-    IF p_new_role_id = c_role_dodavatel THEN
-        IF p_firma IS NULL THEN
-            raise_application_error(-20002, 'Parametr FIRMA je povinný pro roli dodavatel.');
-        END IF;
-        INSERT INTO DODAVATEL (ID_uzivatelu, firma)
-        VALUES (p_user_id, p_firma);
-    ELSIF p_new_role_id = c_role_zakaznik THEN
-        INSERT INTO ZAKAZNIK (ID_uzivatelu, kartaVernosti)
-        VALUES (p_user_id, p_karta);
-    ELSIF v_is_new_emp THEN
-        IF p_mzda IS NULL OR p_datum_nastupa IS NULL OR p_pozice IS NULL THEN
-            raise_application_error(-20003, 'Parametry mzda, datum_nastupa a pozice jsou povinné pro zaměstnanecké role (4/5/6).');
-        END IF;
-        INSERT INTO ZAMESTNANEC (ID_uzivatelu, mzda, datumNastupa, pozice)
-        VALUES (p_user_id, p_mzda, p_datum_nastupa, p_pozice);
-    END IF;
-
-EXCEPTION
-    WHEN NO_DATA_FOUND THEN
-        raise_application_error(-20004, 'Uživatel nebo role neexistuje.');
-    WHEN DUP_VAL_ON_INDEX THEN
-        raise_application_error(-20005, 'Narušení unikátního omezení při zakládání záznamu nové role.');
-    WHEN OTHERS THEN
-        RAISE;
-END;
-/
+SELECT status FROM user_objects WHERE object_name='PKG_APP_CRUD';
