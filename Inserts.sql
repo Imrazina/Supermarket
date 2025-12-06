@@ -41,6 +41,7 @@ VALUES ('Správa dodavatelů', 'MANAGE_SUPPLIERS', 'Umožňuje spravovat dodavat
 INSERT INTO PRAVO (nazev, kod, popis) 
 VALUES ('Plná administrace', 'FULL_ADMIN', 'Plné oprávnění ke všem funkcím systému.');
 
+
 ------------------------------------------------------------
 -- 3) APP_ROLE_PRAVO 
 ------------------------------------------------------------
@@ -1511,3 +1512,4 @@ INSERT INTO ZBOZI_DODAVATEL(ID_UZIVATELU, ID_ZBOZI) VALUES (19, 146);
 INSERT INTO ARCHIV (Nazev, Popis, Parent_id) VALUES ('Hlavní Archiv Supermarketu', 'Kořenová složka archivu', NULL);
 ------------------------------------------------------------
 INSERT INTO ARCHIV (Nazev, Parent_id) VALUES ('Uzivatele', 1);
+INSERT INTO ARCHIV (Nazev, Popis, Parent_id) VALUES ('Global Log', 'Globální logy', 1);

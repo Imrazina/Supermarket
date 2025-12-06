@@ -1613,8 +1613,8 @@ label[data-role-section] {
         .chat-grid {
             position: relative;
             display: grid;
-            grid-template-columns: minmax(240px, 320px) minmax(300px, 0.95fr);
-            gap: 20px;
+            grid-template-columns: minmax(300px, 380px) minmax(340px, 1fr);
+            gap: 18px;
             align-items: stretch;
             height: calc(100vh - 220px);
             min-height: calc(100vh - 220px);
@@ -1622,8 +1622,7 @@ label[data-role-section] {
         }
 
         .chat-grid.chat-panel-collapsed {
-            /* zachováme šířku seznamu kontaktů, chat jen odskočí doprava */
-            grid-template-columns: minmax(240px, 320px) minmax(320px, 1fr);
+            grid-template-columns: minmax(300px, 380px) minmax(360px, 1fr);
         }
 
         .chat-people-panel {
@@ -1694,26 +1693,29 @@ label[data-role-section] {
 
         /* Chat view: transparentní levý panel, ale centrální chat má jemnou obvodovou linku */
         .view[data-view="chat"] .chat-people-panel {
-            background: transparent;
-            border: none;
-            box-shadow: none;
+            background: #fff;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 14px;
+            box-shadow: 0 14px 32px rgba(15, 23, 42, 0.08);
         }
 
         .view[data-view="chat"] .chat-panel {
-            padding: 12px 18px 14px;
-            background: linear-gradient(135deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.04));
-            border: 1px solid rgba(255, 255, 255, 0.18);
-            box-shadow: 0 8px 18px rgba(0, 0, 0, 0.1);
+            padding: 14px 18px 16px;
+            background: #fff;
+            border: 1px solid var(--border);
+            box-shadow: 0 16px 38px rgba(15, 23, 42, 0.12);
+            border-radius: 18px;
         }
 
         .view[data-view="chat"] .chat-feed {
-            background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02));
-            border: 1px solid rgba(255, 255, 255, 0.16);
-            box-shadow: none;
+            background: var(--panel-soft);
+            border: 1px solid var(--border);
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.6);
         }
 
         .view[data-view="chat"] .chat-form {
-            border-top: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid var(--border);
             background: transparent;
             position: static !important;
             bottom: auto;
@@ -1796,9 +1798,10 @@ label[data-role-section] {
             align-items: center;
             border: 1px solid var(--border);
             border-radius: 14px;
-            padding: 6px 10px;
+            padding: 8px 12px;
             gap: 6px;
-            background: var(--panel-soft);
+            background: #f8fafc;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.8);
         }
 
         .chat-search input {
@@ -1842,21 +1845,39 @@ label[data-role-section] {
             border: 1px solid var(--border);
             border-radius: 14px;
             padding: 10px 12px;
-            display: flex;
-            flex-direction: column;
-            gap: 4px;
+            display: grid;
+            grid-template-columns: 40px 1fr;
+            align-items: center;
+            gap: 10px;
             cursor: pointer;
-            transition: border-color 0.2s ease, background 0.2s ease;
+            transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+            background: #fff;
         }
 
         .chat-person strong {
             font-size: 14px;
             color: #0c1535;
+            display: block;
         }
 
         .chat-person small {
             color: var(--muted);
             font-size: 12px;
+            display: block;
+        }
+
+        .chat-person::before {
+            content: attr(data-initials);
+            width: 40px;
+            height: 40px;
+            border-radius: 12px;
+            background: linear-gradient(135deg, #4361ee, #6c63ff);
+            color: #fff;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            letter-spacing: 0.3px;
         }
 
         /* archive table widths */
@@ -1924,8 +1945,9 @@ label[data-role-section] {
         }
 
         .chat-person.active {
-            border-color: var(--primary);
+            border-color: rgba(67, 97, 238, 0.45);
             background: rgba(67, 97, 238, 0.08);
+            box-shadow: 0 12px 28px rgba(67, 97, 238, 0.15);
         }
 
         .chat-feed {
@@ -1934,12 +1956,12 @@ label[data-role-section] {
             padding: 16px;
             margin-top: 12px;
             flex: 1 1 auto;
-            min-height: 280px;
+            min-height: 320px;
             overflow-y: auto;
             background: var(--panel-soft);
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
             min-height: 0;
         }
 
@@ -1948,7 +1970,7 @@ label[data-role-section] {
             background: #fff;
             border: 1px solid rgba(15, 23, 42, 0.06);
             padding: 12px 14px;
-            margin-bottom: 12px;
+            margin-bottom: 0;
             box-shadow: 0 10px 25px rgba(15, 23, 42, 0.08);
             max-width: 80%;
             font-size: 14px;

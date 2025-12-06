@@ -112,6 +112,22 @@ const apiUrl = (path) => `${apiBaseUrl}${path.startsWith('/') ? '' : '/'}${path}
 const webpushPublicKey = document.body.dataset.webpushKey || 'BBoYaoc8zDDFcRjeUDuO4HI15lrxOhtqEgdWfcfkn5vqTHmUeZc_DU6yodFwDNcthvOyKSK-K_Us9xdEDVYR_5I';
 const serviceWorkerPath = document.body.dataset.swPath || '/sw.js';
 
+function restoreOriginalSession() {
+    const originalToken = localStorage.getItem('admin_original_token');
+    if (!originalToken) {
+        return false;
+    }
+    localStorage.setItem('token', originalToken);
+    localStorage.setItem('role', localStorage.getItem('admin_original_role') || '');
+    localStorage.setItem('fullName', localStorage.getItem('admin_original_name') || '');
+    localStorage.setItem('email', localStorage.getItem('admin_original_email') || '');
+    localStorage.removeItem('admin_original_token');
+    localStorage.removeItem('admin_original_role');
+    localStorage.removeItem('admin_original_name');
+    localStorage.removeItem('admin_original_email');
+    return true;
+}
+
 function updateMessageSidebar(data) {
     const unreadEl = document.getElementById('message-unread');
     const timeEl = document.getElementById('message-last-time');
@@ -180,8 +196,8 @@ async function fetchDashboardSnapshot() {
     const token = localStorage.getItem('token');
     console.log('[dashboard] starting fetch, token present:', !!token);
     if (!token) {
-        console.warn('[dashboard] missing token, redirecting to login');
-        window.location.href = 'login.html';
+        console.warn('[dashboard] missing token, redirecting to landing');
+        window.location.href = 'landing.html';
         return null;
     }
     const response = await fetch(apiUrl('/api/dashboard'), {
@@ -194,7 +210,7 @@ async function fetchDashboardSnapshot() {
     if (response.status === 401) {
         console.error('[dashboard] 401 Unauthorized, clearing storage');
         localStorage.clear();
-        window.location.href = 'login.html';
+        window.location.href = 'landing.html';
         return null;
     }
     if (!response.ok) {
@@ -230,7 +246,7 @@ async function fetchPermissionsCatalog() {
         });
         if (response.status === 401) {
             localStorage.clear();
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return [];
         }
         if (!response.ok) {
@@ -265,7 +281,7 @@ async function fetchProfileMeta() {
         });
         if (response.status === 401) {
             localStorage.clear();
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return null;
         }
         if (!response.ok) {
@@ -339,6 +355,40 @@ const viewMeta = {
 const fragmentUrl = document.body.dataset.fragment || 'fragments/app-shell.html';
 state.activeView = document.body.dataset.initialView || state.activeView;
 
+const allViews = [
+    'dashboard', 'profile', 'inventory', 'orders', 'people', 'finance', 'records',
+    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-payment', 'chat'
+];
+
+function resolveAllowedViews(role, permissions = []) {
+    const normalizedRole = (role || '').trim().toUpperCase();
+    const permSet = new Set(Array.isArray(permissions) ? permissions.map(p => (p || '').toUpperCase()) : []);
+    const allowed = new Set(['dashboard', 'profile', 'chat']);
+    const add = (...views) => views.forEach(view => allowed.add(view));
+
+    if (normalizedRole === 'ADMIN') {
+        add(...allViews);
+        return allowed;
+    }
+
+    if (permSet.has('MANAGE_USERS')) {
+        allowed.add('people');
+    }
+
+    if (normalizedRole === 'ZAKAZNIK' || normalizedRole === 'CUSTOMER' || normalizedRole === 'NEW_USER') {
+        add('customer', 'customer-cart', 'customer-payment');
+        return allowed;
+    }
+
+    if (normalizedRole.startsWith('DORUCOVATEL') || normalizedRole === 'COURIER' || normalizedRole === 'DORUČOVATEL') {
+        add('orders');
+        return allowed;
+    }
+
+    add('inventory', 'orders', 'finance', 'records', 'customer', 'customer-cart', 'customer-payment');
+    return allowed;
+}
+
     async function bootstrapConsole() {
         const root = document.getElementById('app-root');
         try {
@@ -385,7 +435,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
         enforce() {
             const token = localStorage.getItem('token');
             if (!token) {
-                window.location.href = 'login.html';
+                window.location.href = 'landing.html';
                 return false;
             }
             document.getElementById('user-name').textContent = localStorage.getItem('fullName') || localStorage.getItem('email') || 'Uživatel';
@@ -393,7 +443,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             updateMessageSidebar(this.state.data);
             document.getElementById('logout-btn').addEventListener('click', () => {
                 localStorage.clear();
-                window.location.href = 'login.html';
+                window.location.href = 'landing.html';
             });
             return true;
         }
@@ -404,16 +454,53 @@ state.activeView = document.body.dataset.initialView || state.activeView;
     }
 
     class NavigationController {
-        constructor(state, meta) {
+        constructor(state, meta, options = {}) {
             this.state = state;
             this.meta = meta;
+            this.allowedViews = options.allowedViews || new Set();
+            this.defaultView = options.defaultView || 'dashboard';
+            this.onBlocked = options.onBlocked;
             this.navButtons = document.querySelectorAll('.nav-link[data-view]');
             this.views = document.querySelectorAll('.view');
             this.labelEl = document.getElementById('view-label');
             this.titleEl = document.getElementById('view-title');
         }
 
+        isAllowed(view) {
+            if (!this.allowedViews || !this.allowedViews.size) {
+                return true;
+            }
+            return this.allowedViews.has(view);
+        }
+
+        ensureAllowed(view) {
+            if (this.isAllowed(view)) {
+                return view;
+            }
+            if (typeof this.onBlocked === 'function') {
+                this.onBlocked(view, this.defaultView);
+            }
+            return this.defaultView;
+        }
+
+        refreshNavVisibility() {
+            this.navButtons.forEach(btn => {
+                const view = btn.dataset.view;
+                btn.style.display = this.isAllowed(view) ? '' : 'none';
+            });
+        }
+
+        getUrlForView(view) {
+            const match = Array.from(this.navButtons).find(btn => btn.dataset.view === view);
+            return match?.dataset.url || match?.getAttribute('href') || window.location.pathname;
+        }
+
         init() {
+            this.refreshNavVisibility();
+            const initialView = this.ensureAllowed(this.state.activeView || this.defaultView);
+            this.state.activeView = initialView;
+            this.setActive(initialView);
+            window.history.replaceState({ view: initialView }, '', this.getUrlForView(initialView) || window.location.pathname);
             this.navButtons.forEach(btn => {
                 btn.addEventListener('click', event => {
                     const targetView = btn.dataset.view;
@@ -422,27 +509,30 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                         return;
                     }
                     event.preventDefault();
-                    this.setActive(targetView);
-                    window.history.pushState({ view: targetView }, '', targetUrl);
+                    const appliedView = this.setActive(targetView);
+                    window.history.pushState({ view: appliedView }, '', this.getUrlForView(appliedView) || targetUrl);
                 });
             });
             window.addEventListener('popstate', event => {
                 const viewFromState = event.state?.view || document.body.dataset.initialView || 'dashboard';
-                this.setActive(viewFromState);
+                const appliedView = this.setActive(viewFromState);
+                if (appliedView !== viewFromState) {
+                    window.history.replaceState({ view: appliedView }, '', this.getUrlForView(appliedView) || window.location.pathname);
+                }
             });
-            this.setActive(this.state.activeView);
-            window.history.replaceState({ view: this.state.activeView }, '', window.location.pathname);
         }
 
         setActive(view) {
-            this.state.activeView = view;
-            this.navButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
-            this.views.forEach(section => section.classList.toggle('active', section.dataset.view === view));
-            const meta = this.meta[view];
+            const target = this.ensureAllowed(view);
+            this.state.activeView = target;
+            this.navButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === target));
+            this.views.forEach(section => section.classList.toggle('active', section.dataset.view === target));
+            const meta = this.meta[target];
             if (meta) {
                 this.labelEl.textContent = meta.label;
                 this.titleEl.textContent = meta.title;
             }
+            return target;
         }
     }
 
@@ -1043,7 +1133,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
         getAuthToken(options = { redirect: true }) {
             const token = localStorage.getItem('token') || '';
             if (!token && options.redirect) {
-                window.location.href = 'login.html';
+                window.location.href = 'landing.html';
             }
             return token;
         }
@@ -1119,11 +1209,19 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 this.setActiveContact(contact || { email, label: email });
             });
             this.contactSearch?.addEventListener('input', () => {
-                this.contactSearchTerm = this.contactSearch.value.trim().toLowerCase();
-                this.renderContacts();
+                this.updateContactSearchTerm(this.contactSearch.value);
+            });
+            this.contactSearch?.addEventListener('search', () => {
+                this.updateContactSearchTerm(this.contactSearch.value);
             });
             this.collapseBtn?.addEventListener('click', () => this.setPanelOpen(!this.isPanelOpen));
             this.messageInput?.addEventListener('focus', () => this.setPanelOpen(true));
+            this.messageInput?.addEventListener('keydown', event => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                    event.preventDefault();
+                    this.submitChatMessage();
+                }
+            });
             window.addEventListener('beforeunload', () => this.stopRefreshLoop());
         }
 
@@ -1193,6 +1291,11 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 this.state.adminUsers = Array.isArray(payload) ? payload : [];
                 this.logger('contacts:directory loaded', this.state.adminUsers.length);
                 this.renderContacts();
+                if (this.activeContactEmail) {
+                    this.activeContactLabel = this.resolveDisplayLabel(this.activeContactEmail) || this.activeContactLabel;
+                    this.updateSelectedLabel();
+                    this.highlightActiveContact();
+                }
             }).catch(error => {
                 console.warn('contacts:directory fetch failed', error);
                 this.adminUsersLoadFailed = true;
@@ -1249,15 +1352,29 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 return;
             }
             this.contactsList.innerHTML = filtered.map(contact => `
-                <div class="chat-person${this.normalizeEmail(contact.email) === this.normalizeEmail(this.activeContactEmail) ? ' active' : ''}" data-contact-email="${this.escapeHtml(contact.email)}">
+                <div class="chat-person${this.normalizeEmail(contact.email) === this.normalizeEmail(this.activeContactEmail) ? ' active' : ''}"
+                     data-contact-email="${this.escapeHtml(contact.email)}"
+                     data-initials="${this.escapeHtml(this.initials(contact.label || contact.email))}">
                     <div>
-                        <strong>${this.escapeHtml(contact.label)}</strong>
-                        <small>${this.escapeHtml(contact.meta ? `${contact.email} • ${contact.meta}` : contact.email)}</small>
+                        <strong>${this.escapeHtml(this.resolveDisplayLabel(contact.email) || contact.label || contact.email)}</strong>
+                        ${contact.meta ? `<small>${this.escapeHtml(contact.meta)}</small>` : `<small>${this.escapeHtml(contact.email)}</small>`}
+                        ${contact.preview ? `<p class="chat-person-preview">${this.escapeHtml(contact.preview)}</p>` : ''}
                     </div>
-                    ${contact.preview ? `<p class="chat-person-preview">${this.escapeHtml(contact.preview)}</p>` : ''}
                 </div>
             `).join('');
             this.highlightActiveContact();
+        }
+
+        updateContactSearchTerm(raw) {
+            this.contactSearchTerm = (raw || '').trim().toLowerCase();
+            this.renderContacts();
+            if (!this.contactSearchTerm) {
+                const active = this.normalizeEmail(this.activeContactEmail);
+                const hasHistory = this.contacts.some(item => this.normalizeEmail(item.email) === active && item.hasHistory);
+                if (active && !hasHistory) {
+                    this.setActiveContact(null);
+                }
+            }
         }
 
         collectContacts() {
@@ -1269,12 +1386,15 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                     return;
                 }
                 const directoryInfo = directoryMap.get(this.normalizeEmail(peer.email));
+                const displayLabel = directoryInfo?.label || peer.label || peer.email;
+                const meta = directoryInfo?.meta || '';
                 const descriptor = this.makeContactDescriptor(
                         peer.email,
-                        directoryInfo?.label || peer.label,
-                        directoryInfo?.meta || '',
+                        displayLabel,
+                        meta,
                         message.content || message.preview || '',
-                        message.date || ''
+                        message.date || '',
+                        true
                 );
                 if (!descriptor) {
                     return;
@@ -1285,7 +1405,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 }
             });
             this.manualContacts.forEach((descriptor, key) => {
-                if (!map.has(key)) {
+                if (!map.has(key) && descriptor?.hasHistory) {
                     map.set(key, descriptor);
                 }
             });
@@ -1358,15 +1478,16 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             const descriptor = contact
                 ? (contact.search ? contact : this.makeContactDescriptor(
                         contact.email,
-                        contact.label || contact.email,
+                        contact.label || this.resolveDisplayLabel(contact.email) || contact.email,
                         contact.meta || '',
                         contact.preview || '',
-                        contact.updated || ''
+                        contact.updated || '',
+                        !!contact.hasHistory
                 ))
                 : null;
             if (descriptor) {
                 this.activeContactEmail = descriptor.email;
-                this.activeContactLabel = descriptor.label;
+                this.activeContactLabel = this.resolveDisplayLabel(descriptor.email) || descriptor.label || descriptor.email;
                 const normalized = this.normalizeEmail(descriptor.email);
                 if (normalized && !this.manualContacts.has(normalized) && !this.contacts.some(item => this.normalizeEmail(item.email) === normalized)) {
                     this.manualContacts.set(normalized, descriptor);
@@ -1397,7 +1518,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
             }
             const email = this.getActiveEmail();
             if (email) {
-                const label = this.activeContactLabel || email;
+                const label = this.activeContactLabel || this.resolveDisplayLabel(email) || email;
                 this.selectedLabel.textContent = `Komunikace s ${label}`;
             } else {
                 this.selectedLabel.textContent = 'Vyberte kontakt vlevo nebo použijte vyhledávání.';
@@ -1419,6 +1540,32 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 const email = this.normalizeEmail(item.dataset.contactEmail);
                 item.classList.toggle('active', !!active && email === active);
             });
+        }
+
+        resolveDisplayLabel(email) {
+            if (!email) return '';
+            const normalized = this.normalizeEmail(email);
+            const directoryMap = this.buildDirectoryMap();
+            const fromDirectory = directoryMap.get(normalized)?.label;
+            if (fromDirectory) {
+                return fromDirectory;
+            }
+            const fromContacts = (this.contacts || []).find(item => this.normalizeEmail(item.email) === normalized);
+            if (fromContacts?.label) {
+                return fromContacts.label;
+            }
+            const fromManual = this.manualContacts.get(normalized);
+            return fromManual?.label || '';
+        }
+
+        initials(label) {
+            const text = (label || '').trim();
+            if (!text) return '??';
+            const parts = text.split(/\s+/).filter(Boolean);
+            if (parts.length === 1) {
+                return parts[0].slice(0, 2).toUpperCase();
+            }
+            return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
 
         scrollFeedToBottom() {
@@ -1453,7 +1600,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
                 });
                 if (response.status === 401) {
                     localStorage.clear();
-                    window.location.href = 'login.html';
+                    window.location.href = 'landing.html';
                     return;
                 }
                 if (!response.ok) {
@@ -2290,8 +2437,13 @@ class GlobalSearch {
         constructor(state, meta) {
             this.state = state;
             this.messagePoller = null;
+            const allowedViews = resolveAllowedViews(localStorage.getItem('role') || this.state.data.profile?.role, this.state.data.profile?.permissions);
             this.authGuard = new AuthGuard(state);
-            this.navigation = new NavigationController(state, meta);
+            this.navigation = new NavigationController(state, meta, {
+                allowedViews,
+                defaultView: 'dashboard',
+                onBlocked: () => alert('Na tuto sekci nemáte přístup. Přesměrovávám na Přehled.')
+            });
             this.dashboard = new DashboardModule(state);
             this.profile = new ProfileModule(state, this, {
                 apiUrl,
@@ -2371,20 +2523,58 @@ class GlobalSearch {
                 const isImpersonating = !!localStorage.getItem('admin_original_token');
                 exitBtn.style.display = isImpersonating ? 'inline-flex' : 'none';
                 exitBtn.addEventListener('click', () => {
-                    const originalToken = localStorage.getItem('admin_original_token');
-                    if (originalToken) {
-                        localStorage.setItem('token', originalToken);
-                        localStorage.setItem('role', localStorage.getItem('admin_original_role') || '');
-                        localStorage.setItem('fullName', localStorage.getItem('admin_original_name') || '');
-                        localStorage.setItem('email', localStorage.getItem('admin_original_email') || '');
-                        localStorage.removeItem('admin_original_token');
-                        localStorage.removeItem('admin_original_role');
-                        localStorage.removeItem('admin_original_name');
-                        localStorage.removeItem('admin_original_email');
+                    if (restoreOriginalSession()) {
                         window.location.reload();
                     }
                 });
+                this.renderImpersonationChip(isImpersonating);
+            } else {
+                this.renderImpersonationChip(false);
             }
+        }
+
+        renderImpersonationChip(isImpersonating) {
+            const chipId = 'impersonation-return-chip';
+            const existing = document.getElementById(chipId);
+            if (!isImpersonating) {
+                existing?.remove();
+                return;
+            }
+            if (existing) {
+                return;
+            }
+            const chip = document.createElement('button');
+            chip.id = chipId;
+            chip.type = 'button';
+            chip.textContent = '← Zpět k původnímu účtu';
+            chip.style.position = 'fixed';
+            chip.style.right = '20px';
+            chip.style.bottom = '20px';
+            chip.style.padding = '14px 20px';
+            chip.style.borderRadius = '16px';
+            chip.style.border = 'none';
+            chip.style.background = 'linear-gradient(120deg, #4361ee, #6c63ff)';
+            chip.style.color = '#fff';
+            chip.style.boxShadow = '0 14px 32px rgba(67,97,238,0.35)';
+            chip.style.fontSize = '15px';
+            chip.style.cursor = 'pointer';
+            chip.style.fontWeight = '600';
+            chip.style.zIndex = '999';
+            chip.style.transition = 'transform 0.15s ease, box-shadow 0.2s ease';
+            chip.addEventListener('mouseenter', () => {
+                chip.style.transform = 'translateY(-1px)';
+                chip.style.boxShadow = '0 18px 38px rgba(67,97,238,0.4)';
+            });
+            chip.addEventListener('mouseleave', () => {
+                chip.style.transform = 'translateY(0)';
+                chip.style.boxShadow = '0 14px 32px rgba(67,97,238,0.35)';
+            });
+            chip.addEventListener('click', () => {
+                if (restoreOriginalSession()) {
+                    window.location.reload();
+                }
+            });
+            document.body.appendChild(chip);
         }
 
         async refreshData() {

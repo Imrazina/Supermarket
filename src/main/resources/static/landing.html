@@ -2,7 +2,7 @@
 <html lang="cs">
 <head>
     <meta charset="UTF-8">
-    <title>BDAS Supermarket | Řízení sítě</title>
+    <title>BDAS Supermarket | Jedna konzole pro všechny role</title>
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -16,13 +16,16 @@
             --accent: #ff9f43;
             --muted: rgba(12, 21, 53, 0.65);
             --border: rgba(15, 23, 42, 0.08);
+            --role-employee: #4c6fff;
+            --role-courier: #16a34a;
+            --role-customer: #f97316;
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             min-height: 100vh;
-            background: radial-gradient(circle at 15% 20%, rgba(67, 97, 238, 0.25), transparent 50%),
-                        radial-gradient(circle at 75% 0%, rgba(255, 159, 67, 0.2), transparent 45%),
+            background: radial-gradient(circle at 15% 20%, rgba(67, 97, 238, 0.22), transparent 48%),
+                        radial-gradient(circle at 75% 0%, rgba(255, 159, 67, 0.18), transparent 42%),
                         linear-gradient(135deg, #eef2ff 0%, #f8fafc 45%, #fefefe 100%);
             color: #0c1535;
         }
@@ -30,7 +33,9 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 28px clamp(20px, 6vw, 70px);
+            padding: 26px clamp(20px, 6vw, 70px);
+            max-width: 1200px;
+            margin: 0 auto;
         }
         .brand {
             display: flex;
@@ -53,6 +58,7 @@
         nav {
             display: flex;
             gap: 18px;
+            flex-wrap: wrap;
         }
         nav a {
             text-decoration: none;
@@ -60,22 +66,32 @@
             font-size: 15px;
             font-weight: 500;
         }
-        nav a:hover {
-            color: var(--primary);
-        }
+        nav a:hover { color: var(--primary); }
+        main { width: 100%; }
         .hero {
+            max-width: 1200px;
+            margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-            gap: clamp(20px, 4vw, 60px);
-            padding: clamp(20px, 8vw, 90px);
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: clamp(24px, 5vw, 70px);
+            padding: clamp(20px, 8vw, 90px) clamp(20px, 6vw, 70px);
             align-items: center;
+        }
+        .eyebrow {
+            color: var(--primary-dark);
+            font-weight: 600;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+            font-size: 13px;
+            margin: 0 0 10px;
         }
         .hero h1 {
             font-size: clamp(32px, 5vw, 52px);
-            margin: 0 0 18px;
+            margin: 0 0 16px;
+            line-height: 1.1;
         }
         .hero p {
-            margin: 0 0 28px;
+            margin: 0 0 22px;
             line-height: 1.6;
             color: var(--muted);
             font-size: 18px;
@@ -83,7 +99,8 @@
         .hero-actions {
             display: flex;
             flex-wrap: wrap;
-            gap: 14px;
+            gap: 12px;
+            margin-bottom: 12px;
         }
         .cta {
             border: none;
@@ -104,33 +121,147 @@
             color: #0c1535;
             border: 1px solid var(--border);
         }
-        .cta:hover {
-            transform: translateY(-1px);
+        .cta:hover { transform: translateY(-1px); }
+        .pill-row {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 12px;
         }
-        .metrics {
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 12px;
+            border-radius: 999px;
+            background: rgba(67, 97, 238, 0.08);
+            color: #1e2a55;
+            font-size: 14px;
+            border: 1px solid rgba(67, 97, 238, 0.14);
+        }
+        .hero-card {
+            background: #fff;
+            border-radius: 24px;
+            padding: 24px;
+            border: 1px solid var(--border);
+            box-shadow: 0 25px 55px rgba(15,23,42,0.12);
+        }
+        .hero-card h3 {
+            margin: 0 0 12px;
+            font-size: 18px;
+        }
+        .hero-card ul {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+        .section {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: clamp(20px, 7vw, 70px) clamp(20px, 6vw, 70px);
+        }
+        .section-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 18px;
+        }
+        .section h2 {
+            margin: 0;
+            font-size: 26px;
+        }
+        .section p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.6;
+        }
+        .role-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
             gap: 16px;
-            margin-top: 40px;
         }
-        .metric-card {
+        .role-card {
             background: #fff;
             border-radius: 16px;
-            padding: 16px 18px;
+            padding: 18px;
             border: 1px solid var(--border);
             box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
         }
-        .metric-card span {
-            display: block;
-            font-size: 13px;
-            letter-spacing: 0.5px;
+        .role-card .label {
+            font-weight: 700;
+            letter-spacing: 0.3px;
             text-transform: uppercase;
+            font-size: 12px;
             color: var(--muted);
         }
-        .metric-card strong {
-            font-size: 22px;
-            margin-top: 8px;
+        .role-card h3 {
+            margin: 0;
+            font-size: 18px;
+        }
+        .role-card ul {
+            margin: 0;
+            padding-left: 18px;
+            color: var(--muted);
+            line-height: 1.5;
+        }
+        .role-card.employee { border-top: 4px solid var(--role-employee); }
+        .role-card.courier { border-top: 4px solid var(--role-courier); }
+        .role-card.customer { border-top: 4px solid var(--role-customer); }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 14px;
+        }
+        .feature-card {
+            background: #fff;
+            border-radius: 14px;
+            padding: 16px;
+            border: 1px solid var(--border);
+            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+        }
+        .feature-card h3 {
+            margin: 0 0 8px;
+            font-size: 16px;
+        }
+        .feature-card p {
+            margin: 0;
+            color: var(--muted);
+            font-size: 15px;
+            line-height: 1.5;
+        }
+        .security {
+            background: linear-gradient(135deg, rgba(67, 97, 238, 0.08), rgba(255, 159, 67, 0.05));
+            border-radius: 24px;
+            border: 1px solid var(--border);
+        }
+        .security-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-top: 14px;
+        }
+        .security-item {
+            background: #fff;
+            border-radius: 12px;
+            padding: 14px;
+            border: 1px solid var(--border);
+            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        }
+        .security-item strong {
             display: block;
+            margin-bottom: 6px;
+            font-size: 15px;
+        }
+        .security-item p {
+            margin: 0;
+            color: var(--muted);
+            line-height: 1.5;
         }
         footer {
             padding: 30px clamp(20px, 6vw, 70px);
@@ -140,6 +271,8 @@
             justify-content: space-between;
             color: var(--muted);
             font-size: 14px;
+            max-width: 1200px;
+            margin: 0 auto;
         }
         @media (max-width: 720px) {
             header {
@@ -147,66 +280,50 @@
                 align-items: flex-start;
                 gap: 12px;
             }
-            nav {
-                flex-wrap: wrap;
-            }
+            nav { flex-wrap: wrap; }
         }
     </style>
 </head>
 <body>
-    <header>
-        <div class="brand">
-            <div class="brand-badge">BD</div>
-            <div>
-                <strong>BDAS Supermarket</strong><br>
-                <small style="color: var(--muted);">Platforma pro řízení retail sítě</small>
-            </div>
+<header>
+    <div class="brand">
+        <div class="brand-badge">BD</div>
+        <div>
+            <strong>BDAS Supermarket</strong><br>
+            <small style="color: var(--muted);">Platforma pro řízení retail sítě</small>
         </div>
-        <nav>
-            <a href="#features">Moduly</a>
-            <a href="#security">Bezpečnost</a>
-            <a href="#contact">Kontakt</a>
-        </nav>
-    </header>
+    </div>
+    <nav>
+        <a href="login.html">Přihlášení</a>
+        <a href="register.html">Registrace</a>
+    </nav>
+</header>
 
+<main>
     <section class="hero">
         <div>
-            <h1>Jednotné centrum pro nákup, finance i provoz.</h1>
-            <p>Spravujte síť supermarketů z jednoho místa: objednávky, zásoby, zaměstnance i archivní dokumenty. Připraveno na přísné role a audity, od začátku optimalizováno pro adminy.</p>
+            <p class="eyebrow">Jedna konzole pro tým, doručení i zákazníky</p>
+            <h1>Řiďte zásoby, rozvozy i klienty z jednoho místa.</h1>
+            <p>Přehledná konzole pro tým i zákazníky: profil, objednávky a komunikace s jasnými rolemi a dohledem.</p>
             <div class="hero-actions">
-                <button class="cta primary" onclick="location.href='register.html'">Založit účet admina</button>
-                <button class="cta secondary" onclick="location.href='login.html'">Přihlásit se</button>
-            </div>
-            <div class="metrics">
-                <div class="metric-card">
-                    <span>Integrace</span>
-                    <strong>Oracle 21c • REST</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Role</span>
-                    <strong>Admin / Buyer / Store</strong>
-                </div>
-                <div class="metric-card">
-                    <span>Automatizace</span>
-                    <strong>Push + WS</strong>
-                </div>
+                <button class="cta primary" onclick="location.href='login.html'">Přihlásit se</button>
+                <button class="cta secondary" onclick="location.href='register.html'">Registrovat účet</button>
             </div>
         </div>
-        <div style="background:#fff;border-radius:24px;padding:30px;border:1px solid var(--border);box-shadow:0 25px 55px rgba(15,23,42,0.12);">
-            <h3>Co získáte:</h3>
-            <ul style="padding-left:18px;line-height:1.6;color:var(--muted);">
-                <li>Dashboard se skladovými riziky</li>
-                <li>Plánování objednávek a validace dodavatelů</li>
-                <li>Audity, archiv dokumentů a zákaznický portál</li>
-                <li>Budoucí omezení přístupu podle role</li>
+        <div class="hero-card">
+            <h3>Co uvidíte po přihlášení</h3>
+            <ul>
+                <li>Osobní profil, kontakty a údaje na jednom místě</li>
+                <li>Přehled dne: otevřené úkoly a stav práce podle vaší role</li>
+                <li>Chat a upozornění pro rychlé dotazy, potvrzení a novinky</li>
             </ul>
-            <p style="font-size:14px;color:var(--muted);margin-top:28px;">Startovní rozhraní je připravené pro administrátory – ostatním rolím omezíme stránky později.</p>
         </div>
     </section>
+</main>
 
-    <footer>
-        <span>© 2024 BDAS Retail Data Systems</span>
-        <span id="contact">Podpora: support@bdas-retail.cz</span>
-    </footer>
+<footer>
+    <span>© 2024 BDAS Retail Data Systems</span>
+    <span id="contact">Podpora: support@bdas-retail.cz</span>
+</footer>
 </body>
 </html>

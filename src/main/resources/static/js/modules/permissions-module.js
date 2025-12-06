@@ -55,7 +55,7 @@ export default class PermissionsModule {
     async savePermission(id, payload) {
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return;
         }
         try {
@@ -108,7 +108,7 @@ export default class PermissionsModule {
     async deletePermission(id) {
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return;
         }
         if (!confirm('Opravdu chcete smazat toto právo?')) {
@@ -248,7 +248,7 @@ export default class PermissionsModule {
     async saveRolePermissions(roleId, codes) {
         const token = localStorage.getItem('token');
         if (!token) {
-            window.location.href = 'login.html';
+            window.location.href = 'landing.html';
             return;
         }
         const response = await fetch(this.apiUrl(`/api/admin/roles/${roleId}/permissions`), {

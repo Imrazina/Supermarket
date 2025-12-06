@@ -63,6 +63,102 @@ END;
 
 
 --------------------------------------------------------------------------------
+-- FUNKCE: profil_kpi
+-- Popis:
+--   Vrátí JSON s rychlými KPI podle role uživatele (ADMIN/ZAMESTNANEC/ZAKAZNIK/DODAVATEL).
+--   Využívá unread_messages a last_message_summary.
+-- Parametry:
+--   p_user - ID uživatele
+-- Návratová hodnota:
+--   CLOB JSON s poli: role, unread, lastMessage, metrics (dle role)
+--------------------------------------------------------------------------------
+-- profil_kpi odstraněno na požádání
+
+--------------------------------------------------------------------------------
+-- FUNKCE: unread_messages
+-- Popis:
+--   Počet "nepřečtených" zpráv: příchozí po poslední vlastní odeslané zprávě
+--   (tabulka nemá flag přečteno, takže je to praktický aproximant).
+-- Parametry:
+--   p_user - ID příjemce
+-- Návratová hodnota:
+--   Číslo s počtem zpráv
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION unread_messages(
+    p_user INTEGER
+) RETURN NUMBER
+IS
+    v_last_sent DATE := DATE '1970-01-01';
+    v_unread NUMBER := 0;
+BEGIN
+    --------------------------------------------------------------------
+    -- Kdy uživatel naposledy sám psal (bereme to jako hranici přečtení)
+    --------------------------------------------------------------------
+    SELECT NVL(MAX(datumZasilani), DATE '1970-01-01')
+    INTO v_last_sent
+    FROM ZPRAVA
+    WHERE odesilatel_ID = p_user;
+
+    --------------------------------------------------------------------
+    -- Příchozí zprávy po této hranici
+    --------------------------------------------------------------------
+    SELECT COUNT(*)
+    INTO v_unread
+    FROM ZPRAVA
+    WHERE prijimac_ID = p_user
+      AND datumZasilani > v_last_sent;
+
+    RETURN v_unread;
+END;
+/
+
+
+--------------------------------------------------------------------------------
+-- FUNKCE: last_message_summary
+-- Popis:
+--   Vrátí poslední příchozí zprávu pro uživatele (odesílatel, čas, text).
+-- Parametry:
+--   p_user - ID příjemce
+-- Návratová hodnota:
+--   Řetězec s datem, ID odesílatele a zkráceným textem zprávy
+--------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION last_message_summary(
+    p_user INTEGER
+) RETURN VARCHAR2
+IS
+    v_sender_name VARCHAR2(255);
+    v_time DATE;
+    v_text CLOB;
+    v_out VARCHAR2(4000);
+BEGIN
+    SELECT COALESCE(
+               TRIM(u.jmeno || ' ' || u.prijmeni),
+               u.email,
+               'ID ' || z.odesilatel_ID
+           ),
+           z.datumZasilani,
+           z.zprava
+    INTO v_sender_name, v_time, v_text
+    FROM (
+        SELECT odesilatel_ID, datumZasilani, zprava
+        FROM ZPRAVA
+        WHERE prijimac_ID = p_user
+        ORDER BY datumZasilani DESC
+    ) z
+    LEFT JOIN UZIVATEL u ON u.ID_Uzivatel = z.odesilatel_ID
+    WHERE ROWNUM = 1;
+
+    v_out := TO_CHAR(v_time, 'YYYY-MM-DD HH24:MI') || ' | od ' || v_sender_name || ': ' || DBMS_LOB.SUBSTR(v_text, 200, 1);
+    RETURN v_out;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RETURN 'Žádné zprávy';
+END;
+/
+
+
+
+--------------------------------------------------------------------------------
 -- FUNKCE: typ_zakaznika
 -- Popis:
 --   Na základě počtu objednávek vrací úroveň zákazníka:

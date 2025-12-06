@@ -117,6 +117,18 @@ export default class ArchiveModule {
         return bodyBase.replace(/\/$/, '');
     }
 
+    isLogLabel(name) {
+        if (!name) return false;
+        return /\blog\b/i.test(String(name).toLowerCase());
+    }
+
+    isLogPath(path) {
+        if (!path) return false;
+        return String(path)
+            .split('/')
+            .some(segment => this.isLogLabel(segment));
+    }
+
     authHeaders() {
         const token = localStorage.getItem('token') || '';
         return {
@@ -230,17 +242,15 @@ export default class ArchiveModule {
 
     isLogNode(node) {
         if (!node) return false;
-        if ((node.name || '').toLowerCase() === 'log') return true;
+        if (this.isLogLabel(node.name) || this.isLogPath(node.path)) return true;
         const parent = this.findNode(node.parentId);
         return parent ? this.isLogNode(parent) : false;
     }
 
     isUploadAllowed(node) {
         if (!node) return false;
-        const name = (node.name || '').toLowerCase();
-        if (name === 'log' || name === 'uzivatele') return false;
-        const parent = this.findNode(node.parentId);
-        if (parent && (parent.name || '').toLowerCase() === 'log') return false;
+        if (this.isLogNode(node)) return false;
+        if (this.isUserAuditNode(node)) return false;
         return true;
     }
 
@@ -1120,10 +1130,10 @@ export default class ArchiveModule {
 
     nodeClass(child, byParent, nodesById) {
         const name = (child.name || '').toLowerCase();
-        if (name === 'log') return 'log-node';                         // LOG: žlutá
+        if (this.isLogLabel(name)) return 'log-node';                  // LOG: žlutá
         const parent = child.parentId ? nodesById[String(child.parentId)] : null;
         const parentName = (parent?.name || '').toLowerCase();
-        if (parentName === 'log') return 'log-leaf-node';              // děti LOGu: světle žluté
+        if (this.isLogLabel(parentName)) return 'log-leaf-node';       // děti LOGu: světle žluté
         if (child.parentId === null) return 'root-node';               // hlavní archiv: modrý
         if (parent && parent.parentId === null) return 'supermarket-node'; // supermarkety: zelené
         return 'folder-node';                                          // ostatní: modré

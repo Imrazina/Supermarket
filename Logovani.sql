@@ -10,16 +10,21 @@ CREATE OR REPLACE TRIGGER TRG_ZBOZI_LOG
 AFTER INSERT OR UPDATE OR DELETE ON ZBOZI
 FOR EACH ROW
 DECLARE
-    v_supermarket_id  NUMBER;
-    v_root_id         NUMBER;
-    v_archiv_super    NUMBER;
-    v_archiv_log      NUMBER;
-    v_archiv_zbozi    NUMBER;
+    v_supermarket_id   NUMBER;
+    v_root_id          NUMBER;
+    v_archiv_super     NUMBER;
+    v_archiv_log       NUMBER;
+    v_archiv_zbozi     NUMBER;
 
-    v_operace         CHAR(1);
-    v_nova            VARCHAR2(4000);
-    v_stara           VARCHAR2(4000);
-    v_id_zbozi        NUMBER;      -- ID záznamu pro log
+    v_operace          CHAR(1);
+    v_nova             VARCHAR2(4000);
+    v_stara            VARCHAR2(4000);
+
+    v_sklad_nazev_new  VARCHAR2(200);
+    v_sklad_nazev_old  VARCHAR2(200);
+    v_super_nazev      VARCHAR2(200);
+
+    v_id_rekord        VARCHAR2(4000);  -- tady bude název zboží
 BEGIN
     --------------------------------------------------------------------
     -- 1) Typ operace
@@ -33,22 +38,30 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Zjištění ID supermarketu podle skladu
+    -- 2) Zjištění ID supermarketu + názvu skladu
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
-        SELECT ID_Supermarket
-        INTO v_supermarket_id
+        SELECT ID_Supermarket, Nazev
+        INTO v_supermarket_id, v_sklad_nazev_new
         FROM SKLAD
         WHERE ID_Sklad = :NEW.SKLAD_ID_Sklad;
     ELSE
-        SELECT ID_Supermarket
-        INTO v_supermarket_id
+        SELECT ID_Supermarket, Nazev
+        INTO v_supermarket_id, v_sklad_nazev_old
         FROM SKLAD
         WHERE ID_Sklad = :OLD.SKLAD_ID_Sklad;
     END IF;
 
     --------------------------------------------------------------------
-    -- 3) Najdeme ROOT (Hlavní Archiv) dynamicky
+    -- 3) Název supermarketu
+    --------------------------------------------------------------------
+    SELECT Nazev
+    INTO v_super_nazev
+    FROM SUPERMARKET
+    WHERE ID_Supermarket = v_supermarket_id;
+
+    --------------------------------------------------------------------
+    -- 4) Najdeme ROOT (Hlavní Archiv) dynamicky
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_root_id
@@ -56,7 +69,7 @@ BEGIN
     WHERE Parent_id IS NULL;
 
     --------------------------------------------------------------------
-    -- 4) Najdeme složku supermarketu podle názvu
+    -- 5) Najdeme složku supermarketu podle názvu
     --------------------------------------------------------------------
     SELECT a.ID_Archiv
     INTO v_archiv_super
@@ -66,7 +79,7 @@ BEGIN
       AND a.Parent_id = v_root_id;
 
     --------------------------------------------------------------------
-    -- 5) Najdeme složku Log
+    -- 6) Najdeme složku Log
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_log
@@ -75,7 +88,7 @@ BEGIN
       AND Nazev = 'Log';
 
     --------------------------------------------------------------------
-    -- 6) Najdeme podsložku Zbozi
+    -- 7) Najdeme podsložku Zbozi
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_zbozi
@@ -84,40 +97,42 @@ BEGIN
       AND Nazev = 'Zbozi';
 
     --------------------------------------------------------------------
-    -- 7) NOVÁ data
+    -- 8) NOVÁ data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
-              'nazev='      || :NEW.nazev ||
-            '; cena='       || TO_CHAR(:NEW.cena) ||
-            '; mnozstvi='   || TO_CHAR(:NEW.mnozstvi) ||
-            '; minMnozstvi='|| TO_CHAR(:NEW.minMnozstvi) ||
-            '; sklad='      || TO_CHAR(:NEW.SKLAD_ID_Sklad);
+              'nazev='       || :NEW.nazev
+            || '; cena='        || TO_CHAR(:NEW.cena)
+            || '; mnozstvi='    || TO_CHAR(:NEW.mnozstvi)
+            || '; minMnozstvi=' || TO_CHAR(:NEW.minMnozstvi)
+            || '; sklad='       || v_sklad_nazev_new
+            || '; supermarket=' || v_super_nazev;
     END IF;
 
     --------------------------------------------------------------------
-    -- 8) STARÁ data
+    -- 9) STARÁ data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
-              'nazev='      || :OLD.nazev ||
-            '; cena='       || TO_CHAR(:OLD.cena) ||
-            '; mnozstvi='   || TO_CHAR(:OLD.mnozstvi) ||
-            '; minMnozstvi='|| TO_CHAR(:OLD.minMnozstvi) ||
-            '; sklad='      || TO_CHAR(:OLD.SKLAD_ID_Sklad);
+              'nazev='       || :OLD.nazev
+            || '; cena='        || TO_CHAR(:OLD.cena)
+            || '; mnozstvi='    || TO_CHAR(:OLD.mnozstvi)
+            || '; minMnozstvi=' || TO_CHAR(:OLD.minMnozstvi)
+            || '; sklad='       || v_sklad_nazev_old
+            || '; supermarket=' || v_super_nazev;
     END IF;
 
     --------------------------------------------------------------------
-    -- 9) ID záznamu pro log (NELZE používat INSERTING v CASE uvnitř SQL)
+    -- 10) idRekord = název zboží (žádné ID)
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
-        v_id_zbozi := :NEW.ID_Zbozi;
+        v_id_rekord := :NEW.nazev;
     ELSE
-        v_id_zbozi := :OLD.ID_Zbozi;
+        v_id_rekord := :OLD.nazev;
     END IF;
 
     --------------------------------------------------------------------
-    -- 10) Zápis logu
+    -- 11) Zápis logu
     --------------------------------------------------------------------
     INSERT INTO LOG (
         ID_Log,
@@ -134,7 +149,7 @@ BEGIN
         'ZBOZI',
         v_operace,
         SYSDATE,
-        v_id_zbozi,
+        v_id_rekord,   -- název zboží
         v_nova,
         v_stara,
         'Log zmeny ZBOZI',
@@ -151,7 +166,6 @@ DELETE FROM ZBOZI WHERE ID_Zbozi = 999;
 
 SELECT *
 FROM LOG
-WHERE idRekord = 999
 ORDER BY datumZmeny DESC;
 
 
@@ -169,34 +183,34 @@ CREATE OR REPLACE TRIGGER TRG_OBJEDNAVKA_LOG
 AFTER INSERT OR UPDATE OR DELETE ON OBJEDNAVKA
 FOR EACH ROW
 DECLARE
-    v_supermarket_id  NUMBER;
-    v_root_id         NUMBER;
-    v_archiv_super    NUMBER;
-    v_archiv_log      NUMBER;
-    v_archiv_obj      NUMBER;
+    v_supermarket_id   NUMBER;
+    v_root_id          NUMBER;
+    v_archiv_super     NUMBER;
+    v_archiv_log       NUMBER;
+    v_archiv_obj       NUMBER;
 
-    v_operace         CHAR(1);
-    v_nova            VARCHAR2(4000);
-    v_stara           VARCHAR2(4000);
-    v_id              NUMBER;
+    v_operace          CHAR(1);
+    v_nova             VARCHAR2(4000);
+    v_stara            VARCHAR2(4000);
+
+    v_id_rekord        VARCHAR2(4000);   -- půjde do LOG.idRekord (VARCHAR2)
+    v_super_nazev      VARCHAR2(200);
+    v_status_nazev     VARCHAR2(200);
+    v_uzivatel_jmeno   VARCHAR2(200);
 BEGIN
     --------------------------------------------------------------------
-    -- 1) Určení typu operace a ID záznamu
+    -- 1) Typ operace
     --------------------------------------------------------------------
     IF INSERTING THEN
         v_operace := 'I';
-        v_id := :NEW.ID_Objednavka;
     ELSIF UPDATING THEN
         v_operace := 'U';
-        v_id := :NEW.ID_Objednavka;
     ELSE
         v_operace := 'D';
-        v_id := :OLD.ID_Objednavka;
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Získání ID supermarketu
-    --    (Objednavka vždy patří konkrétnímu supermarketu)
+    -- 2) Získání ID supermarketu (z NEW/OLD)
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_supermarket_id := :NEW.ID_Supermarket;
@@ -205,7 +219,42 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 3) Najdeme ROOT archiv (hlavní kořen)
+    -- 3) Název supermarketu
+    --------------------------------------------------------------------
+    SELECT Nazev
+    INTO v_super_nazev
+    FROM SUPERMARKET
+    WHERE ID_Supermarket = v_supermarket_id;
+
+    --------------------------------------------------------------------
+    -- 4) Název statusu a uživatele (ČITELNÉ, ne ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        -- status objednávky
+        SELECT Nazev
+        INTO v_status_nazev
+        FROM STATUS   -- TODO: tvoje tabulka pro status
+        WHERE ID_Status = :NEW.ID_Status;
+
+        -- uživatel (např. jméno + příjmení nebo login)
+        SELECT jmeno || ' ' || prijmeni
+        INTO v_uzivatel_jmeno
+        FROM UZIVATEL           -- TODO: tvoje tabulka uživatelů
+        WHERE ID_Uzivatel = :NEW.ID_Uzivatel;
+    ELSE
+        SELECT Nazev
+        INTO v_status_nazev
+        FROM STATUS
+        WHERE ID_Status = :OLD.ID_Status;
+
+        SELECT jmeno || ' ' || prijmeni
+        INTO v_uzivatel_jmeno
+        FROM UZIVATEL
+        WHERE ID_Uzivatel = :OLD.ID_Uzivatel;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) Najdeme ROOT archiv (hlavní kořen)
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_root_id
@@ -213,7 +262,7 @@ BEGIN
     WHERE Parent_id IS NULL;
 
     --------------------------------------------------------------------
-    -- 4) Najdeme složku supermarketu podle názvu
+    -- 6) Archiv supermarketu podle názvu
     --------------------------------------------------------------------
     SELECT a.ID_Archiv
     INTO v_archiv_super
@@ -223,7 +272,7 @@ BEGIN
       AND a.Parent_id = v_root_id;
 
     --------------------------------------------------------------------
-    -- 5) Najdeme složku "Log"
+    -- 7) Složka "Log"
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_log
@@ -232,7 +281,7 @@ BEGIN
       AND Nazev = 'Log';
 
     --------------------------------------------------------------------
-    -- 6) Najdeme podsložku "Objednavky"
+    -- 8) Podsložka "Objednavky"
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_obj
@@ -241,31 +290,36 @@ BEGIN
       AND Nazev = 'Objednavky';
 
     --------------------------------------------------------------------
-    -- 7) NOVÁ data
+    -- 9) NOVÁ data – jen čitelné hodnoty, žádná ID
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
-              'datum='      || TO_CHAR(:NEW.datum, 'YYYY-MM-DD HH24:MI:SS')
-            || '; status='  || :NEW.ID_Status
-            || '; typ='     || :NEW.typ_objednavka
-            || '; uzivatel='|| :NEW.ID_Uzivatel
-            || '; supermarket=' || :NEW.ID_Supermarket;
+              'datum='       || TO_CHAR(:NEW.datum, 'YYYY-MM-DD HH24:MI:SS')
+            || '; status='   || v_status_nazev
+            || '; typ='      || :NEW.typ_objednavka
+            || '; uzivatel=' || v_uzivatel_jmeno
+            || '; supermarket=' || v_super_nazev;
     END IF;
 
     --------------------------------------------------------------------
-    -- 8) STARÁ data
+    -- 10) STARÁ data – taky bez ID
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
-              'datum='      || TO_CHAR(:OLD.datum, 'YYYY-MM-DD HH24:MI:SS')
-            || '; status='  || :OLD.ID_Status
-            || '; typ='     || :OLD.typ_objednavka
-            || '; uzivatel='|| :OLD.ID_Uzivatel
-            || '; supermarket=' || :OLD.ID_Supermarket;
+              'datum='       || TO_CHAR(:OLD.datum, 'YYYY-MM-DD HH24:MI:SS')
+            || '; status='   || v_status_nazev
+            || '; typ='      || :OLD.typ_objednavka
+            || '; uzivatel=' || v_uzivatel_jmeno
+            || '; supermarket=' || v_super_nazev;
     END IF;
 
     --------------------------------------------------------------------
-    -- 9) Zápis do LOG tabulky
+    -- 11) idRekord – jméno uživatele (žádné ID)
+    --------------------------------------------------------------------
+    v_id_rekord := v_uzivatel_jmeno;
+
+    --------------------------------------------------------------------
+    -- 12) Zápis do LOG tabulky
     --------------------------------------------------------------------
     INSERT INTO LOG (
         ID_Log,
@@ -282,7 +336,7 @@ BEGIN
         'OBJEDNAVKA',
         v_operace,
         SYSDATE,
-        v_id,
+        v_id_rekord,             -- jméno uživatele místo ID
         v_nova,
         v_stara,
         'Log změny objednávky',
@@ -299,7 +353,6 @@ DELETE FROM OBJEDNAVKA WHERE ID_Objednavka = 1001;
 
 SELECT *
 FROM LOG
-WHERE idRekord = 1001
 ORDER BY datumZmeny DESC;
 
 
@@ -319,49 +372,73 @@ CREATE OR REPLACE TRIGGER TRG_PLATBA_LOG
 AFTER INSERT OR UPDATE OR DELETE ON PLATBA
 FOR EACH ROW
 DECLARE
-    v_supermarket_id  NUMBER;
-    v_root_id         NUMBER;
-    v_archiv_super    NUMBER;
-    v_archiv_log      NUMBER;
-    v_archiv_platby   NUMBER;
+    v_supermarket_id   NUMBER;
+    v_root_id          NUMBER;
+    v_archiv_super     NUMBER;
+    v_archiv_log       NUMBER;
+    v_archiv_platby    NUMBER;
 
-    v_operace         CHAR(1);
-    v_nova            VARCHAR2(4000);
-    v_stara           VARCHAR2(4000);
-    v_id              NUMBER;
+    v_operace          CHAR(1);
+    v_nova             VARCHAR2(4000);
+    v_stara            VARCHAR2(4000);
+
+    v_id_rekord        VARCHAR2(4000);   
+    v_super_nazev      VARCHAR2(200);
+    v_obj_datum        DATE;
+    v_obj_typ          VARCHAR2(100);
+    v_uzivatel_jmeno   VARCHAR2(200);
 BEGIN
     --------------------------------------------------------------------
-    -- 1) Určení operace a ID záznamu
+    -- 1) Určení operace
     --------------------------------------------------------------------
     IF INSERTING THEN
         v_operace := 'I';
-        v_id := :NEW.ID_platba;
     ELSIF UPDATING THEN
         v_operace := 'U';
-        v_id := :NEW.ID_platba;
     ELSE
         v_operace := 'D';
-        v_id := :OLD.ID_platba;
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Zjištění supermarketu podle objednávky
-    --    Platba patří objednávce → objednávka patří supermarketu
+    -- 2) Zjištění supermarketu + info o objednávce + uživatel
+    --    (vezmeme info z OBJEDNAVKA, ale NEpoužijeme její ID do logu)
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
-        SELECT ID_Supermarket
-        INTO v_supermarket_id
-        FROM OBJEDNAVKA
-        WHERE ID_Objednavka = :NEW.ID_Objednavka;
+        SELECT o.ID_Supermarket,
+               o.datum,
+               o.typ_objednavka,
+               u.jmeno || ' ' || u.prijmeni
+        INTO  v_supermarket_id,
+              v_obj_datum,
+              v_obj_typ,
+              v_uzivatel_jmeno
+        FROM OBJEDNAVKA o
+        JOIN UZIVATEL u ON u.ID_Uzivatel = o.ID_Uzivatel
+        WHERE o.ID_Objednavka = :NEW.ID_Objednavka;
     ELSE
-        SELECT ID_Supermarket
-        INTO v_supermarket_id
-        FROM OBJEDNAVKA
-        WHERE ID_Objednavka = :OLD.ID_Objednavka;
+        SELECT o.ID_Supermarket,
+               o.datum,
+               o.typ_objednavka,
+               u.jmeno || ' ' || u.prijmeni
+        INTO  v_supermarket_id,
+              v_obj_datum,
+              v_obj_typ,
+              v_uzivatel_jmeno
+        FROM OBJEDNAVKA o
+        JOIN UZIVATEL u ON u.ID_Uzivatel = o.ID_Uzivatel
+        WHERE o.ID_Objednavka = :OLD.ID_Objednavka;
     END IF;
 
     --------------------------------------------------------------------
-    -- 3) ROOT archiv (hlavní kořen)
+    -- 3) Název supermarketu
+    --------------------------------------------------------------------
+    SELECT Nazev
+    INTO v_super_nazev
+    FROM SUPERMARKET
+    WHERE ID_Supermarket = v_supermarket_id;
+
+    --------------------------------------------------------------------
+    -- 4) Najdeme ROOT archiv
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_root_id
@@ -369,7 +446,7 @@ BEGIN
     WHERE Parent_id IS NULL;
 
     --------------------------------------------------------------------
-    -- 4) Složka supermarketu
+    -- 5) Složka supermarketu
     --------------------------------------------------------------------
     SELECT a.ID_Archiv
     INTO v_archiv_super
@@ -379,7 +456,7 @@ BEGIN
       AND a.Parent_id = v_root_id;
 
     --------------------------------------------------------------------
-    -- 5) Složka "Log"
+    -- 6) Složka "Log"
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_log
@@ -388,7 +465,7 @@ BEGIN
       AND Nazev = 'Log';
 
     --------------------------------------------------------------------
-    -- 6) Podsložka "Platby"
+    -- 7) Podsložka "Platby"
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_platby
@@ -397,29 +474,46 @@ BEGIN
       AND Nazev = 'Platby';
 
     --------------------------------------------------------------------
-    -- 7) NOVÁ data
+    -- 8) NOVÁ data – čitelné, bez ID
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
-              'castka='   || TO_CHAR(:NEW.castka)
-            || '; datum=' || TO_CHAR(:NEW.datum, 'YYYY-MM-DD HH24:MI:SS')
-            || '; objednavka=' || :NEW.ID_Objednavka
-            || '; typ='   || :NEW.platbaTyp;
+              'castka='       || TO_CHAR(:NEW.castka)
+            || '; datum='     || TO_CHAR(:NEW.datum, 'YYYY-MM-DD HH24:MI:SS')
+            || '; objednavka='|| v_obj_typ || ' (' || v_uzivatel_jmeno || ')'
+            || '; supermarket=' || v_super_nazev
+            || '; typ='       || :NEW.platbaTyp;
     END IF;
 
     --------------------------------------------------------------------
-    -- 8) STARÁ data
+    -- 9) STARÁ data – taky bez ID
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
-              'castka='   || TO_CHAR(:OLD.castka)
-            || '; datum=' || TO_CHAR(:OLD.datum, 'YYYY-MM-DD HH24:MI:SS')
-            || '; objednavka=' || :OLD.ID_Objednavka
-            || '; typ='   || :OLD.platbaTyp;
+              'castka='       || TO_CHAR(:OLD.castka)
+            || '; datum='     || TO_CHAR(:OLD.datum, 'YYYY-MM-DD HH24:MI:SS')
+            || '; objednavka='|| v_obj_typ || ' (' || v_uzivatel_jmeno || ')'
+            || '; supermarket=' || v_super_nazev
+            || '; typ='       || :OLD.platbaTyp;
     END IF;
 
     --------------------------------------------------------------------
-    -- 9) Uložení logu do tabulky LOG
+    -- 10) idRekord – čitelný identifikátor platby (žádné ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord :=
+            'PLATBA ' ||
+            TO_CHAR(:NEW.datum, 'YYYY-MM-DD HH24:MI') ||
+            ' / ' || v_super_nazev;
+    ELSE
+        v_id_rekord :=
+            'PLATBA ' ||
+            TO_CHAR(:OLD.datum, 'YYYY-MM-DD HH24:MI') ||
+            ' / ' || v_super_nazev;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 11) Uložení logu
     --------------------------------------------------------------------
     INSERT INTO LOG (
         ID_Log,
@@ -436,7 +530,7 @@ BEGIN
         'PLATBA',
         v_operace,
         SYSDATE,
-        v_id,
+        v_id_rekord,
         v_nova,
         v_stara,
         'Log změny platby',
@@ -456,10 +550,10 @@ VALUES (3001, 150.50, TO_DATE('2025-11-29 15:05', 'YYYY-MM-DD HH24:MI'),2001,'K'
 UPDATE PLATBA SET castka = 200.00, platbaTyp = 'K' WHERE ID_platba = 3001; 
 DELETE FROM KARTA WHERE ID_platba = 3001;
 DELETE FROM PLATBA WHERE ID_platba = 3001;
+DELETE FROM OBJEDNAVKA WHERE ID_Objednavka = 2001;
 
 SELECT *
 FROM LOG
-WHERE idRekord = 3001
 ORDER BY datumZmeny DESC;
 
    
@@ -483,20 +577,20 @@ DECLARE
     v_operace      CHAR(1);
     v_nova         VARCHAR2(4000);
     v_stara        VARCHAR2(4000);
-    v_id           NUMBER;
+
+    v_id_rekord        VARCHAR2(4000); 
+    v_role_nazev_new   VARCHAR2(200);
+    v_role_nazev_old   VARCHAR2(200);
 BEGIN
     --------------------------------------------------------------------
-    -- 1) Určení operace a ID záznamu
+    -- 1) Určení operace
     --------------------------------------------------------------------
     IF INSERTING THEN
         v_operace := 'I';
-        v_id := :NEW.ID_Uzivatel;
     ELSIF UPDATING THEN
         v_operace := 'U';
-        v_id := :NEW.ID_Uzivatel;
     ELSE
         v_operace := 'D';
-        v_id := :OLD.ID_Uzivatel;
     END IF;
 
     --------------------------------------------------------------------
@@ -517,7 +611,24 @@ BEGIN
       AND Nazev = 'Uzivatele';
 
     --------------------------------------------------------------------
-    -- 4) Nová data
+    -- 4) Názvy rolí (místo ID_Role)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        SELECT Nazev
+        INTO v_role_nazev_new
+        FROM APP_ROLE   -- TODO: tvoje tabulka s rolemi
+        WHERE ID_Role = :NEW.ID_Role;
+    END IF;
+
+    IF UPDATING OR DELETING THEN
+        SELECT Nazev
+        INTO v_role_nazev_old
+        FROM APP_ROLE
+        WHERE ID_Role = :OLD.ID_Role;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) Nová data – čitelné, bez ID
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
@@ -525,11 +636,11 @@ BEGIN
             || '; prijmeni=' || :NEW.prijmeni
             || '; email='    || :NEW.email
             || '; telefon='  || :NEW.telefonniCislo
-            || '; role='     || :NEW.ID_Role;
+            || '; role='     || v_role_nazev_new;
     END IF;
 
     --------------------------------------------------------------------
-    -- 5) Stará data
+    -- 6) Stará data – taky bez ID
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
@@ -537,11 +648,20 @@ BEGIN
             || '; prijmeni=' || :OLD.prijmeni
             || '; email='    || :OLD.email
             || '; telefon='  || :OLD.telefonniCislo
-            || '; role='     || :OLD.ID_Role;
+            || '; role='     || v_role_nazev_old;
     END IF;
 
     --------------------------------------------------------------------
-    -- 6) Zápis logu do tabulky LOG
+    -- 7) idRekord = jméno uživatele (žádné ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.jmeno || ' ' || :NEW.prijmeni;
+    ELSE
+        v_id_rekord := :OLD.jmeno || ' ' || :OLD.prijmeni;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 8) Zápis logu do tabulky LOG
     --------------------------------------------------------------------
     INSERT INTO LOG (
         ID_Log,
@@ -558,7 +678,7 @@ BEGIN
         'UZIVATEL',
         v_operace,
         SYSDATE,
-        v_id,
+        v_id_rekord,              -- jméno uživatele místo ID
         v_nova,
         v_stara,
         'Log změny uživatele',
@@ -569,13 +689,12 @@ END;
 --------------------------------------------------------------------------------
 -- TEST
 --------------------------------------------------------------------------------
-INSERT INTO UZIVATEL (ID_Uzivatel, jmeno, prijmeni, email, heslo, telefonniCislo, ID_Role) VALUES (5001, 'Anna', 'Shabossova', 'anna@test.cz', 'annaTest', '777123456', 7);
+INSERT INTO UZIVATEL (ID_Uzivatel, jmeno, prijmeni, email, heslo, telefonniCislo, ID_Role) VALUES (5001, 'Anna', 'Kirik', 'anna@test.czk', 'annaTest', '7771234536', 7);
 UPDATE UZIVATEL SET email = 'anna.updated@test.cz', ID_Role = 2 WHERE ID_Uzivatel = 5001;
 DELETE FROM UZIVATEL WHERE ID_Uzivatel = 5001;
 
 SELECT * 
 FROM LOG 
-WHERE idRekord = 5001 
 ORDER BY datumZmeny DESC;
 
 
@@ -600,22 +719,19 @@ DECLARE
     v_operace         CHAR(1);
     v_nova            VARCHAR2(4000);
     v_stara           VARCHAR2(4000);
-    v_id              NUMBER;
+
+    v_id_rekord       VARCHAR2(4000);   
+    v_super_nazev     VARCHAR2(200);
 BEGIN
     --------------------------------------------------------------------
-    -- 1) Určení typu operace a ID záznamu
+    -- 1) Určení typu operace
     --------------------------------------------------------------------
     IF INSERTING THEN
         v_operace := 'I';
-        v_id := :NEW.ID_Sklad;
-
     ELSIF UPDATING THEN
         v_operace := 'U';
-        v_id := :NEW.ID_Sklad;
-
     ELSE
         v_operace := 'D';
-        v_id := :OLD.ID_Sklad;
     END IF;
 
     --------------------------------------------------------------------
@@ -628,7 +744,15 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 3) Najdeme ROOT archiv
+    -- 3) Název supermarketu
+    --------------------------------------------------------------------
+    SELECT Nazev
+    INTO v_super_nazev
+    FROM SUPERMARKET
+    WHERE ID_Supermarket = v_supermarket_id;
+
+    --------------------------------------------------------------------
+    -- 4) Najdeme ROOT archiv
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_root_id
@@ -636,7 +760,7 @@ BEGIN
     WHERE Parent_id IS NULL;
 
     --------------------------------------------------------------------
-    -- 4) Najdeme složku supermarketu
+    -- 5) Najdeme složku supermarketu
     --------------------------------------------------------------------
     SELECT a.ID_Archiv
     INTO v_archiv_super
@@ -646,7 +770,7 @@ BEGIN
       AND a.Parent_id = v_root_id;
 
     --------------------------------------------------------------------
-    -- 5) Najdeme složku "Log"
+    -- 6) Najdeme složku "Log"
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_log
@@ -655,7 +779,7 @@ BEGIN
       AND Nazev = 'Log';
 
     --------------------------------------------------------------------
-    -- 6) Najdeme podsložku "Ostatni"
+    -- 7) Najdeme podsložku "Ostatni"
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_ostatni
@@ -664,29 +788,38 @@ BEGIN
       AND Nazev = 'Ostatni';
 
     --------------------------------------------------------------------
-    -- 7) NOVÁ data
+    -- 8) NOVÁ data – bez ID, jen názvy
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
-              'nazev='       || :NEW.nazev
-            || '; kapacita=' || :NEW.kapacita
-            || '; telefon='  || :NEW.telefonniCislo
-            || '; supermarket=' || :NEW.ID_Supermarket;
+              'nazev='        || :NEW.nazev
+            || '; kapacita='  || :NEW.kapacita
+            || '; telefon='   || :NEW.telefonniCislo
+            || '; supermarket=' || v_super_nazev;
     END IF;
 
     --------------------------------------------------------------------
-    -- 8) STARÁ data
+    -- 9) STARÁ data – taky bez ID
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
-              'nazev='       || :OLD.nazev
-            || '; kapacita=' || :OLD.kapacita
-            || '; telefon='  || :OLD.telefonniCislo
-            || '; supermarket=' || :OLD.ID_Supermarket;
+              'nazev='        || :OLD.nazev
+            || '; kapacita='  || :OLD.kapacita
+            || '; telefon='   || :OLD.telefonniCislo
+            || '; supermarket=' || v_super_nazev;
     END IF;
 
     --------------------------------------------------------------------
-    -- 9) Zápis logu
+    -- 10) idRekord = název skladu (žádné ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.nazev;
+    ELSE
+        v_id_rekord := :OLD.nazev;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 11) Zápis logu
     --------------------------------------------------------------------
     INSERT INTO LOG (
         ID_Log,
@@ -704,7 +837,7 @@ BEGIN
         'SKLAD',
         v_operace,
         SYSDATE,
-        v_id,
+        v_id_rekord,              -- název skladu místo ID
         v_nova,
         v_stara,
         'Log změny skladu',
@@ -721,7 +854,6 @@ DELETE FROM SKLAD WHERE ID_Sklad = 9001;
 
 SELECT *
 FROM LOG
-WHERE idRekord = 9001
 ORDER BY datumZmeny DESC;
 
 
@@ -736,73 +868,104 @@ CREATE OR REPLACE TRIGGER TRG_ZAKAZNIK_LOG
 AFTER INSERT OR UPDATE OR DELETE ON ZAKAZNIK
 FOR EACH ROW
 DECLARE
-    v_root_id     NUMBER;
-    v_archiv_uz   NUMBER;
+    v_root_id        NUMBER;
+    v_archiv_uz      NUMBER;
 
-    v_operace     CHAR(1);
-    v_nova        VARCHAR2(4000);
-    v_stara       VARCHAR2(4000);
-    v_id          NUMBER;
+    v_operace        CHAR(1);
+    v_nova           VARCHAR2(4000);
+    v_stara          VARCHAR2(4000);
+
+    v_id_rekord      VARCHAR2(4000);
+    v_uzivatel_jmeno VARCHAR2(200);
+    v_id_uzivatel    NUMBER;
 BEGIN
     --------------------------------------------------------------------
-    -- 1) Operace + ID uživatele (supertype klíč)
+    -- 1) Operace
     --------------------------------------------------------------------
     IF INSERTING THEN
         v_operace := 'I';
-        v_id := :NEW.ID_Uzivatelu;
-
     ELSIF UPDATING THEN
         v_operace := 'U';
-        v_id := :NEW.ID_Uzivatelu;
-
     ELSE
         v_operace := 'D';
-        v_id := :OLD.ID_Uzivatelu;
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) ROOT archiv
+    -- 2) Zjistíme ID_Uzivatel ze supertypu
     --------------------------------------------------------------------
-    SELECT ID_Archiv INTO v_root_id
+    IF INSERTING OR UPDATING THEN
+        v_id_uzivatel := :NEW.ID_Uzivatelu;
+    ELSE
+        v_id_uzivatel := :OLD.ID_Uzivatelu;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 3) Načteme jméno uživatele (žádné ID v logu)
+    --------------------------------------------------------------------
+    SELECT jmeno || ' ' || prijmeni
+    INTO v_uzivatel_jmeno
+    FROM UZIVATEL
+    WHERE ID_Uzivatel = v_id_uzivatel;
+
+    --------------------------------------------------------------------
+    -- 4) ROOT archiv
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_root_id
     FROM ARCHIV
     WHERE Parent_id IS NULL;
 
     --------------------------------------------------------------------
-    -- 3) podsložka Uzivatele
+    -- 5) podsložka 'Uzivatele'
     --------------------------------------------------------------------
-    SELECT ID_Archiv INTO v_archiv_uz
+    SELECT ID_Archiv
+    INTO v_archiv_uz
     FROM ARCHIV
     WHERE Parent_id = v_root_id
       AND Nazev = 'Uzivatele';
 
     --------------------------------------------------------------------
-    -- 4) Nová data
+    -- 6) Nová data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
-            'kartaVernosti=' || :NEW.kartaVernosti;
+              'uzivatel='      || v_uzivatel_jmeno
+            || '; kartaVernosti=' || :NEW.kartaVernosti;
     END IF;
 
     --------------------------------------------------------------------
-    -- 5) Stará data
+    -- 7) Stará data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
-            'kartaVernosti=' || :OLD.kartaVernosti;
+              'uzivatel='      || v_uzivatel_jmeno
+            || '; kartaVernosti=' || :OLD.kartaVernosti;
     END IF;
 
     --------------------------------------------------------------------
-    -- 6) Zápis do LOG
+    -- 8) idRekord = jméno uživatele (žádné ID)
+    --------------------------------------------------------------------
+    v_id_rekord := v_uzivatel_jmeno;
+
+    --------------------------------------------------------------------
+    -- 9) Zápis do LOG
     --------------------------------------------------------------------
     INSERT INTO LOG (
-        ID_Log, tabulkaNazev, operace, datumZmeny,
-        idRekord, novaData, staraData, popis, ID_Archiv
+        ID_Log,
+        tabulkaNazev,
+        operace,
+        datumZmeny,
+        idRekord,
+        novaData,
+        staraData,
+        popis,
+        ID_Archiv
     ) VALUES (
         SEQ_LOG_ID.NEXTVAL,
         'ZAKAZNIK',
         v_operace,
         SYSDATE,
-        v_id,
+        v_id_rekord,              -- jméno uživatele místo ID
         v_nova,
         v_stara,
         'Log změny zákazníka',
@@ -836,65 +999,89 @@ CREATE OR REPLACE TRIGGER TRG_ZAMESTNANEC_LOG
 AFTER INSERT OR UPDATE OR DELETE ON ZAMESTNANEC
 FOR EACH ROW
 DECLARE
-    v_root_id    NUMBER;
-    v_archiv_uz  NUMBER;
+    v_root_id        NUMBER;
+    v_archiv_uz      NUMBER;
 
-    v_operace    CHAR(1);
-    v_nova       VARCHAR2(4000);
-    v_stara      VARCHAR2(4000);
-    v_id         NUMBER;
+    v_operace        CHAR(1);
+    v_nova           VARCHAR2(4000);
+    v_stara          VARCHAR2(4000);
+
+    v_id_rekord      VARCHAR2(4000);
+    v_uzivatel_jmeno VARCHAR2(200);
+    v_id_uzivatel    NUMBER;
 BEGIN
     --------------------------------------------------------------------
-    -- 1) Operace + FK na UZIVATEL
+    -- 1) Operace
     --------------------------------------------------------------------
     IF INSERTING THEN
         v_operace := 'I';
-        v_id := :NEW.ID_Uzivatelu;
-
     ELSIF UPDATING THEN
         v_operace := 'U';
-        v_id := :NEW.ID_Uzivatelu;
-
     ELSE
         v_operace := 'D';
-        v_id := :OLD.ID_Uzivatelu;
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) ROOT archiv
+    -- 2) Zjistíme ID_Uzivatel ze ZAMESTNANEC
     --------------------------------------------------------------------
-    SELECT ID_Archiv INTO v_root_id
+    IF INSERTING OR UPDATING THEN
+        v_id_uzivatel := :NEW.ID_Uzivatelu;
+    ELSE
+        v_id_uzivatel := :OLD.ID_Uzivatelu;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 3) Načteme jméno uživatele (zaměstnance) z UZIVATEL
+    --------------------------------------------------------------------
+    SELECT jmeno || ' ' || prijmeni
+    INTO v_uzivatel_jmeno
+    FROM UZIVATEL
+    WHERE ID_Uzivatel = v_id_uzivatel;
+
+    --------------------------------------------------------------------
+    -- 4) ROOT archiv
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_root_id
     FROM ARCHIV
     WHERE Parent_id IS NULL;
 
     --------------------------------------------------------------------
-    -- 3) podsložka Uzivatele
+    -- 5) podsložka 'Uzivatele'
     --------------------------------------------------------------------
-    SELECT ID_Archiv INTO v_archiv_uz
+    SELECT ID_Archiv
+    INTO v_archiv_uz
     FROM ARCHIV
     WHERE Parent_id = v_root_id
       AND Nazev = 'Uzivatele';
 
     --------------------------------------------------------------------
-    -- 4) Nová data
+    -- 6) Nová data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
-              'pozice=' || :NEW.pozice
-           || '; mzda=' || :NEW.mzda;
+              'zamestnanec=' || v_uzivatel_jmeno
+           || '; pozice='    || :NEW.pozice
+           || '; mzda='      || :NEW.mzda;
     END IF;
 
     --------------------------------------------------------------------
-    -- 5) Stará data
+    -- 7) Stará data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
-              'pozice=' || :OLD.pozice
-           || '; mzda=' || :OLD.mzda;
+              'zamestnanec=' || v_uzivatel_jmeno
+           || '; pozice='    || :OLD.pozice
+           || '; mzda='      || :OLD.mzda;
     END IF;
 
     --------------------------------------------------------------------
-    -- 6) Zápis do LOG
+    -- 8) idRekord = jméno zaměstnance (žádné ID)
+    --------------------------------------------------------------------
+    v_id_rekord := v_uzivatel_jmeno;
+
+    --------------------------------------------------------------------
+    -- 9) Zápis do LOG
     --------------------------------------------------------------------
     INSERT INTO LOG (
         ID_Log, tabulkaNazev, operace, datumZmeny,
@@ -904,7 +1091,7 @@ BEGIN
         'ZAMESTNANEC',
         v_operace,
         SYSDATE,
-        v_id,
+        v_id_rekord,              -- jméno místo ID
         v_nova,
         v_stara,
         'Log změny zaměstnance',
@@ -938,62 +1125,91 @@ CREATE OR REPLACE TRIGGER TRG_DODAVATEL_LOG
 AFTER INSERT OR UPDATE OR DELETE ON DODAVATEL
 FOR EACH ROW
 DECLARE
-    v_root_id    NUMBER;
-    v_archiv_uz  NUMBER;
+    v_root_id        NUMBER;
+    v_archiv_uz      NUMBER;
 
-    v_operace    CHAR(1);
-    v_nova       VARCHAR2(4000);
-    v_stara      VARCHAR2(4000);
-    v_id         NUMBER;
+    v_operace        CHAR(1);
+    v_nova           VARCHAR2(4000);
+    v_stara          VARCHAR2(4000);
+
+    v_id_rekord      VARCHAR2(4000);
+    v_uzivatel_jmeno VARCHAR2(200);
+    v_id_uzivatel    NUMBER;
 BEGIN
     --------------------------------------------------------------------
-    -- 1) Operace + ID UZIVATEL
+    -- 1) Operace
     --------------------------------------------------------------------
     IF INSERTING THEN
         v_operace := 'I';
-        v_id := :NEW.ID_Uzivatelu;
-
     ELSIF UPDATING THEN
         v_operace := 'U';
-        v_id := :NEW.ID_Uzivatelu;
-
     ELSE
         v_operace := 'D';
-        v_id := :OLD.ID_Uzivatelu;
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) ROOT archiv
+    -- 2) Zjistíme ID_Uzivatel ze DODAVATEL
     --------------------------------------------------------------------
-    SELECT ID_Archiv INTO v_root_id
-    FROM ARCHIV WHERE Parent_id IS NULL;
+    IF INSERTING OR UPDATING THEN
+        v_id_uzivatel := :NEW.ID_Uzivatelu;
+    ELSE
+        v_id_uzivatel := :OLD.ID_Uzivatelu;
+    END IF;
 
     --------------------------------------------------------------------
-    -- 3) podsložka Uzivatele
+    -- 3) Načteme jméno uživatele z UZIVATEL
     --------------------------------------------------------------------
-    SELECT ID_Archiv INTO v_archiv_uz
+    SELECT jmeno || ' ' || prijmeni
+    INTO v_uzivatel_jmeno
+    FROM UZIVATEL
+    WHERE ID_Uzivatel = v_id_uzivatel;
+
+    --------------------------------------------------------------------
+    -- 4) ROOT archiv
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_root_id
+    FROM ARCHIV
+    WHERE Parent_id IS NULL;
+
+    --------------------------------------------------------------------
+    -- 5) podsložka 'Uzivatele'
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_archiv_uz
     FROM ARCHIV
     WHERE Parent_id = v_root_id
       AND Nazev = 'Uzivatele';
 
     --------------------------------------------------------------------
-    -- 4) Nová data
+    -- 6) Nová data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF INSERTING OR UPDATING THEN
         v_nova :=
-              'firma=' || :NEW.firma;
+              'dodavatel=' || :NEW.firma
+           || '; uzivatel=' || v_uzivatel_jmeno;
     END IF;
 
     --------------------------------------------------------------------
-    -- 5) Stará data
+    -- 7) Stará data (čitelné, bez ID)
     --------------------------------------------------------------------
     IF UPDATING OR DELETING THEN
         v_stara :=
-              'firma=' || :OLD.firma;
+              'dodavatel=' || :OLD.firma
+           || '; uzivatel=' || v_uzivatel_jmeno;
     END IF;
 
     --------------------------------------------------------------------
-    -- 6) zápis logu
+    -- 8) idRekord = název firmy (žádné ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.firma;
+    ELSE
+        v_id_rekord := :OLD.firma;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 9) zápis logu
     --------------------------------------------------------------------
     INSERT INTO LOG (
         ID_Log, tabulkaNazev, operace, datumZmeny,
@@ -1003,7 +1219,7 @@ BEGIN
         'DODAVATEL',
         v_operace,
         SYSDATE,
-        v_id,
+        v_id_rekord,              -- firma místo ID
         v_nova,
         v_stara,
         'Log změny dodavatele',
@@ -1024,3 +1240,624 @@ SELECT *
 FROM LOG
 WHERE idRekord = 9003
 ORDER BY datumZmeny DESC;
+
+
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_APP_PRAVO_LOG
+-- POPIS:
+--   Loguje změny v tabulce APP_PRAVO (definice práv systému).
+--   Nezapisuje žádné ID (bezpečné logování).
+--   Archivní umístění:
+--       ROOT / GlobalLog
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_APP_PRAVO_LOG
+AFTER INSERT OR UPDATE OR DELETE ON PRAVO
+FOR EACH ROW
+DECLARE
+    v_operace     CHAR(1);
+    v_nova        VARCHAR2(4000);
+    v_stara       VARCHAR2(4000);
+    v_id_rekord   VARCHAR2(200);
+    v_archiv_id   NUMBER;
+BEGIN
+    --------------------------------------------------------------------
+    -- 1) Určení typu operace
+    --------------------------------------------------------------------
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 2) Archivní složka GlobalLog
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_archiv_id
+    FROM ARCHIV
+    WHERE Nazev = 'Global Log';
+
+    --------------------------------------------------------------------
+    -- 3) Nová data (jen čitelné hodnoty, žádná ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'kod='   || :NEW.KOD
+           || '; nazev=' || :NEW.NAZEV
+           || '; popis=' || SUBSTR(:NEW.POPIS, 1, 500);
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 4) Stará data (jen čitelné hodnoty)
+    --------------------------------------------------------------------
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'kod='   || :OLD.KOD
+           || '; nazev=' || :OLD.NAZEV
+           || '; popis=' || SUBSTR(:OLD.POPIS, 1, 500);
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) idRekord = KOD práva (bez ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.KOD;
+    ELSE
+        v_id_rekord := :OLD.KOD;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 6) Zápis logu
+    --------------------------------------------------------------------
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny,
+        idRekord, novaData, staraData, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'PRAVO',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změny práva',
+        v_archiv_id
+    );
+END;
+/
+INSERT INTO PRAVO (ID_PRAVO, NAZEV, KOD, POPIS)
+VALUES (100, 'Editace zboží', 'EDIT_ZBOZI', 'Právo umožňuje editovat zboží');
+SELECT tabulkaNazev, operace, idRekord, novaData, staraData
+FROM LOG
+WHERE tabulkaNazev = 'PRAVO'
+ORDER BY ID_Log DESC FETCH FIRST 1 ROW ONLY;
+
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_APP_ROLE_LOG
+-- POPIS:
+--   Loguje změny v tabulce APP_ROLE (uživatelské role).
+--   Nepoužívá ID – loguje pouze názvy rolí.
+--   Archivní umístění:
+--       ROOT / GlobalLog
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_APP_ROLE_LOG
+AFTER INSERT OR UPDATE OR DELETE ON APP_ROLE
+FOR EACH ROW
+DECLARE
+    v_operace     CHAR(1);
+    v_nova        VARCHAR2(4000);
+    v_stara       VARCHAR2(4000);
+    v_id_rekord   VARCHAR2(200);
+    v_archiv_id   NUMBER;
+BEGIN
+    --------------------------------------------------------------------
+    -- 1) Typ operace
+    --------------------------------------------------------------------
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 2) Archivní složka GlobalLog
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_archiv_id
+    FROM ARCHIV
+    WHERE Nazev = 'Global Log';
+
+    --------------------------------------------------------------------
+    -- 3) Nová data (pouze čitelné hodnoty)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_nova := 'nazev=' || :NEW.NAZEV;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 4) Stará data
+    --------------------------------------------------------------------
+    IF UPDATING OR DELETING THEN
+        v_stara := 'nazev=' || :OLD.NAZEV;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) idRekord = název role
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.NAZEV;
+    ELSE
+        v_id_rekord := :OLD.NAZEV;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 6) Zápis do LOG
+    --------------------------------------------------------------------
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny,
+        idRekord, novaData, staraData, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'APP_ROLE',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změny role',
+        v_archiv_id
+    );
+END;
+/
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_APP_ROLE_PRAVO_LOG
+-- POPIS:
+--   Loguje změny v propojení ROLE ↔ PRAVO (m:n vztah).
+--   Do logu se zapisují pouze názvy rolí a kódy práv (bez ID).
+--   Archivní umístění:
+--       ROOT / GlobalLog
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_APP_ROLE_PRAVO_LOG
+AFTER INSERT OR UPDATE OR DELETE ON APP_ROLE_PRAVO
+FOR EACH ROW
+DECLARE
+    v_operace     CHAR(1);
+    v_nova        VARCHAR2(4000);
+    v_stara       VARCHAR2(4000);
+    v_id_rekord   VARCHAR2(4000);
+
+    v_archiv_id   NUMBER;
+    v_role_nazev  VARCHAR2(200);
+    v_pravo_kod   VARCHAR2(200);
+BEGIN
+    --------------------------------------------------------------------
+    -- 1) Typ operace
+    --------------------------------------------------------------------
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 2) Archivní složka GlobalLog
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_archiv_id
+    FROM ARCHIV
+    WHERE Nazev = 'Global Log';
+
+    --------------------------------------------------------------------
+    -- 3) Načtení názvu role (bez ID)
+    --------------------------------------------------------------------
+    SELECT NAZEV
+    INTO v_role_nazev
+    FROM APP_ROLE
+    WHERE ID_ROLE = NVL(:NEW.ID_ROLE, :OLD.ID_ROLE);
+
+    --------------------------------------------------------------------
+    -- 4) Načtení kódu práva (bez ID)
+    --------------------------------------------------------------------
+    SELECT KOD
+    INTO v_pravo_kod
+    FROM PRAVO
+    WHERE ID_PRAVO = NVL(:NEW.ID_PRAVO, :OLD.ID_PRAVO);
+
+    --------------------------------------------------------------------
+    -- 5) Nová data (role + právo)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'role='  || v_role_nazev
+           || '; pravo=' || v_pravo_kod;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 6) Stará data (role + právo)
+    --------------------------------------------------------------------
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'role='  || v_role_nazev
+           || '; pravo=' || v_pravo_kod;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 7) idRekord = kombinace role + pravo (bez ID)
+    --------------------------------------------------------------------
+    v_id_rekord :=
+          'role='  || v_role_nazev
+       || '; pravo=' || v_pravo_kod;
+
+    --------------------------------------------------------------------
+    -- 8) Zápis logu
+    --------------------------------------------------------------------
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny,
+        idRekord, novaData, staraData, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'APP_ROLE_PRAVO',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změny přiřazení práva k roli',
+        v_archiv_id
+    );
+END;
+/
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_NOTIFIKACE_LOG
+-- POPIS:
+--   Loguje změny v tabulce NOTIFIKACE.
+--   Loguje pouze čitelné údaje (bez ID).
+--   Archivní umístění:
+--       ROOT / GlobalLog
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_NOTIFIKACE_LOG
+AFTER INSERT OR UPDATE OR DELETE ON NOTIFIKACE
+FOR EACH ROW
+DECLARE
+    v_operace    CHAR(1);
+    v_nova       VARCHAR2(4000);
+    v_stara      VARCHAR2(4000);
+    v_id_rekord  VARCHAR2(4000);
+    v_archiv_id  NUMBER;
+BEGIN
+    --------------------------------------------------------------------
+    -- 1) Typ operace
+    --------------------------------------------------------------------
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 2) Archivní složka GlobalLog
+    --------------------------------------------------------------------
+    SELECT ID_Archiv INTO v_archiv_id
+    FROM ARCHIV WHERE NAZEV = 'GlobalLog';
+
+    --------------------------------------------------------------------
+    -- 3) Nová data (bez ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'authtoken=' || :NEW.AUTHTOKEN
+           || '; endpoint=' || :NEW.ENDPOINT
+           || '; p256dh='   || :NEW.P256DH
+           || '; adresat='  || :NEW.ADRESAT;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 4) Stará data (bez ID)
+    --------------------------------------------------------------------
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'authtoken=' || :OLD.AUTHTOKEN
+           || '; endpoint=' || :OLD.ENDPOINT
+           || '; p256dh='   || :OLD.P256DH
+           || '; adresat='  || :OLD.ADRESAT;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) idRekord – použijeme adresáta (jedinečný údaj)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.ADRESAT;
+    ELSE
+        v_id_rekord := :OLD.ADRESAT;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 6) Zápis do LOG
+    --------------------------------------------------------------------
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny,
+        idRekord, novaData, staraData, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'NOTIFIKACE',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změn notifikací',
+        v_archiv_id
+    );
+END;
+/
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_OBEC_LOG
+-- POPIS:
+--   Loguje změny v tabulce MESTO (PSČ, název, kraj).
+--   Archivní umístění:
+--       ROOT / GlobalLog
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_OBEC_LOG
+AFTER INSERT OR UPDATE OR DELETE ON MESTO
+FOR EACH ROW
+DECLARE
+    v_operace    CHAR(1);
+    v_nova       VARCHAR2(4000);
+    v_stara      VARCHAR2(4000);
+    v_id_rekord  VARCHAR2(20);
+    v_archiv_id  NUMBER;
+BEGIN
+    --------------------------------------------------------------------
+    -- 1) Typ operace
+    --------------------------------------------------------------------
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 2) Archivní složka GlobalLog
+    --------------------------------------------------------------------
+    SELECT ID_Archiv INTO v_archiv_id
+    FROM ARCHIV WHERE NAZEV = 'GlobalLog';
+
+    --------------------------------------------------------------------
+    -- 3) Nová data
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'psc='   || :NEW.PSC
+           || '; nazev=' || :NEW.NAZEV
+           || '; kraj='  || :NEW.KRAJ;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 4) Stará data
+    --------------------------------------------------------------------
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'psc='   || :OLD.PSC
+           || '; nazev=' || :OLD.NAZEV
+           || '; kraj='  || :OLD.KRAJ;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) idRekord = PSC
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.PSC;
+    ELSE
+        v_id_rekord := :OLD.PSC;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 6) Zápis do LOG
+    --------------------------------------------------------------------
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny,
+        idRekord, novaData, staraData, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'OBEC',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změn obcí (PSČ)',
+        v_archiv_id
+    );
+END;
+/
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_KATEGORIE_ZBOZI_LOG
+-- POPIS:
+--   Loguje změny v číselníku kategorií zboží.
+--   Loguje pouze název a popis (bez ID).
+--   Archivní umístění:
+--       ROOT / GlobalLog
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_KATEGORIE_ZBOZI_LOG
+AFTER INSERT OR UPDATE OR DELETE ON KATEGORIE_ZBOZI
+FOR EACH ROW
+DECLARE
+    v_operace    CHAR(1);
+    v_nova       VARCHAR2(4000);
+    v_stara      VARCHAR2(4000);
+    v_id_rekord  VARCHAR2(200);
+    v_archiv_id  NUMBER;
+BEGIN
+    --------------------------------------------------------------------
+    -- 1) Typ operace
+    --------------------------------------------------------------------
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 2) Archivní složka GlobalLog
+    --------------------------------------------------------------------
+    SELECT ID_Archiv INTO v_archiv_id
+    FROM ARCHIV WHERE NAZEV = 'GlobalLog';
+
+    --------------------------------------------------------------------
+    -- 3) Nová data
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'nazev=' || :NEW.NAZEV
+           || '; popis=' || :NEW.POPIS;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 4) Stará data
+    --------------------------------------------------------------------
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'nazev=' || :OLD.NAZEV
+           || '; popis=' || :OLD.POPIS;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) idRekord = název kategorie
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord := :NEW.NAZEV;
+    ELSE
+        v_id_rekord := :OLD.NAZEV;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 6) Zápis do LOG
+    --------------------------------------------------------------------
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny,
+        idRekord, novaData, staraData, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'KATEGORIE_ZBOZI',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změn kategorií zboží',
+        v_archiv_id
+    );
+END;
+/
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_ADRESA_LOG
+-- POPIS:
+--   Loguje změny v tabulce ADRESA.
+--   Do logu se zapisují pouze čitelné hodnoty (ulice, čísla, PSC).
+--   Žádná ID nejsou zapisována.
+--   Archivní umístění:
+--       ROOT / GlobalLog
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_ADRESA_LOG
+AFTER INSERT OR UPDATE OR DELETE ON ADRESA
+FOR EACH ROW
+DECLARE
+    v_operace       CHAR(1);
+    v_nova          VARCHAR2(4000);
+    v_stara         VARCHAR2(4000);
+    v_id_rekord     VARCHAR2(4000);
+    v_archiv_id     NUMBER;
+BEGIN
+    --------------------------------------------------------------------
+    -- 1) Typ prováděné operace
+    --------------------------------------------------------------------
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 2) Archivní složka GlobalLog
+    --------------------------------------------------------------------
+    SELECT ID_Archiv
+    INTO v_archiv_id
+    FROM ARCHIV
+    WHERE NAZEV = 'GlobalLog';
+
+    --------------------------------------------------------------------
+    -- 3) Nová data (bez ID)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'ulice='              || :NEW.ULICE
+           || '; cisloPopisne='     || :NEW.CISLOPOPISNE
+           || '; cisloOrientacni='  || :NEW.CISLOORIENTACNI
+           || '; psc='              || :NEW.MESTO_PSC;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 4) Stará data (bez ID)
+    --------------------------------------------------------------------
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'ulice='              || :OLD.ULICE
+           || '; cisloPopisne='     || :OLD.CISLOPOPISNE
+           || '; cisloOrientacni='  || :OLD.CISLOORIENTACNI
+           || '; psc='              || :OLD.MESTO_PSC;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 5) idRekord – jednoznačný text adresy (ulice + číslo)
+    --------------------------------------------------------------------
+    IF INSERTING OR UPDATING THEN
+        v_id_rekord :=
+              :NEW.ULICE || ' '
+           || :NEW.CISLOPOPISNE || '/' || :NEW.CISLOORIENTACNI;
+    ELSE
+        v_id_rekord :=
+              :OLD.ULICE || ' '
+           || :OLD.CISLOPOPISNE || '/' || :OLD.CISLOORIENTACNI;
+    END IF;
+
+    --------------------------------------------------------------------
+    -- 6) Zápis do LOG
+    --------------------------------------------------------------------
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny,
+        idRekord, novaData, staraData, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'ADRESA',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změny adresy',
+        v_archiv_id
+    );
+END;
+/
+
