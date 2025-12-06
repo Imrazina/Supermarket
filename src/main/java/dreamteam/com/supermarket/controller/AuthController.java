@@ -2,11 +2,11 @@ package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.controller.dto.LoginRequest;
 import dreamteam.com.supermarket.controller.dto.RegisterRequest;
+import dreamteam.com.supermarket.Service.AuthJdbcService;
+import dreamteam.com.supermarket.Service.UserJdbcService;
 import dreamteam.com.supermarket.jwt.JwtUtil;
 import dreamteam.com.supermarket.model.user.Role;
 import dreamteam.com.supermarket.model.user.Uzivatel;
-import dreamteam.com.supermarket.repository.RoleRepository;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
@@ -36,10 +36,10 @@ public class AuthController {
     private UserDetailsService userDetailsService;
 
     @Autowired
-    private UzivatelRepository uzivatelRepository;
+    private AuthJdbcService authJdbcService;
 
     @Autowired
-    private RoleRepository roleRepository;
+    private UserJdbcService userJdbcService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -54,26 +54,18 @@ public class AuthController {
         String lastName = request.getLastName().trim();
         String phoneNumber = request.getPhoneNumber().trim();
 
-        if (uzivatelRepository.findByEmail(email).isPresent()) {
+        if (authJdbcService.emailExists(email)) {
             return ResponseEntity.badRequest().body(Map.of("message", "Email already registered"));
         }
 
-        if (uzivatelRepository.findByTelefonniCislo(phoneNumber).isPresent()) {
+        if (authJdbcService.phoneExists(phoneNumber)) {
             return ResponseEntity.badRequest().body(Map.of("message", "Phone already registered"));
         }
 
         Role role = resolveDefaultRole();
 
-        Uzivatel newUser = Uzivatel.builder()
-                .jmeno(firstName)
-                .prijmeni(lastName)
-                .email(email)
-                .telefonniCislo(phoneNumber)
-                .heslo(passwordEncoder.encode(request.getPassword()))
-                .role(role)
-                .build();
-
-        Uzivatel savedUser = uzivatelRepository.save(newUser);
+        String hashed = passwordEncoder.encode(request.getPassword());
+        Uzivatel savedUser = authJdbcService.createUser(firstName, lastName, email, hashed, phoneNumber, role.getIdRole());
         return ResponseEntity.ok(Map.of(
                 "message", "User registered successfully",
                 "email", savedUser.getEmail(),
@@ -89,8 +81,10 @@ public class AuthController {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(email, password));
 
         UserDetails userDetails = userDetailsService.loadUserByUsername(email);
-        Uzivatel uzivatel = uzivatelRepository.findByEmail(email)
-                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + email));
+        Uzivatel uzivatel = userJdbcService.findByEmail(email);
+        if (uzivatel == null) {
+            throw new UsernameNotFoundException("User not found: " + email);
+        }
         String token = jwtUtil.generateToken(userDetails);
 
         return ResponseEntity.ok(Map.of(
@@ -102,7 +96,8 @@ public class AuthController {
     }
 
     private Role resolveDefaultRole() {
-        return roleRepository.findByNazev(DEFAULT_ROLE_NAME)
-                .orElseGet(() -> roleRepository.save(Role.builder().nazev(DEFAULT_ROLE_NAME).build()));
+        Role role = authJdbcService.findRoleByName(DEFAULT_ROLE_NAME);
+        if (role != null) return role;
+        return authJdbcService.createRole(DEFAULT_ROLE_NAME);
     }
 }

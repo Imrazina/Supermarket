@@ -1,8 +1,8 @@
 package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.model.user.Zpravy;
-import dreamteam.com.supermarket.repository.MessageRepository;
-import dreamteam.com.supermarket.repository.UzivatelRepository;
+import dreamteam.com.supermarket.Service.UserJdbcService;
+import dreamteam.com.supermarket.Service.MessageJdbcService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -24,13 +24,13 @@ public class ChatRestController {
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("d. M. yyyy HH:mm");
 
-    private final MessageRepository messageRepository;
-    private final UzivatelRepository uzivatelRepository;
+    private final UserJdbcService userJdbcService;
+    private final MessageJdbcService messageJdbcService;
 
-    public ChatRestController(MessageRepository messageRepository,
-                              UzivatelRepository uzivatelRepository) {
-        this.messageRepository = messageRepository;
-        this.uzivatelRepository = uzivatelRepository;
+    public ChatRestController(MessageJdbcService messageJdbcService,
+                              UserJdbcService userJdbcService) {
+        this.messageJdbcService = messageJdbcService;
+        this.userJdbcService = userJdbcService;
     }
 
     @GetMapping("/messages")
@@ -44,9 +44,9 @@ public class ChatRestController {
         final String currentEmail = authentication.getName();
         List<Zpravy> messages;
         if (StringUtils.hasText(peerEmail)) {
-            messages = messageRepository.findConversation(currentEmail, peerEmail.trim());
+            messages = messageJdbcService.findConversation(currentEmail, peerEmail.trim());
         } else {
-            messages = messageRepository.findTop100WithParticipants();
+            messages = messageJdbcService.findTop100WithParticipants();
         }
         return ResponseEntity.ok(
                 messages.stream()
@@ -60,7 +60,7 @@ public class ChatRestController {
         if (authentication == null || !authentication.isAuthenticated()) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        var contacts = uzivatelRepository.findAll().stream()
+        var contacts = userJdbcService.findAll().stream()
                 .map(user -> {
                     String fullName = ((user.getJmeno() != null ? user.getJmeno().trim() : "") + " " +
                             (user.getPrijmeni() != null ? user.getPrijmeni().trim() : "")).trim();
