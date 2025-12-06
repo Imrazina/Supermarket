@@ -335,6 +335,7 @@ const viewMeta = {
     dbobjects: { label: 'DB objekty', title: 'Systémový katalog' },
     customer: { label: 'Zákaznická zóna', title: 'Self-service objednávky' },
     'customer-orders': { label: 'Moje objednávky', title: 'Objednávky zákazníka' },
+    'customer-payment': { label: 'Platba', title: 'Zaplaťte objednávku' },
     chat: { label: 'Komunikace', title: 'Chat & push centrum' }
 };
 
@@ -370,6 +371,9 @@ state.activeView = document.body.dataset.initialView || state.activeView;
 
             const app = new BDASConsole(state, viewMeta);
             app.init();
+
+            const paymentModule = new PaymentModule(state, { apiUrl });
+            paymentModule.init();
         } catch (error) {
             console.error('Chyba inicializace rozhraní', error);
             root.innerHTML = `
