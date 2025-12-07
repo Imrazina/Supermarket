@@ -2,8 +2,6 @@ package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.model.user.Notifikace;
 import dreamteam.com.supermarket.model.user.Uzivatel;
-import dreamteam.com.supermarket.model.user.Zpravy;
-import dreamteam.com.supermarket.Service.MessageJdbcService;
 import dreamteam.com.supermarket.Service.NotifikaceJdbcService;
 import dreamteam.com.supermarket.Service.UserJdbcService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,9 +26,6 @@ public class PushSubscriptionController {
     @Autowired
     private UserJdbcService userJdbcService;
 
-    @Autowired
-    private MessageJdbcService messageJdbcService;
-
     @PostMapping("/subscribe")
     public ResponseEntity<?> subscribe(
             @RequestBody Map<String, Object> request,
@@ -54,24 +49,9 @@ public class PushSubscriptionController {
             throw new IllegalArgumentException("User not found: " + email);
         }
 
-        Zpravy envelope = messageJdbcService.findFirstBySenderReceiverContent(
-                user.getIdUzivatel(), user.getIdUzivatel(), SUBSCRIPTION_MARKER
-        );
-        if (envelope == null) {
-            envelope = Zpravy.builder()
-                    .sender(user)
-                    .receiver(user)
-                    .content(SUBSCRIPTION_MARKER)
-                    .datumZasilani(LocalDateTime.now())
-                    .build();
-            envelope = messageJdbcService.save(envelope);
-        }
-
         Notifikace existing = notifikaceJdbcService.findByAdresat(user.getEmail());
         Notifikace subscription = existing != null ? existing : new Notifikace();
-        subscription.setZprava(envelope);
-
-        subscription.setZprava(envelope);
+        subscription.setZprava(null);
         subscription.setAdresat(user.getEmail());
         subscription.setEndPoint(endpoint);
         subscription.setAuthToken(auth);

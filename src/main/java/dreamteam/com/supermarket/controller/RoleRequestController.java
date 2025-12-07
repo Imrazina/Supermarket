@@ -60,27 +60,36 @@ public class RoleRequestController {
         if (sender == null) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Uživatel nebyl nalezen."));
         }
-        Uzivatel admin = userJdbcService.findByRoleNazevIgnoreCase("ADMIN").stream().findFirst().orElse(null);
-        if (admin == null) {
+        var admins = userJdbcService.findByRoleNazevIgnoreCase("ADMIN");
+        if (admins == null || admins.isEmpty()) {
             return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Nebyl nalezen žádný admin pro zpracování žádosti."));
         }
+        // vynecháme odesílatele, pokud je náhodou admin
+        admins = admins.stream()
+                .filter(a -> a.getIdUzivatel() != null && !a.getIdUzivatel().equals(sender.getIdUzivatel()))
+                .toList();
+        if (admins.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(Map.of("message", "Žádný jiný admin pro příjem žádosti není k dispozici."));
+        }
         String content = "Žádám o přidělení role \"" + requested + "\".";
-            Zpravy message = Zpravy.builder()
-                    .sender(sender)
-                    .receiver(admin)
-                    .content(content)
-                    .datumZasilani(LocalDateTime.now())
-                    .build();
-            try {
+        try {
+            for (Uzivatel admin : admins) {
+                Zpravy message = Zpravy.builder()
+                        .sender(sender)
+                        .receiver(admin)
+                        .content(content)
+                        .datumZasilani(LocalDateTime.now())
+                        .build();
                 Zpravy stored = messageJdbcService.save(message);
                 sendPush(admin, sender, content);
                 broadcastChatMessage(stored, sender, admin, content);
-            } catch (Exception e) {
-                return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Žádost se nepodařilo odeslat."));
             }
+        } catch (Exception e) {
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(Map.of("message", "Žádost se nepodařilo odeslat."));
+        }
         return ResponseEntity.ok(Map.of(
-                "message", "Žádost odeslána adminovi.",
-                "receiver", admin.getEmail()
+                "message", "Žádost odeslána adminům.",
+                "receivers", admins.stream().map(Uzivatel::getEmail).toList()
         ));
     }
 

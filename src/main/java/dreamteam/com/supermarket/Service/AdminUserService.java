@@ -123,6 +123,15 @@ public class AdminUserService {
     }
 
     @Transactional
+    public void deleteUser(Long userId) {
+        Uzivatel user = userJdbcService.findById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("Uzivatel s ID " + userId + " neexistuje.");
+        }
+        userJdbcService.deleteById(userId);
+    }
+
+    @Transactional
     public int encodePlainPasswords() {
         List<Uzivatel> users = userJdbcService.findAll();
         int updated = 0;

@@ -92,6 +92,19 @@ public class AdminUserController {
         return ResponseEntity.ok("Zahashováno " + updated + " hesel.");
     }
 
+    @DeleteMapping("/{id}")
+    public ResponseEntity<?> deleteUser(@PathVariable Long id, Authentication authentication) {
+        if (!isAdmin(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        try {
+            adminUserService.deleteUser(id);
+            return ResponseEntity.noContent().build();
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
     private boolean isAdmin(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;

@@ -14,11 +14,13 @@ public class CorsConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/**")
-                        .allowedOrigins(
+                        .allowedOriginPatterns(
                                 "http://localhost:8000",
-                                "https://discord-0vt3.onrender.com"
+                                "https://discord-0vt3.onrender.com",
+                                "http://localhost:8082",
+                                "http://127.0.0.1:*"
                         )
-                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
                         .allowedHeaders("*")
                         .allowCredentials(true)
                         .maxAge(3600);

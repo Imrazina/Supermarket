@@ -4,13 +4,16 @@ import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.model.user.Zpravy;
 import lombok.RequiredArgsConstructor;
 import oracle.jdbc.OracleTypes;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.CallableStatementCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.sql.CallableStatement;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -62,7 +65,7 @@ public class MessageJdbcService {
     public List<Zpravy> findTop100WithParticipants() {
         return jdbcTemplate.execute((Connection con) -> {
             CallableStatement cs = con.prepareCall("{ call pkg_zprava.list_top(?, ?) }");
-            cs.setInt(1, 100);
+            cs.setNull(1, java.sql.Types.NUMERIC);
             cs.registerOutParameter(2, OracleTypes.CURSOR);
             return cs;
         }, (CallableStatementCallback<List<Zpravy>>) cs -> {
@@ -94,6 +97,42 @@ public class MessageJdbcService {
                 return list;
             }
         });
+    }
+
+    public long countUnread(Long userId, Long fromUserId) {
+        if (userId == null) {
+            return 0L;
+        }
+        try {
+            return jdbcTemplate.query(con -> {
+                PreparedStatement ps = con.prepareStatement("SELECT unread_messages(?, ?) FROM dual");
+                ps.setLong(1, userId);
+                if (fromUserId != null) {
+                    ps.setLong(2, fromUserId);
+                } else {
+                    ps.setNull(2, Types.NUMERIC);
+                }
+                return ps;
+            }, rs -> rs.next() ? rs.getLong(1) : 0L);
+        } catch (DataAccessException ex) {
+            return 0L;
+        }
+    }
+
+    public String lastMessageSummary(Long userId) {
+        if (userId == null) {
+            return "Žádné zprávy";
+        }
+        try {
+            String summary = jdbcTemplate.queryForObject(
+                    "SELECT last_message_summary(?) FROM dual",
+                    String.class,
+                    userId
+            );
+            return summary != null ? summary : "Žádné zprávy";
+        } catch (DataAccessException ex) {
+            return "Žádné zprávy";
+        }
     }
 
     public void update(Long id, String text, LocalDateTime datum) {
@@ -137,6 +176,17 @@ public class MessageJdbcService {
         rec.setIdUzivatel(rs.getLong("PRIJIMAC_ID"));
         z.setReceiver(rec);
         return z;
+    }
+
+    public Zpravy findById(Long id) {
+        if (id == null) {
+            return null;
+        }
+        return jdbcTemplate.query(
+                "SELECT ID_ZPRAVA, ODESILATEL_ID, PRIJIMAC_ID, ZPRAVA, DATUMZASILANI FROM ZPRAVA WHERE ID_ZPRAVA = ?",
+                rs -> rs.next() ? mapSimple(rs) : null,
+                id
+        );
     }
 
     private Zpravy mapWithUsers(java.sql.ResultSet rs) throws java.sql.SQLException {

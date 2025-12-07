@@ -622,6 +622,13 @@
                                 <h2>Interní chat</h2>
                                 <p id="chat-selected-label" class="profile-muted">Vyberte kontakt vlevo nebo použijte vyhledávání.</p>
                             </div>
+                            <div class="chat-actions">
+                                <button class="ghost-btn" id="chat-select-toggle" type="button">Vybrat</button>
+                                <div class="chat-actions-secondary">
+                                    <button class="ghost-btn ghost-muted" id="chat-edit-btn" type="button" disabled>Upravit</button>
+                                    <button class="ghost-btn ghost-danger" id="chat-delete-btn" type="button" disabled>Smazat</button>
+                                </div>
+                            </div>
                             <div class="chat-push-toggle" id="chat-push-toggle" role="switch" aria-checked="false">
                                 <div class="chat-push-track">
                                     <span class="chat-push-text" id="chat-push-text">Push off</span>
@@ -637,6 +644,12 @@
                                     <span>Zpráva</span>
                                     <textarea id="chat-message" rows="3" placeholder="Napište zprávu…"></textarea>
                                 </label>
+                                <div class="chat-emoji">
+                                    <button type="button" class="ghost-btn ghost-muted" id="chat-emoji-btn" aria-expanded="false">😊</button>
+                                    <div class="chat-emoji-panel" id="chat-emoji-panel" hidden>
+                                        <!-- obsah vloží JS -->
+                                    </div>
+                                </div>
                             </div>
                             <div class="chat-form-actions">
                                 <button type="submit" class="ghost-btn ghost-strong">Odeslat</button>

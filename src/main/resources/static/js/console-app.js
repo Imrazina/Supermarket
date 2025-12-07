@@ -141,9 +141,15 @@ function updateMessageSidebar(data) {
     const rawSummary = (data && data.lastMessageSummary) ? data.lastMessageSummary : 'Žádné zprávy';
     const parsed = parseMessageSummary(rawSummary);
     unreadEl.textContent = unread;
-    timeEl.textContent = parsed.time || '—';
-    fromEl.textContent = parsed.from ? `od ${parsed.from}` : '';
-    textEl.textContent = parsed.text || 'Žádné zprávy';
+    if (unread === 0) {
+        timeEl.textContent = '—';
+        fromEl.textContent = '';
+        textEl.textContent = 'Žádné zprávy';
+    } else {
+        timeEl.textContent = parsed.time || '—';
+        fromEl.textContent = parsed.from ? `od ${parsed.from}` : '';
+        textEl.textContent = parsed.text || 'Message …';
+    }
 }
 
 function parseMessageSummary(summary) {
@@ -1114,10 +1120,18 @@ function resolveAllowedViews(role, permissions = []) {
             this.selectedLabel = document.getElementById('chat-selected-label');
             this.grid = document.getElementById('chat-grid');
             this.collapseBtn = document.getElementById('chat-collapse-btn');
+            this.selectToggle = document.getElementById('chat-select-toggle');
+            this.editBtn = document.getElementById('chat-edit-btn');
+            this.deleteBtn = document.getElementById('chat-delete-btn');
+            this.emojiBtn = document.getElementById('chat-emoji-btn');
+            this.emojiPanel = document.getElementById('chat-emoji-panel');
             this.contactSearchTerm = '';
             this.contacts = [];
             this.activeContactEmail = '';
             this.activeContactLabel = '';
+            this.selectionMode = false;
+            this.selectedIds = new Set();
+            this.editingMessageId = null;
             this.currentUserEmail = localStorage.getItem('email') || localStorage.getItem('username') || '';
             this.currentUserNormalized = this.normalizeEmail(this.currentUserEmail);
             this.client = null;
@@ -1134,6 +1148,8 @@ function resolveAllowedViews(role, permissions = []) {
             this.adminUsersRequestPending = false;
             this.adminUsersLoadFailed = false;
             this.isPanelOpen = false;
+            this.isEmojiOpen = false;
+            this.messageMaxHeight = 200;
         }
 
         getAuthToken(options = { redirect: true }) {
@@ -1164,6 +1180,7 @@ function resolveAllowedViews(role, permissions = []) {
             }
             this.initWebsocket();
             this.refreshMessages();
+            this.refreshInboxMeta({ silent: true });
             this.startRefreshLoop();
         }
 
@@ -1220,6 +1237,38 @@ function resolveAllowedViews(role, permissions = []) {
             this.contactSearch?.addEventListener('search', () => {
                 this.updateContactSearchTerm(this.contactSearch.value);
             });
+            this.emojiBtn?.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                this.toggleEmojiPanel();
+            });
+            document.addEventListener('click', (e) => {
+                if (!this.emojiPanel || !this.emojiBtn) return;
+                if (this.emojiPanel.hidden) return;
+                if (this.emojiPanel.contains(e.target) || this.emojiBtn.contains(e.target)) {
+                    return;
+                }
+                this.setEmojiPanelOpen(false);
+            });
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape' && this.emojiPanel && !this.emojiPanel.hidden) {
+                    this.setEmojiPanelOpen(false);
+                }
+            });
+            this.selectToggle?.addEventListener('click', () => {
+                this.selectionMode = !this.selectionMode;
+                if (!this.selectionMode) {
+                    this.selectedIds.clear();
+                    this.editingMessageId = null;
+                    if (this.messageInput) {
+                        this.messageInput.value = '';
+                    }
+                }
+                this.updateSelectionActions();
+                this.renderFeed();
+            });
+            this.editBtn?.addEventListener('click', () => this.startEditSelected());
+            this.deleteBtn?.addEventListener('click', () => this.deleteSelected());
             this.collapseBtn?.addEventListener('click', () => this.setPanelOpen(!this.isPanelOpen));
             this.messageInput?.addEventListener('focus', () => this.setPanelOpen(true));
             this.messageInput?.addEventListener('keydown', event => {
@@ -1228,6 +1277,8 @@ function resolveAllowedViews(role, permissions = []) {
                     this.submitChatMessage();
                 }
             });
+            this.messageInput?.addEventListener('input', () => this.autoResizeMessage());
+            this.autoResizeMessage();
             window.addEventListener('beforeunload', () => this.stopRefreshLoop());
         }
 
@@ -1314,6 +1365,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.feed) {
                 return;
             }
+            const stick = this.isNearBottom();
             const messages = this.state.data.messages || [];
             const targetEmail = this.getActiveEmail();
             const filtered = targetEmail
@@ -1327,16 +1379,39 @@ function resolveAllowedViews(role, permissions = []) {
             this.feed.innerHTML = ordered.map(message => {
                 const normalizedSender = this.normalizeEmail(message.sender);
                 const isOutgoing = normalizedSender && normalizedSender === this.currentUserNormalized;
+                const canSelect = isOutgoing || this.hasPermission('EDIT_MSGS');
+                const checked = this.selectedIds.has(String(message.id));
+                const selectionCheckbox = (this.selectionMode && canSelect) ? `
+                    <label class="chat-select">
+                        <input type="checkbox" data-message-id="${this.escapeHtml(message.id)}" ${checked ? 'checked' : ''}>
+                        <span class="checkmark"></span>
+                    </label>
+                ` : '';
                 return `
-                <article class="chat-message ${isOutgoing ? 'chat-message-outgoing' : 'chat-message-incoming'}">
+                <article class="chat-message ${isOutgoing ? 'chat-message-outgoing' : 'chat-message-incoming'}" data-message-id="${this.escapeHtml(message.id)}">
                     <div class="chat-meta">
+                        ${selectionCheckbox}
                         <time>${this.escapeHtml(message.date || '')}</time>
                     </div>
                     <p>${this.escapeHtml(message.content || message.preview || '')}</p>
                 </article>
             `;
             }).join('');
-            this.scrollFeedToBottom();
+            if (this.selectionMode) {
+                this.feed.querySelectorAll('input[type=\"checkbox\"][data-message-id]').forEach(input => {
+                    input.addEventListener('change', (e) => {
+                        const id = e.target.getAttribute('data-message-id');
+                        if (!id) return;
+                        if (e.target.checked) {
+                            this.selectedIds.add(String(id));
+                        } else {
+                            this.selectedIds.delete(String(id));
+                        }
+                        this.updateSelectionActions();
+                    });
+                });
+            }
+            this.scrollFeedToBottom(stick);
         }
 
         renderContacts() {
@@ -1363,7 +1438,7 @@ function resolveAllowedViews(role, permissions = []) {
                      data-initials="${this.escapeHtml(this.initials(contact.label || contact.email))}">
                     <div>
                         <strong>${this.escapeHtml(this.resolveDisplayLabel(contact.email) || contact.label || contact.email)}</strong>
-                        ${contact.meta ? `<small>${this.escapeHtml(contact.meta)}</small>` : `<small>${this.escapeHtml(contact.email)}</small>`}
+                        <small>${this.escapeHtml(contact.email)}</small>
                         ${contact.preview ? `<p class="chat-person-preview">${this.escapeHtml(contact.preview)}</p>` : ''}
                     </div>
                 </div>
@@ -1376,7 +1451,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.renderContacts();
             if (!this.contactSearchTerm) {
                 const active = this.normalizeEmail(this.activeContactEmail);
-                const hasHistory = this.contacts.some(item => this.normalizeEmail(item.email) === active && item.hasHistory);
+                const hasHistory = this.contacts.some(item => this.normalizeEmail(item.email) === active);
                 if (active && !hasHistory) {
                     this.setActiveContact(null);
                 }
@@ -1574,11 +1649,48 @@ function resolveAllowedViews(role, permissions = []) {
             return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
         }
 
-        scrollFeedToBottom() {
+        scrollFeedToBottom(force = false) {
             if (!this.feed) {
                 return;
             }
+            if (!force && !this.isNearBottom()) {
+                return;
+            }
             this.feed.scrollTop = this.feed.scrollHeight;
+        }
+
+        isNearBottom() {
+            if (!this.feed) {
+                return true;
+            }
+            const threshold = 120;
+            return (this.feed.scrollTop + this.feed.clientHeight) >= (this.feed.scrollHeight - threshold);
+        }
+
+        async refreshInboxMeta(options = {}) {
+            const token = this.getAuthToken({ redirect: false });
+            if (!token) {
+                return;
+            }
+            try {
+                const response = await fetch(this.apiUrl('/api/chat/inbox'), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (!response.ok) {
+                    throw new Error(await response.text());
+                }
+                const data = await response.json();
+                if (typeof updateMessageSidebar === 'function') {
+                    updateMessageSidebar(data);
+                }
+            } catch (error) {
+                if (!options.silent) {
+                    console.warn('refreshInboxMeta failed', error);
+                }
+            }
         }
 
         async refreshMessages(options = {}) {
@@ -1594,11 +1706,9 @@ function resolveAllowedViews(role, permissions = []) {
                 return;
             }
             this.refreshInFlight = true;
-            const activeEmail = this.getActiveEmail();
-            const query = activeEmail ? `?with=${encodeURIComponent(activeEmail)}` : '';
-            this.logger('refresh:start', { peer: activeEmail, force: !!options.force, silent: !!options.silent, inflight: this.refreshInFlight });
+            this.logger('refresh:start', { peer: this.getActiveEmail(), force: !!options.force, silent: !!options.silent, inflight: this.refreshInFlight });
             try {
-                const response = await fetch(this.apiUrl(`/api/chat/messages${query}`), {
+                const response = await fetch(this.apiUrl(`/api/chat/messages`), {
                     headers: {
                         'Authorization': `Bearer ${token}`,
                         'Accept': 'application/json'
@@ -1614,18 +1724,46 @@ function resolveAllowedViews(role, permissions = []) {
                 }
                 const payload = await response.json();
                 if (Array.isArray(payload)) {
-                    const active = this.getActiveEmail();
-                    const normalizedActive = this.normalizeEmail(active);
                     const existing = Array.isArray(this.state.data.messages) ? this.state.data.messages : [];
-                    const preserved = normalizedActive
-                        ? existing.filter(msg => !this.isConversationMessage(msg, normalizedActive))
-                        : [];
-                    this.messageIds = new Set(payload.filter(m => m.id).map(m => m.id));
-                    const mapped = payload.map(message => ({
-                        ...message,
-                        preview: message.preview || message.content
-                    }));
-                    this.state.data.messages = [...mapped, ...preserved].slice(0, 100);
+                    const preserved = existing;
+                    const mapped = payload
+                        .filter(m => m.content !== '__PUSH_SUBSCRIPTION__')
+                        .map(message => ({
+                            ...message,
+                            preview: message.preview || message.content
+                        }));
+
+                    const keyFor = (msg) => {
+                        if (!msg) return null;
+                        if (msg.id) return `id:${msg.id}`;
+                        const sender = this.normalizeEmail(msg.sender);
+                        const receiver = this.normalizeEmail(msg.receiver);
+                        const body = (msg.content || msg.preview || '').slice(0, 80);
+                        const stamp = msg.date || msg.datumZasilani || '';
+                        return `tmp:${sender}|${receiver}|${body}|${stamp}`;
+                    };
+
+                    const merged = [];
+                    const seen = new Set();
+                    const pushUnique = (msg) => {
+                        const key = keyFor(msg);
+                        if (!key || seen.has(key)) return;
+                        seen.add(key);
+                        merged.push(msg);
+                    };
+
+                    mapped.forEach(pushUnique);
+                    preserved.forEach(pushUnique);
+
+                    // Update ids set for WS dedup
+                    this.messageIds = new Set();
+                    merged.forEach(m => {
+                        if (m.id) {
+                            this.messageIds.add(m.id);
+                        }
+                    });
+
+                    this.state.data.messages = merged;
                     this.renderContacts();
                     this.renderFeed();
                     this.updateSelectedLabel();
@@ -1650,13 +1788,12 @@ function resolveAllowedViews(role, permissions = []) {
         startRefreshLoop() {
             this.stopRefreshLoop();
             const tick = async () => {
-                // пытаемся восстановить WS, иначе подхватываем новые сообщения пуллингом
+                // пытаемся восстановить WS, параллельно периодически пуллим сообщения/inbox
                 if (!this.connected && !this.connecting) {
                     await this.initWebsocket();
                 }
-                if (!this.connected) {
-                    await this.refreshMessages({ silent: true });
-                }
+                await this.refreshMessages({ silent: true });
+                await this.refreshInboxMeta({ silent: true });
             };
             tick();
             this.refreshTimer = setInterval(tick, 8000);
@@ -1686,7 +1823,58 @@ function resolveAllowedViews(role, permissions = []) {
             return (value || '').toString().trim().toLowerCase();
         }
 
-        makeContactDescriptor(email, label, meta = '', preview = '', updated = '') {
+        setEmojiPanelOpen(open) {
+            if (!this.emojiPanel || !this.emojiBtn) return;
+            const isOpen = !!open;
+            this.emojiPanel.hidden = !isOpen;
+            this.emojiPanel.style.display = isOpen ? 'grid' : 'none';
+            this.emojiBtn.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+            this.isEmojiOpen = isOpen;
+        }
+
+        toggleEmojiPanel() {
+            if (!this.emojiPanel || !this.emojiBtn) return;
+            const shouldOpen = !this.isEmojiOpen;
+            if (shouldOpen) {
+                this.populateEmojis();
+            }
+            this.setEmojiPanelOpen(shouldOpen);
+        }
+
+        populateEmojis() {
+            if (!this.emojiPanel) return;
+            if (this.emojiPanel.dataset.ready === '1') return;
+            const emojis = [
+                '😀','😁','😂','🤣','😊','😍','😘','😉','😎','🤔','😇','😅','🥰','🤩','🥳','🤯',
+                '😭','😢','😤','😡','😴','🤗','🤭','😱','🤤','🤒','🤕','🤧','🤮','🤡','👀','🤝',
+                '👍','👎','👏','🙏','🙌','✌️','🤞','👌','👊','💪','💅','🤙','🫶','🤲','🫰','🤌',
+                '🔥','✨','🎉','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','💯','✅','❗','❓',
+                '⚡','🌟','🍀','☕','🍕','🍰','🎂','🍎','🍪','🍺','🥂','🍾','🚀','🏆','📌','📝'
+            ];
+            this.emojiPanel.innerHTML = emojis.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('');
+            this.emojiPanel.querySelectorAll('button[data-emoji]').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    this.insertEmoji(btn.dataset.emoji);
+                    // Панель оставляем открытой — закрывает только основная кнопка или клик вне.
+                });
+            });
+            this.emojiPanel.dataset.ready = '1';
+        }
+
+        insertEmoji(emoji) {
+            if (!emoji || !this.messageInput) return;
+            const el = this.messageInput;
+            const start = el.selectionStart ?? el.value.length;
+            const end = el.selectionEnd ?? el.value.length;
+            const before = el.value.slice(0, start);
+            const after = el.value.slice(end);
+            el.value = before + emoji + after;
+            const pos = start + emoji.length;
+            el.focus();
+            el.selectionStart = el.selectionEnd = pos;
+        }
+
+        makeContactDescriptor(email, label, meta = '', preview = '', updated = '', hasHistory = false) {
             const rawEmail = (email || '').toString().trim();
             if (!rawEmail) {
                 return null;
@@ -1698,9 +1886,86 @@ function resolveAllowedViews(role, permissions = []) {
                 meta: meta,
                 preview: preview || '',
                 updated: updated || '',
-                search: `${resolvedLabel.toLowerCase()} ${rawEmail.toLowerCase()}`
+                search: `${resolvedLabel.toLowerCase()} ${rawEmail.toLowerCase()}`,
+                hasHistory: !!hasHistory
             };
             return descriptor;
+        }
+
+        updateSelectionActions() {
+            if (!this.selectToggle || !this.editBtn || !this.deleteBtn) {
+                return;
+            }
+            const count = this.selectedIds.size;
+            this.selectToggle.classList.toggle('ghost-strong', this.selectionMode);
+            this.editBtn.disabled = count !== 1;
+            this.deleteBtn.disabled = count === 0;
+        }
+
+        startEditSelected() {
+            if (this.selectedIds.size !== 1) {
+                return;
+            }
+            const id = Array.from(this.selectedIds)[0];
+            const msg = (this.state.data.messages || []).find(m => String(m.id) === String(id));
+            if (!msg) {
+                return;
+            }
+            this.editingMessageId = id;
+            this.selectionMode = false;
+            this.updateSelectionActions();
+            if (this.messageInput) {
+                this.messageInput.value = msg.content || msg.preview || '';
+                this.messageInput.focus();
+                this.autoResizeMessage();
+            }
+            const peer = this.normalizeEmail(msg.sender) === this.currentUserNormalized ? msg.receiver : msg.sender;
+            if (peer && this.receiverInput) {
+                this.receiverInput.value = peer;
+                this.activeContactEmail = peer;
+                this.updateSelectedLabel();
+                this.highlightActiveContact();
+            }
+        }
+
+        async deleteSelected() {
+            if (!this.selectedIds.size) {
+                return;
+            }
+            const token = this.getAuthToken();
+            const ids = Array.from(this.selectedIds);
+            for (const id of ids) {
+                try {
+                    const response = await fetch(this.apiUrl(`/api/chat/messages/${id}`), {
+                        method: 'DELETE',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) {
+                        console.warn('delete failed', id, response.status);
+                    }
+                } catch (error) {
+                    console.warn('delete error', id, error);
+                }
+            }
+            this.selectedIds.clear();
+            this.selectionMode = false;
+            this.updateSelectionActions();
+            await this.refreshMessages({ force: true });
+        }
+
+        async patchMessage(id, content) {
+            const token = this.getAuthToken();
+            const response = await fetch(this.apiUrl(`/api/chat/messages/${id}`), {
+                method: 'PATCH',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ content })
+            });
+            if (!response.ok) {
+                throw new Error('Upravit zprávu se nepodařilo.');
+            }
         }
 
         resolvePeerFromMessage(message) {
@@ -2048,6 +2313,10 @@ function resolveAllowedViews(role, permissions = []) {
                 };
                 const normalizedSender = this.normalizeEmail(message.sender);
                 const normalizedReceiver = this.normalizeEmail(message.receiver);
+                if (message.content === '__PUSH_SUBSCRIPTION__') {
+                    this.logger('websocket:skip-marker');
+                    return;
+                }
                 if (this.currentUserNormalized && normalizedSender !== this.currentUserNormalized && normalizedReceiver !== this.currentUserNormalized) {
                     this.logger('websocket:ignore-foreign', { sender: normalizedSender, receiver: normalizedReceiver });
                     return;
@@ -2076,12 +2345,13 @@ function resolveAllowedViews(role, permissions = []) {
                 if (message.id) {
                     this.messageIds.add(message.id);
                 }
-                this.state.data.messages = [message, ...(this.state.data.messages || [])].slice(0, 50);
+                this.state.data.messages = [message, ...(this.state.data.messages || [])];
                 this.renderContacts();
                 this.renderFeed();
                 this.highlightActiveContact();
                 this.logger('websocket:received', message);
                 this.showSystemNotification(message);
+                this.refreshInboxMeta({ silent: true });
             } catch (error) {
                 console.warn('Failed to parse incoming chat message', error);
             }
@@ -2106,35 +2376,51 @@ function resolveAllowedViews(role, permissions = []) {
                 return false;
             }
             try {
-                if (!this.connected) {
-                    await this.initWebsocket();
+                if (this.editingMessageId) {
+                    await this.patchMessage(this.editingMessageId, content);
+                    this.editingMessageId = null;
+                    this.selectedIds.clear();
+                    this.selectionMode = false;
+                    this.updateSelectionActions();
+                    if (this.messageInput) {
+                        this.messageInput.value = '';
+                        this.autoResizeMessage();
+                    }
+                    await this.refreshMessages({ force: true });
+                    this.setFormStatus('✓ Upraveno', true);
+                    return true;
+                } else {
+                    if (!this.connected) {
+                        await this.initWebsocket();
+                    }
+                    if (!this.client || !this.connected) {
+                        throw new Error('Spojení s chatem není dostupné.');
+                    }
+                    this.logger('send:payload', { receiver, length: content.length });
+                    this.client.send('/app/chat', { Authorization: `Bearer ${token}` }, JSON.stringify({ content, receiver }));
+                    if (!customPayload && this.messageInput) {
+                        this.messageInput.value = '';
+                        this.autoResizeMessage();
+                    }
+                    const optimisticMessage = {
+                        id: `temp-${Date.now()}`,
+                        sender: this.state.data.profile?.email || this.currentUserEmail || localStorage.getItem('email') || 'já',
+                        receiver,
+                        content,
+                        preview: content,
+                        date: new Date().toLocaleString('cs-CZ')
+                    };
+                    // remove any previous optimistic duplicates for the same text/receiver before adding
+                    this.state.data.messages = (this.state.data.messages || []).filter(existing => !(!existing.id && this.isSameMessage(existing, optimisticMessage)));
+                    this.state.data.messages = [optimisticMessage, ...(this.state.data.messages || [])];
+                    this.messageIds.add(optimisticMessage.id);
+                    this.renderContacts();
+                    this.renderFeed();
+                    this.highlightActiveContact();
+                    this.setFormStatus('✓ Odesláno', true);
+                    this.logger('send:optimistic', optimisticMessage);
+                    return true;
                 }
-                if (!this.client || !this.connected) {
-                    throw new Error('Spojení s chatem není dostupné.');
-                }
-                this.logger('send:payload', { receiver, length: content.length });
-                this.client.send('/app/chat', { Authorization: `Bearer ${token}` }, JSON.stringify({ content, receiver }));
-                if (!customPayload && this.messageInput) {
-                    this.messageInput.value = '';
-                }
-                const optimisticMessage = {
-                    id: `temp-${Date.now()}`,
-                    sender: this.state.data.profile?.email || this.currentUserEmail || localStorage.getItem('email') || 'já',
-                    receiver,
-                    content,
-                    preview: content,
-                    date: new Date().toLocaleString('cs-CZ')
-                };
-                // remove any previous optimistic duplicates for the same text/receiver before adding
-                this.state.data.messages = (this.state.data.messages || []).filter(existing => !(!existing.id && this.isSameMessage(existing, optimisticMessage)));
-                this.state.data.messages = [optimisticMessage, ...(this.state.data.messages || [])].slice(0, 50);
-                this.messageIds.add(optimisticMessage.id);
-                this.renderContacts();
-                this.renderFeed();
-                this.highlightActiveContact();
-                this.setFormStatus('Zpráva byla odeslána.', true);
-                this.logger('send:optimistic', optimisticMessage);
-                return true;
             } catch (error) {
                 console.error('Chat send failed', error);
                 this.setFormStatus(error.message || 'Odeslání selhalo.', false);
@@ -2150,11 +2436,22 @@ function resolveAllowedViews(role, permissions = []) {
             this.formStatus.classList.toggle('chat-status-success', !!success);
         }
 
+        autoResizeMessage() {
+            if (!this.messageInput) return;
+            const el = this.messageInput;
+            el.style.height = 'auto';
+            const max = this.messageMaxHeight || 200;
+            const next = Math.min(el.scrollHeight, max);
+            el.style.height = `${next}px`;
+            el.style.overflowY = el.scrollHeight > max ? 'auto' : 'hidden';
+        }
+
         escapeHtml(text) {
-            if (!text) {
+            if (text === undefined || text === null) {
                 return '';
             }
-            return text
+            const str = typeof text === 'string' ? text : String(text);
+            return str
                 .replace(/&/g, '&amp;')
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
