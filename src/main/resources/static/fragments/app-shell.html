@@ -101,9 +101,9 @@
                     <input type="search" id="global-search" placeholder="Hledat SKU, objednávku nebo klienta…" autocomplete="off">
                     <div class="search-results" id="search-results"></div>
                 </div>
-                <button class="nav-link" id="refresh-btn" style="width:auto; gap:6px; padding:8px 12px;">
-                    <span class="material-symbols-rounded" aria-hidden="true">cached</span>
-                    <span>Obnovit</span>
+                                <button class="nav-link" id="wallet-btn" style="width:auto; gap:6px; padding:8px 12px;">
+                    <span class="material-symbols-rounded" aria-hidden="true">account_balance_wallet</span>
+                    <span id="wallet-chip-balance">Peněženka</span>
                 </button>
                 <button class="nav-link" id="impersonation-exit-btn" style="display:none;width:auto;gap:6px;padding:8px 12px;">
                     <span class="material-symbols-rounded" aria-hidden="true">logout</span>
@@ -470,7 +470,7 @@
                     <div style="display:flex;justify-content:space-between;align-items:center;">
                         <div>
                             <h2>Platby (PLATBA)</h2>
-                            <p>Včetně HOTOVOST / KARTA + UCTENKA</p>
+                            <p>Včetně HOTOVOST / KARTA + ÚČTENKA</p>
                         </div>
                         <div>
                             <button class="chip active" data-payment-filter="all">Vše</button>
@@ -695,7 +695,7 @@
                             <h2>Můj košík</h2>
                             <p>Upravte množství položek, poté pokračujte k platbě.</p>
                         </div>
-                        <a class="nav-link" data-view="customer" href="customer.html" style="width:auto;gap:8px;padding:8px 12px;">Zpet</a>
+                        <a class="nav-link" data-view="customer" href="customer.html" style="width:auto;gap:8px;padding:8px 12px;">Zpět</a>
                     </div>
                     <div id="customer-cart-page" data-customer-cart style="margin-top:12px;"></div>
                 </article>

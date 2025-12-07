@@ -34,6 +34,7 @@ public class CheckoutService {
     private final JdbcTemplate jdbcTemplate;
     private final MarketProcedureDao marketDao;
     private final ZakaznikJdbcService zakaznikJdbcService;
+    private final WalletJdbcService walletJdbcService;
 
     @Transactional
     public CheckoutResponse createOrderWithPayment(Uzivatel user, CheckoutRequest request) {
@@ -86,7 +87,7 @@ public class CheckoutService {
             ));
         }
 
-        String paymentType = resolvePaymentType(request.paymentType()); // "H" или "K"
+        String paymentType = resolvePaymentType(request.paymentType()); // H / K / U
         String cardNumber = "K".equalsIgnoreCase(paymentType)
                 ? Optional.ofNullable(request.cardNumber()).orElse(null)
                 : null;
@@ -97,7 +98,14 @@ public class CheckoutService {
             vraceno = prijato.subtract(total).max(BigDecimal.ZERO);
         }
 
-        Long platbaId = createPlatba(objednavkaId, total, paymentType, cardNumber, prijato, vraceno);
+        Long platbaId;
+        if ("U".equalsIgnoreCase(paymentType)) {
+            Long ucetId = walletJdbcService.ensureAccountForUser(user.getIdUzivatel());
+            WalletJdbcService.PayResult pay = walletJdbcService.payOrder(ucetId, objednavkaId, total);
+            platbaId = pay.platbaId();
+        } else {
+            platbaId = createPlatba(objednavkaId, total, paymentType, cardNumber, prijato, vraceno);
+        }
 
         return new CheckoutResponse(
                 objednavkaId,
@@ -217,6 +225,7 @@ public class CheckoutService {
         return switch (type.trim().toUpperCase(Locale.ROOT)) {
             case "CASH", "H", "HOTOVOST" -> "H";
             case "CARD", "K", "KARTA" -> "K";
+            case "WALLET", "W", "U", "UCET" -> "U";
             default -> "H";
         };
     }

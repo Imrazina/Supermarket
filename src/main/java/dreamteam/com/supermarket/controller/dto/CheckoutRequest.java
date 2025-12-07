@@ -5,7 +5,7 @@ import java.util.List;
 
 public record CheckoutRequest(
         List<Item> items,
-        String paymentType, // CASH or CARD
+        String paymentType, // CASH, CARD, WALLET
         BigDecimal cashGiven,
         String cardNumber,
         String note
