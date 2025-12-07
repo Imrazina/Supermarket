@@ -60,4 +60,7 @@ public class ProfileUpdateRequest {
 
     @Size(max = 100, message = "Název společnosti je příliš dlouhý")
     private String supplierCompany;
+
+    // Volitelné: zda vynutit změnu role s odstraněním vazeb (PROC_CHANGE_USER_ROLE.p_force)
+    private Boolean force;
 }

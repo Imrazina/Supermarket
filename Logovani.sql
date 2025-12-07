@@ -1249,7 +1249,7 @@ ORDER BY datumZmeny DESC;
 --   Loguje změny v tabulce APP_PRAVO (definice práv systému).
 --   Nezapisuje žádné ID (bezpečné logování).
 --   Archivní umístění:
---       ROOT / GlobalLog
+--       ROOT / Global Log
 --------------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER TRG_APP_PRAVO_LOG
 AFTER INSERT OR UPDATE OR DELETE ON PRAVO
@@ -1273,7 +1273,7 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Archivní složka GlobalLog
+    -- 2) Archivní složka Global Log
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_id
@@ -1342,7 +1342,7 @@ ORDER BY ID_Log DESC FETCH FIRST 1 ROW ONLY;
 --   Loguje změny v tabulce APP_ROLE (uživatelské role).
 --   Nepoužívá ID – loguje pouze názvy rolí.
 --   Archivní umístění:
---       ROOT / GlobalLog
+--       ROOT / Global Log
 --------------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER TRG_APP_ROLE_LOG
 AFTER INSERT OR UPDATE OR DELETE ON APP_ROLE
@@ -1366,7 +1366,7 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Archivní složka GlobalLog
+    -- 2) Archivní složka Global Log
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_id
@@ -1422,7 +1422,7 @@ END;
 --   Loguje změny v propojení ROLE ↔ PRAVO (m:n vztah).
 --   Do logu se zapisují pouze názvy rolí a kódy práv (bez ID).
 --   Archivní umístění:
---       ROOT / GlobalLog
+--       ROOT / Global Log
 --------------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER TRG_APP_ROLE_PRAVO_LOG
 AFTER INSERT OR UPDATE OR DELETE ON APP_ROLE_PRAVO
@@ -1523,7 +1523,7 @@ END;
 --   Loguje změny v tabulce NOTIFIKACE.
 --   Loguje pouze čitelné údaje (bez ID).
 --   Archivní umístění:
---       ROOT / GlobalLog
+--       ROOT / Global Log
 --------------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER TRG_NOTIFIKACE_LOG
 AFTER INSERT OR UPDATE OR DELETE ON NOTIFIKACE
@@ -1547,10 +1547,10 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Archivní složka GlobalLog
+    -- 2) Archivní složka Global Log
     --------------------------------------------------------------------
     SELECT ID_Archiv INTO v_archiv_id
-    FROM ARCHIV WHERE NAZEV = 'GlobalLog';
+    FROM ARCHIV WHERE NAZEV = 'Global Log';
 
     --------------------------------------------------------------------
     -- 3) Nová data (bez ID)
@@ -1608,7 +1608,7 @@ END;
 -- POPIS:
 --   Loguje změny v tabulce MESTO (PSČ, název, kraj).
 --   Archivní umístění:
---       ROOT / GlobalLog
+--       ROOT / Global Log
 --------------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER TRG_OBEC_LOG
 AFTER INSERT OR UPDATE OR DELETE ON MESTO
@@ -1632,10 +1632,10 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Archivní složka GlobalLog
+    -- 2) Archivní složka Global Log
     --------------------------------------------------------------------
     SELECT ID_Archiv INTO v_archiv_id
-    FROM ARCHIV WHERE NAZEV = 'GlobalLog';
+    FROM ARCHIV WHERE NAZEV = 'Global Log';
 
     --------------------------------------------------------------------
     -- 3) Nová data
@@ -1692,7 +1692,7 @@ END;
 --   Loguje změny v číselníku kategorií zboží.
 --   Loguje pouze název a popis (bez ID).
 --   Archivní umístění:
---       ROOT / GlobalLog
+--       ROOT / Global Log
 --------------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER TRG_KATEGORIE_ZBOZI_LOG
 AFTER INSERT OR UPDATE OR DELETE ON KATEGORIE_ZBOZI
@@ -1716,10 +1716,10 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Archivní složka GlobalLog
+    -- 2) Archivní složka Global Log
     --------------------------------------------------------------------
     SELECT ID_Archiv INTO v_archiv_id
-    FROM ARCHIV WHERE NAZEV = 'GlobalLog';
+    FROM ARCHIV WHERE NAZEV = 'Global Log';
 
     --------------------------------------------------------------------
     -- 3) Nová data
@@ -1775,7 +1775,7 @@ END;
 --   Do logu se zapisují pouze čitelné hodnoty (ulice, čísla, PSC).
 --   Žádná ID nejsou zapisována.
 --   Archivní umístění:
---       ROOT / GlobalLog
+--       ROOT / Global Log
 --------------------------------------------------------------------------------
 CREATE OR REPLACE TRIGGER TRG_ADRESA_LOG
 AFTER INSERT OR UPDATE OR DELETE ON ADRESA
@@ -1799,12 +1799,12 @@ BEGIN
     END IF;
 
     --------------------------------------------------------------------
-    -- 2) Archivní složka GlobalLog
+    -- 2) Archivní složka Global Log
     --------------------------------------------------------------------
     SELECT ID_Archiv
     INTO v_archiv_id
     FROM ARCHIV
-    WHERE NAZEV = 'GlobalLog';
+    WHERE NAZEV = 'Global Log';
 
     --------------------------------------------------------------------
     -- 3) Nová data (bez ID)

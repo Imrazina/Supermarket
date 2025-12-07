@@ -77,7 +77,8 @@ public class AdminUserService {
                     request.getLoyaltyCard(),
                     request.getSalary(),
                     parseDate(request.getHireDate()),
-                    request.getPosition()
+                    request.getPosition(),
+                    Boolean.TRUE.equals(request.getForce())
             );
         } else {
             updateEmployeeData(user, request);

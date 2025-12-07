@@ -1,28 +1,13 @@
 package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.controller.dto.DashboardResponse;
-import dreamteam.com.supermarket.model.Archiv;
 import dreamteam.com.supermarket.model.Log;
-import dreamteam.com.supermarket.model.Soubor;
 import dreamteam.com.supermarket.model.location.Adresa;
 import dreamteam.com.supermarket.model.location.Mesto;
 import dreamteam.com.supermarket.model.market.*;
 import dreamteam.com.supermarket.model.payment.Platba;
 import dreamteam.com.supermarket.model.user.*;
-import dreamteam.com.supermarket.Service.UserJdbcService;
-import dreamteam.com.supermarket.Service.RolePravoJdbcService;
-import dreamteam.com.supermarket.Service.MessageJdbcService;
-import dreamteam.com.supermarket.Service.NotifikaceJdbcService;
-import dreamteam.com.supermarket.Service.RoleJdbcService;
-import dreamteam.com.supermarket.Service.ObjednavkaStatusJdbcService;
-import dreamteam.com.supermarket.Service.ObjednavkaZboziJdbcService;
-import dreamteam.com.supermarket.Service.ZamestnanecJdbcService;
-import dreamteam.com.supermarket.Service.ZakaznikJdbcService;
-import dreamteam.com.supermarket.Service.DodavatelJdbcService;
-import dreamteam.com.supermarket.Service.DodavatelZboziJdbcService;
-import dreamteam.com.supermarket.Service.ArchivJdbcService;
-import dreamteam.com.supermarket.Service.SouborJdbcService;
-import dreamteam.com.supermarket.Service.LogJdbcService;
+import dreamteam.com.supermarket.repository.ArchiveProcedureDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -38,6 +23,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -68,8 +54,7 @@ public class DashboardService {
     private final DodavatelZboziJdbcService dodavatelZboziJdbcService;
     private final PlatbaJdbcService platbaJdbcService;
     private final LogJdbcService logJdbcService;
-    private final SouborJdbcService souborJdbcService;
-    private final ArchivJdbcService archivJdbcService;
+    private final ArchiveProcedureDao archiveDao;
     private final MessageJdbcService messageJdbcService;
     private final NotifikaceJdbcService notifikaceJdbcService;
     private final RoleJdbcService roleJdbcService;
@@ -128,8 +113,7 @@ public class DashboardService {
                 .limit(10)
                 .toList();
         List<Notifikace> subscribers = notifikaceJdbcService.findAll();
-        List<ArchivJdbcService.ArchivHierarchyRow> archiveTree = archivJdbcService.findHierarchy();
-        List<Archiv> archives = archivJdbcService.findAll();
+        List<ArchiveProcedureDao.ArchiveNode> archiveTree = archiveDao.getTree();
         List<Role> roles = roleJdbcService.findAll();
         List<Uzivatel> allUsers = userJdbcService.findAll();
         List<DodavatelZbozi> supplierRelations = dodavatelZboziJdbcService.findAll();
@@ -394,7 +378,7 @@ public class DashboardService {
                 })
                 .toList();
 
-        List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archiveTree, archives);
+        List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archiveTree);
 
         List<DashboardResponse.CustomerProduct> customerProducts = goods.stream()
                 .sorted(Comparator.comparing(
@@ -431,11 +415,11 @@ public class DashboardService {
 
         List<DashboardResponse.ArchiveNode> archiveNodes = archiveTree.stream()
                 .map(node -> new DashboardResponse.ArchiveNode(
-                        node.idArchiv(),
-                        node.nazev(),
+                        node.id(),
+                        node.name(),
                         node.parentId(),
-                        node.lvl() == null ? 0 : node.lvl(),
-                        node.cesta()
+                        node.level(),
+                        node.path()
                 ))
                 .toList();
 
@@ -526,38 +510,26 @@ public class DashboardService {
                 .toList();
     }
 
-    private List<DashboardResponse.FolderInfo> buildFolders(List<ArchivJdbcService.ArchivHierarchyRow> archiveTree,
-                                                           List<Archiv> archives) {
+    private List<DashboardResponse.FolderInfo> buildFolders(List<ArchiveProcedureDao.ArchiveNode> archiveTree) {
         if (archiveTree.isEmpty()) {
             return List.of();
         }
-        Map<Long, Archiv> archivById = archives.stream()
-                .filter(archiv -> archiv.getIdArchiv() != null)
-                .collect(Collectors.toMap(Archiv::getIdArchiv, Function.identity()));
         List<String> colors = List.of("#ff9f43", "#34d399", "#a855f7", "#4361ee", "#f87171");
         AtomicInteger index = new AtomicInteger(0);
         return archiveTree.stream()
                 .map(node -> {
-                    Archiv archiv = archivById.get(node.idArchiv());
-                    if (archiv == null) {
-                        return null;
-                    }
                     String color = colors.get(index.getAndIncrement() % colors.size());
-                    List<Soubor> files = souborJdbcService.findByArchiv(archiv.getIdArchiv());
-                    List<DashboardResponse.FileInfo> fileInfos = files.stream()
+                    List<DashboardResponse.FileInfo> fileInfos = archiveDao.getFiles(node.id(), null, 5).stream()
                             .map(file -> new DashboardResponse.FileInfo(
-                                    file.getNazev(),
-                                    file.getTyp(),
-                                    archiv.getNazev(),
-                                    file.getVlastnik() != null
-                                            ? file.getVlastnik().getJmeno() + " " + file.getVlastnik().getPrijmeni()
-                                            : "N/A",
-                                    file.getDatumModifikace() != null ? file.getDatumModifikace().format(DATE_FORMAT) : ""
+                                    file.name(),
+                                    file.type(),
+                                    node.name(),
+                                    Optional.ofNullable(file.owner()).orElse("N/A"),
+                                    file.updated() != null ? DATE_FORMAT.format(file.updated().toLocalDate()) : ""
                             ))
                             .toList();
-                    return new DashboardResponse.FolderInfo(archiv.getNazev(), color, fileInfos);
+                    return new DashboardResponse.FolderInfo(node.name(), color, fileInfos);
                 })
-                .filter(Objects::nonNull)
                 .toList();
     }
 

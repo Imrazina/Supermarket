@@ -63,7 +63,7 @@ public class ArchiveProcedureDao {
                         rs.getString("description"),
                         rs.getTimestamp("uploaded") != null ? rs.getTimestamp("uploaded").toLocalDateTime() : null,
                         rs.getTimestamp("updated") != null ? rs.getTimestamp("updated").toLocalDateTime() : null,
-                        rs.getLong("size")
+                        rs.getLong("file_size")
                 ))
         );
     }
