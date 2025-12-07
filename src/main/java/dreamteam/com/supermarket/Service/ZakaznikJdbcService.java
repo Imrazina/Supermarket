@@ -46,4 +46,8 @@ public class ZakaznikJdbcService {
         if (id == null) return;
         personDao.deleteCustomer(id);
     }
+
+    public String nextLoyaltyCard() {
+        return personDao.nextLoyaltyCard();
+    }
 }

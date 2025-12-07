@@ -3,6 +3,7 @@ package dreamteam.com.supermarket.Service;
 import dreamteam.com.supermarket.controller.dto.AdminUserResponse;
 import dreamteam.com.supermarket.controller.dto.AdminUserUpdateRequest;
 import dreamteam.com.supermarket.controller.dto.ImpersonationResponse;
+import dreamteam.com.supermarket.controller.dto.RoleDependencyResponse;
 import dreamteam.com.supermarket.jwt.JwtUtil;
 import dreamteam.com.supermarket.model.location.Adresa;
 import dreamteam.com.supermarket.model.location.Mesto;
@@ -19,6 +20,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
+import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -28,6 +30,7 @@ import java.util.Set;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AdminUserService {
 
     private static final Set<String> EMPLOYEE_ROLES = Set.of("MANAGER", "ANALYTIK", "SUPERVISER");
@@ -39,6 +42,7 @@ public class AdminUserService {
     private final ZamestnanecJdbcService zamestnanecJdbcService;
     private final ZakaznikJdbcService zakaznikJdbcService;
     private final DodavatelJdbcService dodavatelJdbcService;
+    private final DodavatelZboziJdbcService dodavatelZboziJdbcService;
     private final PasswordEncoder passwordEncoder;
     private final JwtUtil jwtUtil;
     private final RoleChangeDao roleChangeDao;
@@ -61,15 +65,23 @@ public class AdminUserService {
         if (user == null) {
             throw new IllegalArgumentException("Uzivatel s ID " + userId + " neexistuje.");
         }
+        // snapshot původních hodnot pro detekci změn
+        String oldJmeno = user.getJmeno();
+        String oldPrijmeni = user.getPrijmeni();
+        String oldEmail = user.getEmail();
+        String oldPhone = user.getTelefonniCislo();
+        Long oldAddrId = user.getAdresa() != null ? user.getAdresa().getIdAdresa() : null;
+
         Long oldRoleId = user.getRole() != null ? user.getRole().getIdRole() : null;
         applyPersonalData(user, request);
         Role newRole = applyRole(user, request.getRoleCode());
         applyPassword(user, request.getNewPassword());
         updateAddress(user, request);
-        userJdbcService.updateCore(user);
 
         boolean roleChanged = oldRoleId == null || !oldRoleId.equals(newRole.getIdRole());
-        if (roleChanged) {
+        boolean force = Boolean.TRUE.equals(request.getForce());
+        log.info("Admin role change: userId={}, oldRole={}, newRole={}, force={}", user.getIdUzivatel(), oldRoleId, newRole.getIdRole(), force);
+        if (roleChanged || force) {
             roleChangeDao.changeRole(
                     user.getIdUzivatel(),
                     newRole.getIdRole(),
@@ -78,12 +90,23 @@ public class AdminUserService {
                     request.getSalary(),
                     parseDate(request.getHireDate()),
                     request.getPosition(),
-                    Boolean.TRUE.equals(request.getForce())
+                    force
             );
         } else {
             updateEmployeeData(user, request);
             updateCustomerData(user, request);
             updateSupplierData(user, request);
+        }
+
+        boolean personalChanged = !equals(oldJmeno, user.getJmeno())
+                || !equals(oldPrijmeni, user.getPrijmeni())
+                || !equals(oldEmail, user.getEmail())
+                || !equals(oldPhone, user.getTelefonniCislo())
+                || !equals(oldAddrId, user.getAdresa() != null ? user.getAdresa().getIdAdresa() : null);
+        boolean passwordChanged = request.getNewPassword() != null && StringUtils.hasText(request.getNewPassword().trim());
+        boolean shouldUpdateCore = !roleChanged || personalChanged || passwordChanged;
+        if (shouldUpdateCore) {
+            userJdbcService.updateCore(user);
         }
     }
 
@@ -113,6 +136,34 @@ public class AdminUserService {
             updated++;
         }
         return updated;
+    }
+
+    @Transactional(readOnly = true)
+    public RoleDependencyResponse getRoleDependencies(Long userId) {
+        Uzivatel user = userJdbcService.findById(userId);
+        if (user == null) {
+            throw new IllegalArgumentException("Uzivatel s ID " + userId + " neexistuje.");
+        }
+        Dodavatel dod = dodavatelJdbcService.findById(userId);
+        Zakaznik zak = zakaznikJdbcService.findById(userId);
+        Zamestnanec zam = zamestnanecJdbcService.findById(userId);
+        int items = dodavatelZboziJdbcService.countByDodavatel(userId);
+        return new RoleDependencyResponse(
+                dod != null,
+                dod != null ? dod.getFirma() : null,
+                items,
+                zak != null,
+                zak != null ? zak.getKartaVernosti() : null,
+                zam != null,
+                zam != null ? zam.getPozice() : null,
+                zam != null ? zam.getMzda() : null,
+                zam != null && zam.getDatumNastupa() != null ? zam.getDatumNastupa().toString() : null
+        );
+    }
+
+    @Transactional(readOnly = true)
+    public String nextLoyaltyCard() {
+        return zakaznikJdbcService.nextLoyaltyCard();
     }
 
     private AdminUserResponse toResponse(Uzivatel user) {
@@ -304,6 +355,10 @@ public class AdminUserService {
 
     private boolean isSupplierRole(String roleCode) {
         return StringUtils.hasText(roleCode) && "DODAVATEL".equalsIgnoreCase(roleCode.trim());
+    }
+
+    private boolean equals(Object a, Object b) {
+        return (a == null && b == null) || (a != null && a.equals(b));
     }
 
     private LocalDate parseDate(String date) {

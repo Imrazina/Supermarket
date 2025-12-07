@@ -2,7 +2,7 @@ package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.model.market.Sklad;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
+import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,38 +11,23 @@ import java.util.List;
 @RequiredArgsConstructor
 public class SkladJdbcService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final MarketProcedureDao marketDao;
 
     public List<Sklad> findAll() {
-        String sql = """
-                SELECT ID_SKLAD, NAZEV, KAPACITA, TELEFONNICISLO, ID_SUPERMARKET
-                FROM SKLAD
-                ORDER BY ID_SKLAD
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            Sklad s = new Sklad();
-            s.setIdSklad(rs.getLong("ID_SKLAD"));
-            s.setNazev(rs.getString("NAZEV"));
-            s.setKapacita(rs.getInt("KAPACITA"));
-            s.setTelefonniCislo(rs.getString("TELEFONNICISLO"));
-            // supermarket не подтягиваем лениво; при необходимости можно создать объект с id
-            return s;
-        });
+        return marketDao.listSklady().stream().map(this::map).toList();
     }
 
     public Sklad findById(Long id) {
-        String sql = """
-                SELECT ID_SKLAD, NAZEV, KAPACITA, TELEFONNICISLO, ID_SUPERMARKET
-                FROM SKLAD
-                WHERE ID_SKLAD = ?
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            Sklad s = new Sklad();
-            s.setIdSklad(rs.getLong("ID_SKLAD"));
-            s.setNazev(rs.getString("NAZEV"));
-            s.setKapacita(rs.getInt("KAPACITA"));
-            s.setTelefonniCislo(rs.getString("TELEFONNICISLO"));
-            return s;
-        }, id).stream().findFirst().orElse(null);
+        var row = marketDao.getSklad(id);
+        return row == null ? null : map(row);
+    }
+
+    private Sklad map(MarketProcedureDao.SkladRow row) {
+        Sklad s = new Sklad();
+        s.setIdSklad(row.id());
+        s.setNazev(row.nazev());
+        s.setKapacita(row.kapacita());
+        s.setTelefonniCislo(row.telefon());
+        return s;
     }
 }

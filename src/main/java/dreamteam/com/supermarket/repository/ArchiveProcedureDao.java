@@ -140,7 +140,7 @@ public class ArchiveProcedureDao {
 
     public List<LogItem> getLogs(Long archiveId, String table, String op, int size) {
         return jdbcTemplate.execute(
-                call("{ call pkg_archive.get_logs(?, ?, ?, ?, ?) }", cs -> {
+                call("{ call pkg_log.list_filtered(?, ?, ?, ?, ?) }", cs -> {
                     if (archiveId != null) {
                         cs.setLong(1, archiveId);
                     } else {
@@ -160,24 +160,46 @@ public class ArchiveProcedureDao {
                     cs.registerOutParameter(5, OracleTypes.CURSOR);
                 }),
                 extractCursor(5, rs -> new LogItem(
-                        rs.getLong("id"),
-                        rs.getString("table_name"),
-                        rs.getString("op"),
-                        rs.getTimestamp("timestamp") != null ? rs.getTimestamp("timestamp").toLocalDateTime() : null,
-                        rs.getString("descr"),
-                        rs.getString("archive_path"),
-                        rs.getString("record_id"),
-                        rs.getString("new_data"),
-                        rs.getString("old_data")
+                        rs.getLong("idLog"),
+                        rs.getString("tableName"),
+                        rs.getString("operation"),
+                        rs.getTimestamp("datumZmeny") != null ? rs.getTimestamp("datumZmeny").toLocalDateTime() : null,
+                        rs.getString("popis"),
+                        rs.getString("archivPath"),
+                        rs.getObject("archivId") != null ? rs.getLong("archivId") : null,
+                        rs.getString("idRekord"),
+                        rs.getString("novaData"),
+                        rs.getString("staraData")
                 ))
         );
     }
 
     public void updateLogDescription(Long logId, String description) {
+        // načteme původní záznam a přepíšeme pouze popis
+        LogItem original = getLogById(logId);
+        if (original == null) {
+            return;
+        }
         jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call pkg_archive.update_log_descr(?, ?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_log.upsert_log(?, ?, ?, ?, ?, ?, ?, ?, ?) }");
             cs.setLong(1, logId);
-            cs.setString(2, description);
+            cs.registerOutParameter(1, Types.NUMERIC);
+            cs.setString(2, original.table());
+            cs.setString(3, original.op());
+            cs.setString(4, original.oldData());
+            cs.setString(5, original.newData());
+            if (original.timestamp() != null) {
+                cs.setTimestamp(6, java.sql.Timestamp.valueOf(original.timestamp()));
+            } else {
+                cs.setNull(6, Types.TIMESTAMP);
+            }
+            cs.setString(7, original.recordId());
+            cs.setString(8, description);
+            if (original.archiveId() != null) {
+                cs.setLong(9, original.archiveId());
+            } else {
+                cs.setNull(9, Types.NUMERIC);
+            }
             return cs;
         }, (CallableStatementCallback<Void>) cs -> {
             cs.execute();
@@ -187,12 +209,40 @@ public class ArchiveProcedureDao {
 
     public void deleteLog(Long logId) {
         jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call pkg_archive.delete_log(?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_log.delete_log(?) }");
             cs.setLong(1, logId);
             return cs;
         }, (CallableStatementCallback<Void>) cs -> {
             cs.execute();
             return null;
+        });
+    }
+
+    private LogItem getLogById(Long id) {
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_log.get_log(?, ?) }");
+            cs.setLong(1, id);
+            cs.registerOutParameter(2, OracleTypes.CURSOR);
+            return cs;
+        }, (CallableStatementCallback<LogItem>) cs -> {
+            cs.execute();
+            try (ResultSet rs = (ResultSet) cs.getObject(2)) {
+                if (rs.next()) {
+                    return new LogItem(
+                            rs.getLong("ID_LOG"),
+                            rs.getString("TABULKANAZEV"),
+                            rs.getString("OPERACE"),
+                            rs.getTimestamp("DATUMZMENY") != null ? rs.getTimestamp("DATUMZMENY").toLocalDateTime() : null,
+                            rs.getString("POPIS"),
+                            null,
+                            rs.getObject("ID_ARCHIV") != null ? rs.getLong("ID_ARCHIV") : null,
+                            rs.getString("IDREKORD"),
+                            rs.getString("NOVADATA"),
+                            rs.getString("STARADATA")
+                    );
+                }
+                return null;
+            }
         });
     }
 
@@ -235,5 +285,6 @@ public class ArchiveProcedureDao {
     public record FileData(String name, String ext, String type, byte[] content) {}
 
     public record LogItem(Long id, String table, String op, java.time.LocalDateTime timestamp,
-                          String descr, String archive, String recordId, String newData, String oldData) {}
+                          String descr, String archive, Long archiveId,
+                          String recordId, String newData, String oldData) {}
 }

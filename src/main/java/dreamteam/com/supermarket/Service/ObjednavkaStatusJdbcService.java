@@ -1,8 +1,8 @@
 package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.model.market.ObjednavkaStatus;
+import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,28 +11,28 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ObjednavkaStatusJdbcService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final MarketProcedureDao marketDao;
 
     public List<ObjednavkaStatus> findAll() {
-        String sql = "SELECT ID_STATUS, NAZEV FROM STATUS ORDER BY ID_STATUS";
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            ObjednavkaStatus status = new ObjednavkaStatus();
-            status.setIdStatus(rs.getLong("ID_STATUS"));
-            status.setNazev(rs.getString("NAZEV"));
-            return status;
-        });
+        return marketDao.listStatus().stream()
+                .map(r -> {
+                    ObjednavkaStatus status = new ObjednavkaStatus();
+                    status.setIdStatus(r.id());
+                    status.setNazev(r.nazev());
+                    return status;
+                })
+                .toList();
     }
 
     public ObjednavkaStatus findById(Long id) {
         if (id == null) {
             return null;
         }
-        String sql = "SELECT ID_STATUS, NAZEV FROM STATUS WHERE ID_STATUS = ?";
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            ObjednavkaStatus status = new ObjednavkaStatus();
-            status.setIdStatus(rs.getLong("ID_STATUS"));
-            status.setNazev(rs.getString("NAZEV"));
-            return status;
-        }, id).stream().findFirst().orElse(null);
+        var r = marketDao.getStatus(id);
+        if (r == null) return null;
+        ObjednavkaStatus status = new ObjednavkaStatus();
+        status.setIdStatus(r.id());
+        status.setNazev(r.nazev());
+        return status;
     }
 }

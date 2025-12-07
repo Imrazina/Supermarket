@@ -2,7 +2,7 @@ package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.model.market.KategorieZbozi;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
+import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,19 +11,17 @@ import java.util.List;
 @RequiredArgsConstructor
 public class KategorieZboziJdbcService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final MarketProcedureDao marketDao;
 
     public List<KategorieZbozi> findAll() {
-        String sql = """
-                SELECT ID_KATEGORIE, NAZEV
-                FROM KATEGORIE_ZBOZI
-                ORDER BY ID_KATEGORIE
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            KategorieZbozi k = new KategorieZbozi();
-            k.setIdKategorie(rs.getLong("ID_KATEGORIE"));
-            k.setNazev(rs.getString("NAZEV"));
-            return k;
-        });
+        return marketDao.listKategorie().stream()
+                .map(row -> {
+                    KategorieZbozi k = new KategorieZbozi();
+                    k.setIdKategorie(row.id());
+                    k.setNazev(row.nazev());
+                    k.setPopis(row.popis());
+                    return k;
+                })
+                .toList();
     }
 }

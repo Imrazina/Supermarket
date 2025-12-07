@@ -240,6 +240,7 @@ export default class UsersModule {
         }
         this.modalForm.elements.newPassword.value = '';
         this.modalForm.dataset.userId = user.id;
+        this.modalForm.dataset.currentRole = user.role || '';
         this.roleSelect = this.modalForm.elements.roleCode;
         this.applyRoleSections(this.roleSelect?.value || user.role || '');
         if (this.roleSelect) {
@@ -254,6 +255,8 @@ export default class UsersModule {
         this.modal.classList.add('active');
         const firstInput = this.modalForm.querySelector('input, select, button');
         firstInput?.focus();
+
+        this.attachLoyaltyGenerator();
     }
 
     isEmployeeRole(role) {
@@ -426,7 +429,18 @@ export default class UsersModule {
         payload.orientationNumber = (payload.orientationNumber || '').trim();
         payload.cityPsc = this.normalizeCityValue(payload.cityPsc || '', this.profileMeta().cities);
         payload.newPassword = (payload.newPassword || '').trim();
-        await this.updateUser(this.modalForm.dataset.userId, payload);
+        const previousRole = (this.modalForm.dataset.currentRole || '').trim();
+        const newRole = (payload.roleCode || '').trim();
+        const roleChanged = previousRole && newRole && previousRole.toUpperCase() !== newRole.toUpperCase();
+
+        if (roleChanged) {
+            const deps = await this.fetchRoleDependencies(this.modalForm.dataset.userId);
+            const userName = `${payload.firstName || ''} ${payload.lastName || ''}`.trim();
+            this.showRoleWarningModal(userName, deps, () => this.updateUser(this.modalForm.dataset.userId, payload, { withForce: true }));
+            return;
+        }
+
+        await this.updateUser(this.modalForm.dataset.userId, payload, { withForce: true });
     }
 
     formatCityValue(cities, psc) {
@@ -450,23 +464,42 @@ export default class UsersModule {
         return trimmed;
     }
 
-    async updateUser(userId, payload) {
+    async updateUser(userId, payload, options = {}) {
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = 'landing.html';
             return;
         }
         try {
+            const logPayload = { ...payload };
+            delete logPayload.newPassword;
+            console.log('[users] update payload', logPayload);
+            const requestPayload = { ...payload };
+            if (options.withForce) {
+                requestPayload.force = 1;
+            } else {
+                delete requestPayload.force;
+            }
             const response = await fetch(this.apiUrl(`/api/admin/users/${userId}`), {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                     'Authorization': `Bearer ${token}`
                 },
-                body: JSON.stringify(payload)
+                body: JSON.stringify(requestPayload)
             });
+            console.log('[users] response status', response.status);
             if (!response.ok) {
-                throw new Error(await response.text());
+                const message = await response.text();
+                console.warn('[users] role change failed', { status: response.status, message });
+                const shouldPrompt = options.allowForcePrompt && !options.withForce && (this.isRoleDependencyError(message) || response.status === 500);
+                if (shouldPrompt) {
+                    this.showRoleWarningModal(message || 'Změna role odstraní vazby na starou roli.', () =>
+                        this.updateUser(userId, payload, { withForce: true })
+                    );
+                    return;
+                }
+                throw new Error(message || 'Uložení se nezdařilo.');
             }
             this.closeModal();
             await this.fetchUsers(this.filterEl?.value || '');
@@ -477,6 +510,133 @@ export default class UsersModule {
             console.error('Failed to update user', error);
             alert(error.message || 'Uložení se nezdařilo.');
         }
+    }
+
+    isRoleDependencyError(message) {
+        if (!message) return false;
+        const lower = message.toLowerCase();
+        return /-2000(1|16|17|99)/.test(message) || lower.includes('ora-20001') || lower.includes('zbozi_dodavatel') || lower.includes('dodavatel');
+    }
+
+    async fetchRoleDependencies(userId) {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'landing.html';
+            return null;
+        }
+        try {
+            const response = await fetch(this.apiUrl(`/api/admin/users/${userId}/role-deps`), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+            return await response.json();
+        } catch (error) {
+            console.warn('Failed to load role deps', error);
+            return null;
+        }
+    }
+
+    async fetchNextLoyaltyCard() {
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'landing.html';
+            return null;
+        }
+        try {
+            const response = await fetch(this.apiUrl('/api/admin/users/loyalty-next'), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'text/plain'
+                }
+            });
+            if (!response.ok) {
+                throw new Error(await response.text());
+            }
+            return await response.text();
+        } catch (error) {
+            console.warn('Failed to generate loyalty card', error);
+            alert('Nepodařilo se vygenerovat kartu.');
+            return null;
+        }
+    }
+
+    showRoleWarningModal(userName, deps, onConfirm) {
+        const tables = [];
+        if (deps?.hasSupplier) {
+            tables.push(`DODAVATEL${deps.supplierCompany ? ` (firma: ${deps.supplierCompany})` : ''}`);
+        }
+        if (deps?.supplierItems > 0) {
+            tables.push(`ZBOZI_DODAVATEL (vazby: ${deps.supplierItems})`);
+        }
+        if (deps?.hasCustomer) {
+            tables.push(`ZAKAZNIK${deps.loyaltyCard ? ` (karta: ${deps.loyaltyCard})` : ''}`);
+        }
+        if (deps?.hasEmployee) {
+            const parts = [];
+            if (deps.position) parts.push(deps.position);
+            if (deps.salary) parts.push(`mzda: ${deps.salary}`);
+            if (deps.hireDate) parts.push(`nástup: ${deps.hireDate}`);
+            tables.push(`ZAMESTNANEC${parts.length ? ` (${parts.join(', ')})` : ''}`);
+        }
+
+        const listHtml = tables.length
+            ? `<ul style="margin:12px 0 0 18px; padding-left:0; list-style: disc;">${tables.map(t => `<li>${t}</li>`).join('')}</ul>`
+            : '<p class="profile-muted">Žádné vazby k odstranění.</p>';
+
+        console.info('[users] showing role warning modal', tables);
+        const overlay = document.createElement('div');
+        overlay.className = 'modal active';
+        overlay.style.zIndex = '9999';
+        overlay.innerHTML = `
+            <div class="modal-content" role="dialog" aria-modal="true" style="max-width:520px;">
+                <div class="modal-header">
+                    <h3 style="margin:0;">Opravdu změnit roli?</h3>
+                    <button type="button" class="ghost-btn ghost-muted" id="role-force-cancel" aria-label="Zavřít">×</button>
+                </div>
+                <p>${userName ? `Uživatel: <strong>${userName}</strong><br>` : ''}Tato akce odstraní následující záznamy:</p>
+                ${listHtml}
+                <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                    <button type="button" class="ghost-btn ghost-muted" id="role-force-cancel-2">Zavřít</button>
+                    <button type="button" class="ghost-btn ghost-strong" id="role-force-confirm">Pokračovat a odstranit vazby</button>
+                </div>
+            </div>
+        `;
+        const cleanup = () => overlay.remove();
+        overlay.querySelector('#role-force-cancel')?.addEventListener('click', cleanup);
+        overlay.querySelector('#role-force-cancel-2')?.addEventListener('click', cleanup);
+        overlay.querySelector('#role-force-confirm')?.addEventListener('click', async () => {
+            cleanup();
+            if (typeof onConfirm === 'function') {
+                await onConfirm();
+            }
+        });
+        document.body.appendChild(overlay);
+    }
+
+    attachLoyaltyGenerator() {
+        const loyaltyInput = this.modalForm?.elements.loyaltyCard;
+        if (!loyaltyInput) return;
+        const parent = loyaltyInput.parentElement;
+        if (!parent || parent.querySelector('.loyalty-generate-btn')) {
+            return;
+        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Generovat';
+        btn.className = 'ghost-btn ghost-strong loyalty-generate-btn';
+        btn.style.marginTop = '6px';
+        btn.addEventListener('click', async () => {
+            const value = await this.fetchNextLoyaltyCard();
+            if (value) {
+                loyaltyInput.value = value;
+            }
+        });
+        parent.appendChild(btn);
     }
 
     async impersonateUser(userId) {

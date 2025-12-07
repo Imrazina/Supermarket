@@ -132,6 +132,17 @@ public class PersonProcedureDao {
         });
     }
 
+    public String nextLoyaltyCard() {
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ ? = call FN_NEXT_LOYALTY_CARD }");
+            cs.registerOutParameter(1, Types.VARCHAR);
+            return cs;
+        }, (CallableStatementCallback<String>) cs -> {
+            cs.execute();
+            return cs.getString(1);
+        });
+    }
+
     // Dodavatel
     public SupplierRow getSupplier(Long id) {
         return jdbcTemplate.execute(

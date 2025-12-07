@@ -81,13 +81,18 @@ public class ProfileService {
         if (user == null) {
             throw new IllegalArgumentException("Uzivatel neexistuje.");
         }
+        // původní hodnoty pro detekci změn
+        String oldJmeno = user.getJmeno();
+        String oldPrijmeni = user.getPrijmeni();
+        String oldEmail = user.getEmail();
+        String oldPhone = user.getTelefonniCislo();
+        Long oldAddrId = user.getAdresa() != null ? user.getAdresa().getIdAdresa() : null;
 
         Long oldRoleId = user.getRole() != null ? user.getRole().getIdRole() : null;
         applyPersonalData(user, request);
         Role newRole = applyRole(user, request.getRoleCode());
         applyPassword(user, request.getNewPassword());
         updateAddress(user, request);
-        userJdbcService.updateCore(user);
 
         boolean roleChanged = oldRoleId == null || !oldRoleId.equals(newRole.getIdRole());
         if (roleChanged) {
@@ -109,6 +114,17 @@ public class ProfileService {
             updateEmployeeData(user, employee, request);
             updateCustomerData(customer, request);
             updateSupplierData(supplier, request);
+        }
+
+        boolean personalChanged = !equals(oldJmeno, user.getJmeno())
+                || !equals(oldPrijmeni, user.getPrijmeni())
+                || !equals(oldEmail, user.getEmail())
+                || !equals(oldPhone, user.getTelefonniCislo())
+                || !equals(oldAddrId, user.getAdresa() != null ? user.getAdresa().getIdAdresa() : null);
+        boolean passwordChanged = request.getNewPassword() != null && org.springframework.util.StringUtils.hasText(request.getNewPassword().trim());
+        boolean shouldUpdateCore = !roleChanged || personalChanged || passwordChanged;
+        if (shouldUpdateCore) {
+            userJdbcService.updateCore(user);
         }
     }
 
@@ -229,6 +245,10 @@ public class ProfileService {
         }
         supplier.setFirma(request.getSupplierCompany().trim());
         dodavatelJdbcService.save(supplier);
+    }
+
+    private boolean equals(Object a, Object b) {
+        return (a == null && b == null) || (a != null && a.equals(b));
     }
 
     private LocalDate parseDate(String date) {
