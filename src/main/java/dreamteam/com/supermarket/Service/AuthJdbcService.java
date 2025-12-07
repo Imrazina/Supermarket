@@ -21,13 +21,27 @@ public class AuthJdbcService {
     private final dreamteam.com.supermarket.repository.RoleProcedureDao roleDao;
 
     public boolean emailExists(String email) {
-        String sql = "SELECT 1 FROM UZIVATEL WHERE EMAIL = ? AND ROWNUM = 1";
-        return !jdbcTemplate.query(sql, (rs, i) -> 1, email).isEmpty();
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ ? = call pkg_auth.email_exists(?) }");
+            cs.registerOutParameter(1, java.sql.Types.NUMERIC);
+            cs.setString(2, email);
+            return cs;
+        }, (org.springframework.jdbc.core.CallableStatementCallback<Boolean>) cs -> {
+            cs.execute();
+            return cs.getInt(1) == 1;
+        });
     }
 
     public boolean phoneExists(String phone) {
-        String sql = "SELECT 1 FROM UZIVATEL WHERE TELEFONNICISLO = ? AND ROWNUM = 1";
-        return !jdbcTemplate.query(sql, (rs, i) -> 1, phone).isEmpty();
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ ? = call pkg_auth.phone_exists(?) }");
+            cs.registerOutParameter(1, java.sql.Types.NUMERIC);
+            cs.setString(2, phone);
+            return cs;
+        }, (org.springframework.jdbc.core.CallableStatementCallback<Boolean>) cs -> {
+            cs.execute();
+            return cs.getInt(1) == 1;
+        });
     }
 
     public Role findRoleByName(String name) {

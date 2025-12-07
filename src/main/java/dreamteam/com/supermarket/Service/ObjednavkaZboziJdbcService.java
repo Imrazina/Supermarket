@@ -2,8 +2,8 @@ package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.model.market.ObjednavkaZbozi;
 import dreamteam.com.supermarket.model.market.ObjednavkaZboziId;
+import dreamteam.com.supermarket.repository.OrderProcedureDao;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -12,26 +12,33 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ObjednavkaZboziJdbcService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final OrderProcedureDao orderDao;
 
-    public List<ObjednavkaZbozi> findAll() {
-        String sql = """
-                SELECT ID_OBJEDNAVKA, ID_ZBOZI, POCET
-                FROM OBJEDNAVKA_ZBOZI
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
+    public List<ObjednavkaZbozi> findByObjednavka(Long objednavkaId) {
+        return orderDao.listItems(objednavkaId).stream().map(row -> {
             ObjednavkaZbozi oz = new ObjednavkaZbozi();
-            Long objednavkaId = rs.getLong("ID_OBJEDNAVKA");
-            Long zboziId = rs.getLong("ID_ZBOZI");
-            oz.setId(new ObjednavkaZboziId(objednavkaId, zboziId));
-            oz.setPocet(rs.getInt("POCET"));
+            oz.setId(new ObjednavkaZboziId(row.objednavkaId(), row.zboziId()));
+            oz.setPocet(row.pocet());
             var objednavka = new dreamteam.com.supermarket.model.market.Objednavka();
-            objednavka.setIdObjednavka(objednavkaId);
+            objednavka.setIdObjednavka(row.objednavkaId());
             oz.setObjednavka(objednavka);
             var zbozi = new dreamteam.com.supermarket.model.market.Zbozi();
-            zbozi.setIdZbozi(zboziId);
+            zbozi.setIdZbozi(row.zboziId());
+            zbozi.setNazev(row.zboziNazev());
             oz.setZbozi(zbozi);
             return oz;
-        });
+        }).toList();
+    }
+
+    public void addItem(Long objednavkaId, Long zboziId, int qty) {
+        orderDao.addItem(objednavkaId, zboziId, qty);
+    }
+
+    public void updateItem(Long objednavkaId, Long zboziId, int qty) {
+        orderDao.updateItem(objednavkaId, zboziId, qty);
+    }
+
+    public void deleteItem(Long objednavkaId, Long zboziId) {
+        orderDao.deleteItem(objednavkaId, zboziId);
     }
 }

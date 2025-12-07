@@ -69,45 +69,51 @@ public class DashboardService {
         }
         LocalDateTime now = LocalDateTime.now();
 
-        Uzivatel userForOrders = currentUser;
         List<Zbozi> goods = zboziJdbcService.findAll();
         List<Sklad> warehouses = skladJdbcService.findAll();
         List<Supermarket> supermarkets = supermarketJdbcService.findAll();
         List<ObjednavkaStatus> statuses = objednavkaStatusJdbcService.findAll();
         Map<Long, ObjednavkaStatus> statusMap = statuses.stream()
                 .collect(Collectors.toMap(ObjednavkaStatus::getIdStatus, Function.identity()));
-        List<Objednavka> orders = objednavkaJdbcService.findByUserId(userForOrders.getIdUzivatel()).stream()
+        List<Uzivatel> allUsers = userJdbcService.findAll();
+        Map<Long, Uzivatel> userMap = allUsers.stream()
+                .collect(Collectors.toMap(Uzivatel::getIdUzivatel, Function.identity(), (a, b) -> a));
+        List<Objednavka> orders = objednavkaJdbcService.findAll().stream()
                 .map(row -> {
                     Objednavka o = new Objednavka();
                     o.setIdObjednavka(row.id());
                     o.setDatum(row.datum());
                     o.setStatus(statusMap.get(row.statusId()));
                     o.setTypObjednavka(row.typObjednavka());
-                    o.setUzivatel(userForOrders);
+
+                    Uzivatel u = userMap.getOrDefault(row.uzivatelId(), null);
+                    if (u == null && row.uzivatelId() != null) {
+                        Uzivatel stub = new Uzivatel();
+                        stub.setIdUzivatel(row.uzivatelId());
+                        stub.setJmeno(row.uzivatelJmeno());
+                        stub.setPrijmeni(row.uzivatelPrijmeni());
+                        stub.setEmail(row.uzivatelEmail());
+                        u = stub;
+                    }
+                    o.setUzivatel(u);
+
+                    Supermarket sm = null;
+                    if (row.supermarketId() != null) {
+                        sm = new Supermarket();
+                        sm.setIdSupermarket(row.supermarketId());
+                        sm.setNazev(row.supermarketNazev());
+                    }
+                    o.setSupermarket(sm);
                     return o;
                 })
                 .toList();
-        List<ObjednavkaZbozi> orderLines = objednavkaZboziJdbcService.findAll()
-                .stream()
-                .filter(line -> orders.stream().anyMatch(o -> o.getIdObjednavka().equals(line.getObjednavka().getIdObjednavka())))
+        List<ObjednavkaZbozi> orderLines = orders.stream()
+                .flatMap(o -> objednavkaZboziJdbcService.findByObjednavka(o.getIdObjednavka()).stream())
                 .toList();
         List<Zamestnanec> employees = zamestnanecJdbcService.findAll();
         List<Zakaznik> customers = zakaznikJdbcService.findAll();
         List<Dodavatel> suppliers = dodavatelJdbcService.findAll();
-        List<Long> orderIds = orders.stream().map(Objednavka::getIdObjednavka).toList();
-        List<Platba> payments = platbaJdbcService.findByOrderIds(orderIds).stream()
-                .map(row -> {
-                    Platba p = new Platba();
-                    p.setIdPlatba(row.id());
-                    p.setCastka(row.castka());
-                    p.setDatum(row.datum());
-                    p.setPlatbaTyp(row.platbaTyp());
-                    Objednavka o = new Objednavka();
-                    o.setIdObjednavka(row.objednavkaId());
-                    p.setObjednavka(o);
-                    return p;
-                })
-                .toList();
+        List<PlatbaJdbcService.PlatbaDetail> paymentRows = platbaJdbcService.findByTyp(null);
         List<LogJdbcService.LogWithPath> logs = logJdbcService.findRecentWithPath();
         List<Zpravy> messages = messageJdbcService.findTop100WithParticipants().stream()
                 .limit(10)
@@ -115,16 +121,15 @@ public class DashboardService {
         List<Notifikace> subscribers = notifikaceJdbcService.findAll();
         List<ArchiveProcedureDao.ArchiveNode> archiveTree = archiveDao.getTree();
         List<Role> roles = roleJdbcService.findAll();
-        List<Uzivatel> allUsers = userJdbcService.findAll();
         List<DodavatelZbozi> supplierRelations = dodavatelZboziJdbcService.findAll();
 
         Map<Long, List<DodavatelZbozi>> suppliersByZbozi = supplierRelations.stream()
                 .collect(Collectors.groupingBy(rel -> rel.getId().getZboziId()));
 
-        Map<Long, Double> orderAmounts = payments.stream()
+        Map<Long, Double> orderAmounts = paymentRows.stream()
                 .collect(Collectors.groupingBy(
-                        platba -> platba.getObjednavka().getIdObjednavka(),
-                        Collectors.summingDouble(p -> p.getCastka().doubleValue())
+                        PlatbaJdbcService.PlatbaDetail::objednavkaId,
+                        Collectors.summingDouble(p -> p.castka() != null ? p.castka().doubleValue() : 0d)
                 ));
 
         Map<Long, Long> goodsPerCategory = goods.stream()
@@ -317,18 +322,21 @@ public class DashboardService {
                 .filter(Objects::nonNull)
                 .toList();
 
-        List<DashboardResponse.PaymentInfo> paymentInfos = payments.stream()
-                .sorted(Comparator.comparing(Platba::getDatum).reversed())
-                .map(payment -> new DashboardResponse.PaymentInfo(
-                        "PMT-" + payment.getIdPlatba(),
-                        "PO-" + payment.getObjednavka().getIdObjednavka(),
-                        payment.getPlatbaTyp(),
-                        resolveMethod(payment),
-                        payment.getCastka() != null ? payment.getCastka().doubleValue() : 0d,
-                        payment.getDatum() != null ? payment.getDatum().format(DATE_FORMAT) : "",
-                        "Zpracováno",
-                        true
-                ))
+        List<DashboardResponse.PaymentInfo> paymentInfos = paymentRows.stream()
+                .sorted(Comparator.comparing(PlatbaJdbcService.PlatbaDetail::datum).reversed())
+                .map(payment -> {
+                    String typ = payment.platbaTyp() != null ? payment.platbaTyp().trim() : "";
+                    return new DashboardResponse.PaymentInfo(
+                            "PMT-" + payment.id(),
+                            "PO-" + payment.objednavkaId(),
+                            typ, // kód H/K/U pro filtr
+                            resolveMethod(typ, payment),
+                            payment.castka() != null ? payment.castka().doubleValue() : 0d,
+                            payment.datum() != null ? payment.datum().format(DATE_FORMAT) : "",
+                            "Zpracováno",
+                            true
+                    );
+                })
                 .toList();
 
         List<DashboardResponse.LogInfo> logInfos = logs.stream()
@@ -631,15 +639,21 @@ public class DashboardService {
         return "UZIVATEL";
     }
 
-    private String resolveMethod(Platba platba) {
-        if ("K".equalsIgnoreCase(platba.getPlatbaTyp()) && platba.getKarta() != null) {
-            String number = platba.getKarta().getCisloKarty();
+    private String resolveMethod(String typ, PlatbaJdbcService.PlatbaDetail platba) {
+        if ("K".equalsIgnoreCase(typ)) {
+            String number = platba.cisloKarty();
             if (number != null && number.length() > 4) {
                 return "Karta •••• " + number.substring(number.length() - 4);
             }
             return "Platební karta";
         }
-        return "Pokladna #" + platba.getIdPlatba();
+        if ("H".equalsIgnoreCase(typ)) {
+            return "Hotově";
+        }
+        if ("U".equalsIgnoreCase(typ)) {
+            return "Účet";
+        }
+        return "Pokladna #" + platba.id();
     }
 
     private String formatCurrency(BigDecimal value) {

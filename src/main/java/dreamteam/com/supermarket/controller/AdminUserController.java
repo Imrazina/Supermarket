@@ -4,6 +4,7 @@ import dreamteam.com.supermarket.Service.AdminUserService;
 import dreamteam.com.supermarket.controller.dto.AdminUserResponse;
 import dreamteam.com.supermarket.controller.dto.AdminUserUpdateRequest;
 import dreamteam.com.supermarket.controller.dto.ImpersonationResponse;
+import dreamteam.com.supermarket.controller.dto.RoleDependencyResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -31,6 +32,27 @@ public class AdminUserController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(adminUserService.listUsers(role));
+    }
+
+    @GetMapping("/{id}/role-deps")
+    public ResponseEntity<?> roleDependencies(@PathVariable Long id, Authentication authentication) {
+        if (!isAdmin(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        try {
+            RoleDependencyResponse resp = adminUserService.getRoleDependencies(id);
+            return ResponseEntity.ok(resp);
+        } catch (IllegalArgumentException ex) {
+            return ResponseEntity.badRequest().body(ex.getMessage());
+        }
+    }
+
+    @GetMapping("/loyalty-next")
+    public ResponseEntity<?> nextLoyalty(Authentication authentication) {
+        if (!isAdmin(authentication)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        return ResponseEntity.ok(adminUserService.nextLoyaltyCard());
     }
 
     @PutMapping("/{id}")
@@ -85,4 +107,6 @@ public class AdminUserController {
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch(auth -> auth != null && auth.equalsIgnoreCase("ROLE_ADMIN"));
     }
+
+
 }

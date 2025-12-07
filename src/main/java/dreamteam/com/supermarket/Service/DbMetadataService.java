@@ -2,11 +2,15 @@ package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.controller.dto.DbObjectResponse;
 import lombok.RequiredArgsConstructor;
+import oracle.jdbc.OracleTypes;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
+import java.sql.CallableStatement;
+import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Locale;
@@ -24,13 +28,18 @@ public class DbMetadataService {
     );
 
     public List<DbObjectResponse> listObjects() {
-        String sql = """
-                SELECT object_type, object_name, created, last_ddl_time
-                FROM user_objects
-                WHERE object_type IN ('TABLE','VIEW','INDEX','SEQUENCE','TRIGGER','PROCEDURE','FUNCTION','PACKAGE','PACKAGE BODY','SYNONYM')
-                ORDER BY object_type, object_name
-                """;
-        return jdbcTemplate.query(sql, (rs, rowNum) -> mapRow(rs));
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_dbmeta.list_objects(?) }");
+            cs.registerOutParameter(1, OracleTypes.CURSOR);
+            cs.execute();
+            try (ResultSet rs = (ResultSet) cs.getObject(1)) {
+                List<DbObjectResponse> list = new java.util.ArrayList<>();
+                while (rs.next()) {
+                    list.add(mapRow(rs));
+                }
+                return list;
+            }
+        });
     }
 
     public String getDdl(String type, String name) {
@@ -39,11 +48,14 @@ public class DbMetadataService {
         if (objectType.isEmpty() || !SUPPORTED_TYPES.contains(objectType)) {
             return null;
         }
-        String sql = "SELECT DBMS_METADATA.GET_DDL(?, ?) FROM dual";
-        return jdbcTemplate.query(sql, ps -> {
-            ps.setString(1, objectType);
-            ps.setString(2, objectName);
-        }, rs -> rs.next() ? rs.getString(1) : null);
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_dbmeta.get_ddl(?, ?, ?) }");
+            cs.setString(1, objectType);
+            cs.setString(2, objectName);
+            cs.registerOutParameter(3, Types.CLOB);
+            cs.execute();
+            return cs.getString(3);
+        });
     }
 
     private String normalize(String type) {

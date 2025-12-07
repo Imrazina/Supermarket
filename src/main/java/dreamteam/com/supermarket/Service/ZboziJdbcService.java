@@ -1,10 +1,8 @@
 package dreamteam.com.supermarket.Service;
 
-import dreamteam.com.supermarket.model.market.KategorieZbozi;
-import dreamteam.com.supermarket.model.market.Sklad;
 import dreamteam.com.supermarket.model.market.Zbozi;
+import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -13,65 +11,44 @@ import java.util.List;
 @RequiredArgsConstructor
 public class ZboziJdbcService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final MarketProcedureDao marketDao;
 
     public Zbozi findById(Long id) {
-        String sql = """
-                SELECT ID_ZBOZI, NAZEV, CENA, MNOZSTVI, MINMNOZSTVI, POPIS, SKLAD_ID_SKLAD, ID_KATEGORIE
-                FROM ZBOZI
-                WHERE ID_ZBOZI = ?
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            Zbozi z = new Zbozi();
-            z.setIdZbozi(rs.getLong("ID_ZBOZI"));
-            z.setNazev(rs.getString("NAZEV"));
-            z.setCena(rs.getBigDecimal("CENA"));
-            z.setMnozstvi(rs.getInt("MNOZSTVI"));
-            z.setMinMnozstvi(rs.getInt("MINMNOZSTVI"));
-            z.setPopis(rs.getString("POPIS"));
-            Long skladId = rs.getLong("SKLAD_ID_SKLAD");
-            if (skladId != null) {
-                Sklad s = new Sklad();
-                s.setIdSklad(skladId);
-                z.setSklad(s);
-            }
-            Long katId = rs.getLong("ID_KATEGORIE");
-            if (katId != null) {
-                KategorieZbozi k = new KategorieZbozi();
-                k.setIdKategorie(katId);
-                z.setKategorie(k);
-            }
-            return z;
-        }, id).stream().findFirst().orElse(null);
+        var row = marketDao.getZbozi(id);
+        return row == null ? null : map(row);
     }
 
     public List<Zbozi> findAll() {
-        String sql = """
-                SELECT ID_ZBOZI, NAZEV, CENA, MNOZSTVI, MINMNOZSTVI, POPIS, SKLAD_ID_SKLAD, ID_KATEGORIE
-                FROM ZBOZI
-                ORDER BY ID_ZBOZI
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            Zbozi z = new Zbozi();
-            z.setIdZbozi(rs.getLong("ID_ZBOZI"));
-            z.setNazev(rs.getString("NAZEV"));
-            z.setCena(rs.getBigDecimal("CENA"));
-            z.setMnozstvi(rs.getInt("MNOZSTVI"));
-            z.setMinMnozstvi(rs.getInt("MINMNOZSTVI"));
-            z.setPopis(rs.getString("POPIS"));
-            Long skladId = rs.getLong("SKLAD_ID_SKLAD");
-            if (skladId != null) {
-                Sklad s = new Sklad();
-                s.setIdSklad(skladId);
-                z.setSklad(s);
+        return marketDao.listZbozi().stream().map(this::map).toList();
+    }
+
+    private Zbozi map(MarketProcedureDao.ZboziRow row) {
+        Zbozi z = new Zbozi();
+        z.setIdZbozi(row.id());
+        z.setNazev(row.nazev());
+        z.setPopis(row.popis());
+        z.setCena(row.cena());
+        z.setMnozstvi(row.mnozstvi());
+        z.setMinMnozstvi(row.minMnozstvi());
+        if (row.kategorieId() != null && row.kategorieId() > 0) {
+            var kat = new dreamteam.com.supermarket.model.market.KategorieZbozi();
+            kat.setIdKategorie(row.kategorieId());
+            kat.setNazev(row.kategorieNazev());
+            z.setKategorie(kat);
+        }
+        if (row.skladId() != null && row.skladId() > 0) {
+            var s = new dreamteam.com.supermarket.model.market.Sklad();
+            s.setIdSklad(row.skladId());
+            s.setNazev(row.skladNazev());
+            if (row.supermarketId() != null && row.supermarketId() > 0) {
+                var sp = new dreamteam.com.supermarket.model.market.Supermarket();
+                sp.setIdSupermarket(row.supermarketId());
+                sp.setNazev(row.supermarketNazev());
+                s.setSupermarket(sp);
             }
-            Long katId = rs.getLong("ID_KATEGORIE");
-            if (katId != null) {
-                KategorieZbozi k = new KategorieZbozi();
-                k.setIdKategorie(katId);
-                z.setKategorie(k);
-            }
-            return z;
-        });
+            z.setSklad(s);
+        }
+        // Dodavatelé na zboží řeší DodavatelZboziJdbcService; zde jen metadata z view
+        return z;
     }
 }

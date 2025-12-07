@@ -25,19 +25,19 @@ public class PermissionProcedureDao {
 
     public List<Permission> listPermissions() {
         return jdbcTemplate.execute(
-                call("{ call pkg_permission.list_permissions(?) }", cs -> cs.registerOutParameter(1, OracleTypes.CURSOR)),
+                call("{ call pkg_pravo.list_prava(?) }", cs -> cs.registerOutParameter(1, OracleTypes.CURSOR)),
                 extractCursor(1, rs -> new Permission(
-                        rs.getLong("id"),
-                        rs.getString("code"),
-                        rs.getString("name"),
-                        rs.getString("descr")
+                        rs.getLong("ID_PRAVO"),
+                        rs.getString("KOD"),
+                        rs.getString("NAZEV"),
+                        rs.getString("POPIS")
                 ))
         );
     }
 
     public Long savePermission(Long id, String name, String code, String descr) {
         return jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call pkg_permission.save_permission(?, ?, ?, ?, ?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_pravo.save_pravo(?, ?, ?, ?, ?) }");
             if (id != null) {
                 cs.setLong(1, id);
             } else {
@@ -56,7 +56,7 @@ public class PermissionProcedureDao {
 
     public void deletePermission(Long id) {
         jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call pkg_permission.delete_permission(?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_pravo.delete_pravo(?) }");
             cs.setLong(1, id);
             return cs;
         }, (CallableStatementCallback<Void>) cs -> {
@@ -67,11 +67,11 @@ public class PermissionProcedureDao {
 
     public List<RolePermissionRow> listRolePermissions() {
         return jdbcTemplate.execute(
-                call("{ call pkg_permission.list_role_permissions(?) }", cs -> cs.registerOutParameter(1, OracleTypes.CURSOR)),
+                call("{ call pkg_role_pravo.list_role_permissions(?) }", cs -> cs.registerOutParameter(1, OracleTypes.CURSOR)),
                 extractCursor(1, rs -> new RolePermissionRow(
-                        rs.getLong("role_id"),
-                        rs.getString("role_name"),
-                        rs.getString("permission_code")
+                        rs.getLong("ROLE_ID"),
+                        rs.getString("ROLE_NAME"),
+                        rs.getString("PERMISSION_CODE")
                 ))
         );
     }
@@ -80,7 +80,7 @@ public class PermissionProcedureDao {
         String joined = (codes == null || codes.isEmpty()) ? null
                 : codes.stream().map(String::trim).filter(c -> !c.isEmpty()).collect(Collectors.joining(","));
         jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call pkg_permission.update_role_permissions(?, ?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_role_pravo.update_role_permissions(?, ?) }");
             cs.setLong(1, roleId);
             if (joined != null && !joined.isBlank()) {
                 cs.setString(2, joined);
@@ -96,7 +96,7 @@ public class PermissionProcedureDao {
 
     public boolean userHasPermission(String email, String code) {
         return jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call pkg_permission.user_has_permission(?, ?, ?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_role_pravo.user_has_permission(?, ?, ?) }");
             cs.setString(1, email);
             cs.setString(2, code);
             cs.registerOutParameter(3, Types.NUMERIC);

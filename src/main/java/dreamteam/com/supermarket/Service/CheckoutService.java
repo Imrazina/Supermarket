@@ -3,6 +3,7 @@ package dreamteam.com.supermarket.Service;
 import dreamteam.com.supermarket.controller.dto.CheckoutRequest;
 import dreamteam.com.supermarket.controller.dto.CheckoutResponse;
 import dreamteam.com.supermarket.model.user.Uzivatel;
+import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -20,19 +21,19 @@ import java.util.Optional;
  * Checkout flow реализован только через собственные SQL/PL/SQL процедуры.
  * Никаких save()/persist() из JPA не используется.
  *
- * Требуемые процедуры в БД (Oracle):
- *  - PROC_OBJEDNAVKA_CREATE(p_status_id, p_user_id, p_supermarket_id, p_poznamka, p_typ_objednavka, p_id OUT)
- *  - PROC_OBJEDNAVKA_ZBOZI_ADD(p_objednavka_id, p_zbozi_id, p_qty)
- *  - PROC_ZBOZI_UPDATE_QTY(p_id, p_delta)
- *  - PROC_PLATBA_CREATE(p_objednavka_id, p_castka, p_platbatyp, p_id OUT)
- *  - PROC_HOTOVOST_UPDATE(p_platba_id, p_prijato, p_vraceno)
- *  - PROC_KARTA_UPDATE(p_platba_id, p_cislo_karty)
+ * Použité balíky v BDD (Oracle):
+ *  - pkg_objednavka.save_objednavka
+ *  - pkg_objednavka_zbozi.add_item
+ *  - pkg_zbozi.update_mnozstvi
+ *  - pkg_platba.create_platba
  */
 @Service
 @RequiredArgsConstructor
 public class CheckoutService {
 
     private final JdbcTemplate jdbcTemplate;
+    private final MarketProcedureDao marketDao;
+    private final ZakaznikJdbcService zakaznikJdbcService;
 
     @Transactional
     public CheckoutResponse createOrderWithPayment(Uzivatel user, CheckoutRequest request) {
@@ -86,96 +87,61 @@ public class CheckoutService {
         }
 
         String paymentType = resolvePaymentType(request.paymentType()); // "H" или "K"
-
-        Long platbaId = createPlatba(objednavkaId, total, paymentType);
-        BigDecimal prijatoForResponse = null;
-        BigDecimal changeForResponse = null;
-
-        if ("K".equalsIgnoreCase(paymentType)) {
-            String cardNumber = Optional.ofNullable(request.cardNumber()).orElse("neznama");
-            updateKarta(platbaId, cardNumber);
-        } else {
-            BigDecimal prijato = Optional.ofNullable(request.cashGiven()).orElse(total);
-            BigDecimal vraceno = prijato.subtract(total).max(BigDecimal.ZERO);
-            updateHotovost(platbaId, prijato, vraceno);
-            prijatoForResponse = prijato;
-            changeForResponse = vraceno;
+        String cardNumber = "K".equalsIgnoreCase(paymentType)
+                ? Optional.ofNullable(request.cardNumber()).orElse(null)
+                : null;
+        BigDecimal prijato = null;
+        BigDecimal vraceno = null;
+        if ("H".equalsIgnoreCase(paymentType)) {
+            prijato = Optional.ofNullable(request.cashGiven()).orElse(total);
+            vraceno = prijato.subtract(total).max(BigDecimal.ZERO);
         }
+
+        Long platbaId = createPlatba(objednavkaId, total, paymentType, cardNumber, prijato, vraceno);
 
         return new CheckoutResponse(
                 objednavkaId,
                 platbaId,
                 total,
-                prijatoForResponse,
-                changeForResponse,
+                prijato,
+                vraceno,
                 paymentType,
                 responseLines
         );
     }
 
     private StatusRow fetchDefaultStatus() {
-        String sql = """
-                SELECT ID_STATUS, NAZEV
-                FROM (
-                    SELECT ID_STATUS, NAZEV FROM STATUS ORDER BY ID_STATUS
-                )
-                WHERE ROWNUM = 1
-                """;
-        List<StatusRow> list = jdbcTemplate.query(sql, (rs, i) -> new StatusRow(
-                rs.getLong("ID_STATUS"),
-                rs.getString("NAZEV")
-        ));
-        return list.isEmpty() ? null : list.get(0);
+        List<MarketProcedureDao.StatusRow> list = marketDao.listStatus();
+        return list.isEmpty() ? null : new StatusRow(list.get(0).id(), list.get(0).nazev());
     }
 
     private SupermarketRow fetchDefaultSupermarket() {
-        String sql = """
-                SELECT ID_SUPERMARKET, NAZEV
-                FROM (
-                    SELECT ID_SUPERMARKET, NAZEV FROM SUPERMARKET ORDER BY ID_SUPERMARKET
-                )
-                WHERE ROWNUM = 1
-                """;
-        List<SupermarketRow> list = jdbcTemplate.query(sql, (rs, i) -> new SupermarketRow(
-                rs.getLong("ID_SUPERMARKET"),
-                rs.getString("NAZEV")
-        ));
-        return list.isEmpty() ? null : list.get(0);
+        List<MarketProcedureDao.SupermarketRow> list = marketDao.listSupermarket();
+        return list.isEmpty() ? null : new SupermarketRow(list.get(0).id(), list.get(0).nazev());
     }
 
     private boolean existsZakaznik(Long userId) {
-        String sql = """
-                SELECT 1
-                FROM ZAKAZNIK
-                WHERE ID_UZIVATELU = ?
-                  AND ROWNUM = 1
-                """;
-        List<Integer> res = jdbcTemplate.query(sql, (rs, i) -> rs.getInt(1), userId);
-        return !res.isEmpty();
+        return zakaznikJdbcService.findById(userId) != null;
     }
 
     private ZboziRow findZbozi(Long id) {
-        String sql = """
-                SELECT ID_ZBOZI, NAZEV, CENA, MNOZSTVI, MINMNOZSTVI, POPIS, SKLAD_ID_SKLAD, ID_KATEGORIE
-                FROM ZBOZI
-                WHERE ID_ZBOZI = ?
-                """;
-        List<ZboziRow> list = jdbcTemplate.query(sql, (rs, i) -> new ZboziRow(
-                rs.getLong("ID_ZBOZI"),
-                rs.getString("NAZEV"),
-                rs.getBigDecimal("CENA"),
-                rs.getInt("MNOZSTVI"),
-                rs.getInt("MINMNOZSTVI"),
-                rs.getString("POPIS"),
-                rs.getLong("SKLAD_ID_SKLAD"),
-                rs.getLong("ID_KATEGORIE")
-        ), id);
-        return list.isEmpty() ? null : list.get(0);
+        MarketProcedureDao.ZboziRow row = marketDao.getZbozi(id);
+        if (row == null) return null;
+        return new ZboziRow(
+                row.id(),
+                row.nazev(),
+                row.cena(),
+                row.mnozstvi(),
+                row.minMnozstvi(),
+                row.popis(),
+                row.skladId(),
+                row.kategorieId()
+        );
     }
 
     private void updateZboziQty(Long zboziId, int delta) {
         jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call PROC_ZBOZI_UPDATE_QTY(?, ?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_zbozi.update_mnozstvi(?, ?) }");
             cs.setLong(1, zboziId);
             cs.setInt(2, delta);
             return cs;
@@ -184,7 +150,7 @@ public class CheckoutService {
 
     private void addObjednavkaZbozi(Long objednavkaId, Long zboziId, int qty) {
         jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call PROC_OBJEDNAVKA_ZBOZI_ADD(?, ?, ?) }");
+            CallableStatement cs = con.prepareCall("{ call pkg_objednavka_zbozi.add_item(?, ?, ?) }");
             cs.setLong(1, objednavkaId);
             cs.setLong(2, zboziId);
             cs.setInt(3, qty);
@@ -198,50 +164,43 @@ public class CheckoutService {
                                   String note,
                                   String typObjednavka) {
         return jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call PROC_OBJEDNAVKA_CREATE(?, ?, ?, ?, ?, ?) }");
-            cs.setLong(1, statusId);
-            cs.setLong(2, userId);
-            cs.setLong(3, supermarketId);
+            CallableStatement cs = con.prepareCall("{ call pkg_objednavka.save_objednavka(?, ?, ?, ?, ?, ?, ?, ?) }");
+            cs.setNull(1, java.sql.Types.NUMERIC); // p_id IN (nový záznam)
+            cs.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis())); // p_datum
+            cs.setLong(3, statusId);
+            cs.setLong(4, userId);
+            cs.setLong(5, supermarketId);
             if (note != null && !note.isBlank()) {
-                cs.setString(4, note);
+                cs.setString(6, note);
             } else {
-                cs.setNull(4, java.sql.Types.CLOB);
+                cs.setNull(6, java.sql.Types.CLOB);
             }
-            cs.setString(5, typObjednavka);
-            cs.registerOutParameter(6, java.sql.Types.NUMERIC);
+            cs.setString(7, typObjednavka);
+            cs.registerOutParameter(8, java.sql.Types.NUMERIC);
             cs.execute();
-            return cs.getLong(6);
+            return cs.getLong(8);
         });
     }
 
-    private Long createPlatba(Long objednavkaId, BigDecimal castka, String paymentType) {
+    private Long createPlatba(Long objednavkaId,
+                              BigDecimal castka,
+                              String paymentType,
+                              String cisloKarty,
+                              BigDecimal prijato,
+                              BigDecimal vraceno) {
         return jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call PROC_PLATBA_CREATE(?, ?, ?, ?) }");
-            cs.setLong(1, objednavkaId);
-            cs.setBigDecimal(2, castka);
+            CallableStatement cs = con.prepareCall("{ call pkg_platba.create_platba(?, ?, ?, ?, ?, ?, ?, ?, ?) }");
+            if (objednavkaId != null) cs.setLong(1, objednavkaId); else cs.setNull(1, java.sql.Types.NUMERIC);
+            if (castka != null) cs.setBigDecimal(2, castka); else cs.setNull(2, java.sql.Types.NUMERIC);
             cs.setString(3, paymentType);
-            cs.registerOutParameter(4, java.sql.Types.NUMERIC);
+            cs.setNull(4, java.sql.Types.NUMERIC); // účet zatím nepoužíváme
+            if (cisloKarty != null) cs.setString(5, cisloKarty); else cs.setNull(5, java.sql.Types.VARCHAR);
+            if (prijato != null) cs.setBigDecimal(6, prijato); else cs.setNull(6, java.sql.Types.NUMERIC);
+            if (vraceno != null) cs.setBigDecimal(7, vraceno); else cs.setNull(7, java.sql.Types.NUMERIC);
+            cs.registerOutParameter(8, java.sql.Types.NUMERIC); // pohyb
+            cs.registerOutParameter(9, java.sql.Types.NUMERIC); // platba
             cs.execute();
-            return cs.getLong(4);
-        });
-    }
-
-    private void updateHotovost(Long platbaId, BigDecimal prijato, BigDecimal vraceno) {
-        jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call PROC_HOTOVOST_UPDATE(?, ?, ?) }");
-            cs.setLong(1, platbaId);
-            cs.setBigDecimal(2, prijato);
-            cs.setBigDecimal(3, vraceno);
-            return cs;
-        });
-    }
-
-    private void updateKarta(Long platbaId, String cisloKarty) {
-        jdbcTemplate.execute((Connection con) -> {
-            CallableStatement cs = con.prepareCall("{ call PROC_KARTA_UPDATE(?, ?) }");
-            cs.setLong(1, platbaId);
-            cs.setString(2, cisloKarty);
-            return cs;
+            return cs.getLong(9);
         });
     }
 
