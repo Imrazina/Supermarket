@@ -1,4 +1,4 @@
-import ProfileModule from './modules/profile-module.js';
+﻿import ProfileModule from './modules/profile-module.js';
 import PermissionsModule from './modules/permissions-module.js';
 import DbObjectsModule from './modules/dbobjects-module.js';
 import UsersModule from './modules/users-module.js';
@@ -2801,31 +2801,20 @@ class GlobalSearch {
             this.startMessagePolling();
         }
 
+        
         registerUtilityButtons() {
-            const refreshBtn = document.getElementById('refresh-btn');
-            refreshBtn?.addEventListener('click', async () => {
-                if (refreshBtn.disabled) {
-                    return;
-                }
-                refreshBtn.disabled = true;
-                try {
-                    await this.refreshData();
-                } catch (error) {
-                    console.error('Refresh failed', error);
-                    alert(error.message || 'Nepodařilo se načíst aktuální data.');
-                } finally {
-                    refreshBtn.disabled = false;
-                }
-            });
-            document.getElementById('new-order-btn')?.addEventListener('click', () => alert('Průvodce vytvořením objednávky bude brzy dostupný.'));
-            document.getElementById('new-store-btn')?.addEventListener('click', () => alert('Průvodce otevřením prodejny bude brzy dostupný.'));
-            document.getElementById('export-store-btn')?.addEventListener('click', () => alert('Export seznamu prodejen bude brzy připraven.'));
-            document.getElementById('upload-btn')?.addEventListener('click', () => alert('Nahrávání souborů přidáme později.'));
-            const exitBtn = document.getElementById('impersonation-exit-btn');
+            const walletBtn = document.getElementById("wallet-btn");
+            walletBtn?.addEventListener('click', () => this.openWalletPanel());
+            this.updateWalletChip();
+            document.getElementById("new-order-btn")?.addEventListener("click", () => alert("Pruvodce vytvorenim objednavky bude brzy dostupny."));
+            document.getElementById("new-store-btn")?.addEventListener("click", () => alert("Pruvodce otevrenim prodejny bude brzy dostupny."));
+            document.getElementById("export-store-btn")?.addEventListener("click", () => alert("Export seznamu prodejen bude brzy pripraven."));
+            document.getElementById("upload-btn")?.addEventListener("click", () => alert("Nahravani souboru pridame pozdeji."));
+            const exitBtn = document.getElementById("impersonation-exit-btn");
             if (exitBtn) {
-                const isImpersonating = !!localStorage.getItem('admin_original_token');
-                exitBtn.style.display = isImpersonating ? 'inline-flex' : 'none';
-                exitBtn.addEventListener('click', () => {
+                const isImpersonating = !!localStorage.getItem("admin_original_token");
+                exitBtn.style.display = isImpersonating ? "inline-flex" : "none";
+                exitBtn.addEventListener("click", () => {
                     if (restoreOriginalSession()) {
                         window.location.reload();
                     }
@@ -2878,6 +2867,215 @@ class GlobalSearch {
                 }
             });
             document.body.appendChild(chip);
+        }
+
+        openWalletPanel() {
+            this.ensureWalletPanel();
+            this.walletOverlay.style.display = 'flex';
+            this.loadWalletData();
+        }
+
+        ensureWalletPanel() {
+            if (this.walletOverlay) {
+                return;
+            }
+            const overlay = document.createElement('div');
+            overlay.className = 'wallet-overlay';
+            const panel = document.createElement('div');
+            panel.className = 'wallet-panel';
+            panel.innerHTML = `
+                <div class="wallet-header" style="grid-column:1/-1;">
+                    <div>
+                        <p class="muted-label">Muj ucet</p>
+                        <div class="wallet-balance" id="wallet-balance">Nacitam...</div>
+                    </div>
+                    <button class="wallet-close" type="button" id="wallet-close">
+                        <span class="material-symbols-rounded" aria-hidden="true">close</span>
+                    </button>
+                </div>
+                <div class="panel" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+                    <h3 style="margin-top:0;">Historie</h3>
+                    <ul class="wallet-history" id="wallet-history"></ul>
+                </div>
+                <div class="panel" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
+                    <h3 style="margin-top:0;">Dobiti</h3>
+                    <form class="wallet-form" id="wallet-form">
+                        <div>
+                            <label>Castka</label>
+                            <input type="number" step="0.01" min="0" id="wallet-amount" required placeholder="200">
+                        </div>
+                        <div>
+                            <label>Metoda</label>
+                            <select id="wallet-method">
+                                <option value="HOTOVOST">Hotovost</option>
+                                <option value="KARTA">Karta</option>
+                            </select>
+                        </div>
+                        <div id="wallet-card-wrap" style="display:none;">
+                            <label>Cislo karty</label>
+                            <input type="text" id="wallet-card" placeholder="4111 1111 1111 1111">
+                        </div>
+                        <div>
+                            <label>Poznamka</label>
+                            <input type="text" id="wallet-note" placeholder="Dobiti">
+                        </div>
+                        <div class="wallet-actions">
+                            <button type="submit" class="primary-btn" id="wallet-submit">Dobit ucet</button>
+                        </div>
+                        <div class="chat-status" id="wallet-status"></div>
+                    </form>
+                </div>
+            `;
+            overlay.appendChild(panel);
+            document.body.appendChild(overlay);
+            this.walletOverlay = overlay;
+            this.walletBalanceEl = panel.querySelector('#wallet-balance');
+            this.walletHistoryList = panel.querySelector('#wallet-history');
+            this.walletStatus = panel.querySelector('#wallet-status');
+            const closeBtn = panel.querySelector('#wallet-close');
+            closeBtn.addEventListener('click', () => overlay.style.display = 'none');
+            overlay.addEventListener('click', (e) => {
+                if (e.target === overlay) {
+                    overlay.style.display = 'none';
+                }
+            });
+            const methodSelect = panel.querySelector('#wallet-method');
+            const cardWrap = panel.querySelector('#wallet-card-wrap');
+            methodSelect.addEventListener('change', () => {
+                cardWrap.style.display = methodSelect.value === 'KARTA' ? 'block' : 'none';
+            });
+            const form = panel.querySelector('#wallet-form');
+            form.addEventListener('submit', async (ev) => {
+                ev.preventDefault();
+                await this.submitWalletTopUp();
+            });
+        }
+
+        async loadWalletData() {
+            try {
+                if (this.walletStatus) {
+                    this.walletStatus.textContent = 'Nacitam...';
+                }
+                const token = localStorage.getItem('token');
+                if (!token) {
+                    throw new Error('Chybi prihlaseni.');
+                }
+                const [balanceRes, historyRes] = await Promise.all([
+                    fetch(apiUrl('/api/wallet'), { headers: { 'Authorization': `Bearer ${token}` } }),
+                    fetch(apiUrl('/api/wallet/history'), { headers: { 'Authorization': `Bearer ${token}` } })
+                ]);
+                if (!balanceRes.ok) {
+                    throw new Error(await balanceRes.text() || 'Nelze nacist zustatek.');
+                }
+                if (!historyRes.ok) {
+                    throw new Error(await historyRes.text() || 'Nelze nacist historii.');
+                }
+                const balance = await balanceRes.json();
+                const history = await historyRes.json();
+                if (this.walletBalanceEl) {
+                    const val = balance && typeof balance.balance !== 'undefined' ? balance.balance : 0;
+                    this.walletBalanceEl.textContent = currencyFormatter.format(val || 0);
+                    this.setWalletChipBalance(val || 0);
+                }
+                if (this.walletHistoryList) {
+                    this.walletHistoryList.innerHTML = '';
+                    (history || []).forEach(item => {
+                        const li = document.createElement('li');
+                        const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
+                        li.innerHTML = `
+                            <div style="display:flex;justify-content:space-between;align-items:center;">
+                                <strong>${dir} ${currencyFormatter.format(item.amount || 0)}</strong>
+                                <span class="meta">${item.method || ''}</span>
+                            </div>
+                            <div class="meta">${item.note || ''}</div>
+                            <div class="meta">${item.createdAt || ''}${item.orderId ? ' · objednavka ' + item.orderId : ''}</div>
+                        `;
+                        this.walletHistoryList.appendChild(li);
+                    });
+                }
+                if (this.walletStatus) {
+                    this.walletStatus.textContent = '';
+                }
+            } catch (error) {
+                console.error('wallet load failed', error);
+                if (this.walletStatus) {
+                    this.walletStatus.textContent = error.message || 'Chyba nacitani penezky.';
+                }
+            }
+        }
+
+        async submitWalletTopUp() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Nejste prihlasen.');
+                return;
+            }
+            const amountEl = this.walletOverlay.querySelector('#wallet-amount');
+            const methodEl = this.walletOverlay.querySelector('#wallet-method');
+            const cardEl = this.walletOverlay.querySelector('#wallet-card');
+            const noteEl = this.walletOverlay.querySelector('#wallet-note');
+            const submitBtn = this.walletOverlay.querySelector('#wallet-submit');
+            const amount = parseFloat(amountEl.value);
+            const method = methodEl.value;
+            const card = cardEl.value;
+            const note = noteEl.value;
+            if (!amount || amount <= 0) {
+                this.walletStatus.textContent = 'Zadejte castku vetsi nez 0.';
+                return;
+            }
+            if (method === 'KARTA' && (!card || card.trim().length < 4)) {
+                this.walletStatus.textContent = 'Zadejte cislo karty.';
+                return;
+            }
+            submitBtn.disabled = true;
+            this.walletStatus.textContent = 'Odesilam...';
+            try {
+                const response = await fetch(apiUrl('/api/wallet/topup'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({
+                        amount,
+                        method,
+                        cardNumber: method === 'KARTA' ? card : null,
+                        note
+                    })
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Dobiti se nezdarilo.');
+                }
+                this.walletStatus.textContent = 'Dobito.';
+                await this.loadWalletData();
+                this.setWalletChipBalance(amount + (this.walletBalanceEl ? parseFloat((this.walletBalanceEl.textContent || '0').replace(/[^0-9.,-]/g, '')) || 0 : 0));
+            } catch (error) {
+                this.walletStatus.textContent = error.message || 'Dobiti se nezdarilo.';
+            } finally {
+                submitBtn.disabled = false;
+            }
+        }
+
+        async updateWalletChip() {
+            try {
+                const token = localStorage.getItem('token');
+                if (!token) return;
+                const resp = await fetch(apiUrl('/api/wallet'), { headers: { 'Authorization': `Bearer ${token}` } });
+                if (!resp.ok) return;
+                const balance = await resp.json();
+                const val = balance && typeof balance.balance !== 'undefined' ? balance.balance : 0;
+                this.setWalletChipBalance(val);
+            } catch (e) {
+                // ignore chip errors
+            }
+        }
+
+        setWalletChipBalance(amount) {
+            const chip = document.getElementById('wallet-chip-balance');
+            if (chip) {
+                chip.textContent = currencyFormatter.format(amount || 0);
+            }
         }
 
         async refreshData() {
@@ -3042,3 +3240,4 @@ class GlobalSearch {
             }
         }
     }
+
