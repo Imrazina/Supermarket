@@ -63,8 +63,8 @@ public class DashboardService {
 
     @Transactional(readOnly = true)
     public DashboardResponse buildSnapshot(Uzivatel currentUser) {
-        currentUser = userJdbcService.findById(currentUser.getIdUzivatel());
-        if (currentUser == null) {
+        Uzivatel user = userJdbcService.findById(currentUser.getIdUzivatel());
+        if (user == null) {
             throw new IllegalArgumentException("Uzivatel neexistuje.");
         }
         LocalDateTime now = LocalDateTime.now();
@@ -116,6 +116,11 @@ public class DashboardService {
         List<PlatbaJdbcService.PlatbaDetail> paymentRows = platbaJdbcService.findByTyp(null);
         List<LogJdbcService.LogWithPath> logs = logJdbcService.findRecentWithPath();
         List<Zpravy> messages = messageJdbcService.findTop100WithParticipants().stream()
+                .filter(msg -> isParticipant(user, msg))
+                .sorted(Comparator.comparing(
+                        Zpravy::getDatumZasilani,
+                        Comparator.nullsLast(Comparator.reverseOrder())
+                ))
                 .limit(10)
                 .toList();
         List<Notifikace> subscribers = notifikaceJdbcService.findAll();
@@ -153,7 +158,7 @@ public class DashboardService {
                 ));
 
         Map<Long, Long> roleCounts = allUsers.stream()
-                .filter(user -> user.getRole() != null)
+                .filter(u -> u.getRole() != null)
                 .collect(Collectors.groupingBy(u -> u.getRole().getIdRole(), Collectors.counting()));
 
         Map<Long, Long> statusCounts = orders.stream()
@@ -268,42 +273,42 @@ public class DashboardService {
 
         List<DashboardResponse.EmployeeInfo> employeeInfos = employees.stream()
                 .map(emp -> {
-                    Uzivatel user = emp.getUzivatel();
+                    Uzivatel empUser = emp.getUzivatel();
                     return new DashboardResponse.EmployeeInfo(
                             "EMP-" + emp.getId(),
-                            user != null ? user.getJmeno() + " " + user.getPrijmeni() : "Neuvedeno",
+                            empUser != null ? empUser.getJmeno() + " " + empUser.getPrijmeni() : "Neuvedeno",
                             emp.getPozice(),
                             emp.getDatumNastupa() != null ? emp.getDatumNastupa().toString() : "",
                             emp.getMzda() != null ? emp.getMzda().doubleValue() : 0d,
-                            user != null ? user.getTelefonniCislo() : "",
-                            user != null && user.getRole() != null ? user.getRole().getNazev() : ""
+                            empUser != null ? empUser.getTelefonniCislo() : "",
+                            empUser != null && empUser.getRole() != null ? empUser.getRole().getNazev() : ""
                     );
                 })
                 .toList();
 
         List<DashboardResponse.CustomerInfo> customerInfos = customers.stream()
                 .map(customer -> {
-                    Uzivatel user = customer.getUzivatel();
+                    Uzivatel custUser = customer.getUzivatel();
                     return new DashboardResponse.CustomerInfo(
                             "CST-" + customer.getId(),
-                            user != null ? user.getJmeno() + " " + user.getPrijmeni() : "Neuvedeno",
+                            custUser != null ? custUser.getJmeno() + " " + custUser.getPrijmeni() : "Neuvedeno",
                             customer.getKartaVernosti(),
-                            user != null ? user.getEmail() : "",
-                            user != null ? user.getTelefonniCislo() : ""
+                            custUser != null ? custUser.getEmail() : "",
+                            custUser != null ? custUser.getTelefonniCislo() : ""
                     );
                 })
                 .toList();
 
         List<DashboardResponse.SupplierInfo> supplierInfos = suppliers.stream()
                 .map(supplier -> {
-                    Uzivatel user = supplier.getUzivatel();
-                    Adresa addr = user != null ? user.getAdresa() : null;
+                    Uzivatel supUser = supplier.getUzivatel();
+                    Adresa addr = supUser != null ? supUser.getAdresa() : null;
                     String contact = addr != null ? addr.getUlice() + " " + addr.getCisloPopisne() : "Neuvedeno";
                     return new DashboardResponse.SupplierInfo(
                             "SUP-" + supplier.getId(),
                             supplier.getFirma(),
                             contact,
-                            user != null ? user.getTelefonniCislo() : "",
+                            supUser != null ? supUser.getTelefonniCislo() : "",
                             "A"
                     );
                 })
@@ -431,10 +436,8 @@ public class DashboardService {
                 ))
                 .toList();
 
-        Long unreadMessages = 0L;
-        String lastMessageSummary = messages.isEmpty()
-                ? "Zadne zpravy"
-                : Objects.requireNonNullElse(messages.get(0).getContent(), "Zadne zpravy");
+        long unreadMessages = messageJdbcService.countUnread(user.getIdUzivatel(), null);
+        String lastMessageSummary = messageJdbcService.lastMessageSummary(user.getIdUzivatel());
         return new DashboardResponse(
                 now.format(DATE_TIME_FORMAT),
                 buildWeeklyDemand(orders),
@@ -480,6 +483,15 @@ public class DashboardService {
                 zip,
                 kraj
         );
+    }
+
+    private boolean isParticipant(Uzivatel currentUser, Zpravy message) {
+        if (currentUser == null || currentUser.getIdUzivatel() == null || message == null) {
+            return false;
+        }
+        Long id = currentUser.getIdUzivatel();
+        return (message.getSender() != null && id.equals(message.getSender().getIdUzivatel()))
+                || (message.getReceiver() != null && id.equals(message.getReceiver().getIdUzivatel()));
     }
 
     private List<DashboardResponse.WeeklyDemandPoint> buildWeeklyDemand(List<Objednavka> orders) {

@@ -56,7 +56,12 @@ public class NotifikaceJdbcService {
         Long id = n.getIdNotifikace();
         Long newId = jdbcTemplate.execute((Connection con) -> {
             CallableStatement cs = con.prepareCall("{ call pkg_notifikace.save_notifikace(?, ?, ?, ?, ?, ?) }");
-            if (id != null) cs.setLong(1, id); else cs.setNull(1, java.sql.Types.NUMERIC);
+            cs.registerOutParameter(1, java.sql.Types.NUMERIC); // IN OUT p_id
+            if (id != null) {
+                cs.setLong(1, id);
+            } else {
+                cs.setNull(1, java.sql.Types.NUMERIC);
+            }
             if (n.getZpravaId() != null) cs.setLong(2, n.getZpravaId()); else cs.setNull(2, java.sql.Types.NUMERIC);
             cs.setString(3, n.getAuthToken());
             cs.setString(4, n.getEndPoint());

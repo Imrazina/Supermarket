@@ -183,6 +183,7 @@ export default class UsersModule {
                                 <td style="display:flex;gap:8px;flex-wrap:wrap;">
                                     <button type="button" class="ghost-btn" data-edit="${user.id}">Upravit</button>
                                     <button type="button" class="ghost-btn ghost-muted" data-impersonate="${user.id}">Simulovat</button>
+                                    <button type="button" class="ghost-btn ghost-danger" data-delete="${user.id}">Smazat</button>
                                 </td>
                             </tr>
                         `).join('')}
@@ -198,6 +199,10 @@ export default class UsersModule {
         this.tableEl.querySelectorAll('[data-impersonate]').forEach(btn => {
             const id = Number(btn.dataset.impersonate);
             btn.addEventListener('click', () => this.impersonateUser(id));
+        });
+        this.tableEl.querySelectorAll('[data-delete]').forEach(btn => {
+            const id = Number(btn.dataset.delete);
+            btn.addEventListener('click', () => this.deleteUser(id));
         });
     }
 
@@ -334,6 +339,36 @@ export default class UsersModule {
             const phone = (user.phone || '').toLowerCase();
             return fullName.includes(this.searchTerm) || email.includes(this.searchTerm) || phone.includes(this.searchTerm);
         });
+    }
+
+    async deleteUser(id) {
+        if (!id) return;
+        const user = (this.state.adminUsers || []).find(u => u.id === id);
+        const name = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
+        if (!confirm(`Opravdu smazat uživatele ${name || id}?`)) {
+            return;
+        }
+        const token = localStorage.getItem('token');
+        if (!token) {
+            window.location.href = 'landing.html';
+            return;
+        }
+        try {
+            const response = await fetch(this.apiUrl(`/api/admin/users/${id}`), {
+                method: 'DELETE',
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            if (!response.ok) {
+                const text = await response.text();
+                throw new Error(text || 'Smazání se nepodařilo.');
+            }
+            this.state.adminUsers = (this.state.adminUsers || []).filter(u => u.id !== id);
+            this.renderTable();
+        } catch (error) {
+            alert(error.message || 'Smazání se nepodařilo.');
+        }
     }
 
     populateRoleSelect(roles, current) {
