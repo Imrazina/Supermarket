@@ -61,4 +61,7 @@ public class AdminUserUpdateRequest {
 
     @Size(max = 100)
     private String supplierCompany;
+
+    // Volitelné: vynutit změnu role s odstraněním vazeb
+    private Boolean force;
 }

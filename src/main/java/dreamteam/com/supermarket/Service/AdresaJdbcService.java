@@ -2,64 +2,47 @@ package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.model.location.Adresa;
 import dreamteam.com.supermarket.model.location.Mesto;
+import dreamteam.com.supermarket.repository.LocationProcedureDao;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
 public class AdresaJdbcService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final LocationProcedureDao locationDao;
 
     public Adresa findById(Long id) {
-        String sql = """
-                SELECT ID_ADRESA, ULICE, CISLOPOPISNE, CISLOORIENTACNI, PSC
-                FROM ADRESA
-                WHERE ID_ADRESA = ?
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            Adresa a = new Adresa();
-            a.setIdAdresa(rs.getLong("ID_ADRESA"));
-            a.setUlice(rs.getString("ULICE"));
-            a.setCisloPopisne(rs.getString("CISLOPOPISNE"));
-            a.setCisloOrientacni(rs.getString("CISLOORIENTACNI"));
-            Mesto m = new Mesto();
-            m.setPsc(rs.getString("PSC"));
-            a.setMesto(m);
-            return a;
-        }, id).stream().findFirst().orElse(null);
+        var row = locationDao.getAdresa(id);
+        if (row == null) return null;
+        return map(row, locationDao.getMesto(row.psc()));
     }
 
     public Adresa save(Adresa adresa) {
-        if (adresa.getIdAdresa() == null) {
-            Long id = jdbcTemplate.queryForObject("SELECT SEQ_ADRESA_ID.NEXTVAL FROM dual", Long.class);
-            jdbcTemplate.update("""
-                    INSERT INTO ADRESA (ID_ADRESA, ULICE, CISLOPOPISNE, CISLOORIENTACNI, PSC)
-                    VALUES (?, ?, ?, ?, ?)
-                    """,
-                    id,
-                    adresa.getUlice(),
-                    adresa.getCisloPopisne(),
-                    adresa.getCisloOrientacni(),
-                    adresa.getMesto() != null ? adresa.getMesto().getPsc() : null
-            );
-            adresa.setIdAdresa(id);
-        } else {
-            jdbcTemplate.update("""
-                    UPDATE ADRESA
-                    SET ULICE = ?, CISLOPOPISNE = ?, CISLOORIENTACNI = ?, PSC = ?
-                    WHERE ID_ADRESA = ?
-                    """,
-                    adresa.getUlice(),
-                    adresa.getCisloPopisne(),
-                    adresa.getCisloOrientacni(),
-                    adresa.getMesto() != null ? adresa.getMesto().getPsc() : null,
-                    adresa.getIdAdresa()
-            );
+        LocationProcedureDao.AdresaRow row = new LocationProcedureDao.AdresaRow(
+                adresa.getIdAdresa(),
+                adresa.getUlice(),
+                adresa.getCisloPopisne(),
+                adresa.getCisloOrientacni(),
+                adresa.getMesto() != null ? adresa.getMesto().getPsc() : null
+        );
+        Long id = locationDao.saveAdresa(row);
+        return findById(id);
+    }
+
+    private Adresa map(LocationProcedureDao.AdresaRow row, LocationProcedureDao.MestoRow mestoRow) {
+        Adresa a = new Adresa();
+        a.setIdAdresa(row.id());
+        a.setUlice(row.ulice());
+        a.setCisloPopisne(row.cpop());
+        a.setCisloOrientacni(row.corient());
+        if (mestoRow != null) {
+            Mesto m = new Mesto();
+            m.setPsc(mestoRow.psc());
+            m.setNazev(mestoRow.nazev());
+            m.setKraj(mestoRow.kraj());
+            a.setMesto(m);
         }
-        return adresa;
+        return a;
     }
 }

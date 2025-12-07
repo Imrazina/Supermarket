@@ -1,8 +1,6 @@
 package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.Service.DbMetadataService;
-import dreamteam.com.supermarket.Service.RolePravoJdbcService;
-import dreamteam.com.supermarket.Service.UserJdbcService;
 import dreamteam.com.supermarket.Service.PermissionService;
 import dreamteam.com.supermarket.controller.dto.DbObjectResponse;
 import org.springframework.http.HttpStatus;
@@ -16,24 +14,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Locale;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/admin/db-objects")
 public class DbMetadataController {
 
     private final DbMetadataService dbMetadataService;
-    private final UserJdbcService userJdbcService;
-    private final RolePravoJdbcService rolePravoJdbcService;
     private final PermissionService permissionService;
 
     public DbMetadataController(DbMetadataService dbMetadataService,
-                                UserJdbcService userJdbcService,
-                                RolePravoJdbcService rolePravoJdbcService) {
+                                PermissionService permissionService) {
         this.dbMetadataService = dbMetadataService;
-        this.userJdbcService = userJdbcService;
-        this.rolePravoJdbcService = rolePravoJdbcService;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
@@ -66,12 +58,6 @@ public class DbMetadataController {
             return true;
         }
         String email = authentication.getName();
-        var user = userJdbcService.findByEmail(email);
-        if (user == null || user.getRole() == null) {
-            return false;
-        }
-        return rolePravoJdbcService.findCodesByRoleId(user.getRole().getIdRole()).stream()
-                .anyMatch(code -> code != null && code.equalsIgnoreCase("VIEW_DB_OBJECTS"));
         return permissionService.userHasPermission(email, "VIEW_DB_OBJECTS");
     }
 

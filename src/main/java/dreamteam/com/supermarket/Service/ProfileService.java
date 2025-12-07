@@ -98,7 +98,8 @@ public class ProfileService {
                     request.getLoyaltyCard(),
                     request.getSalary(),
                     parseDate(request.getHireDate()),
-                    request.getPosition()
+                    request.getPosition(),
+                    Boolean.TRUE.equals(request.getForce())
             );
         } else {
             Zamestnanec employee = zamestnanecJdbcService.findById(user.getIdUzivatel());

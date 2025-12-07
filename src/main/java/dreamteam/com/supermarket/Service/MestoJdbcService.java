@@ -1,8 +1,8 @@
 package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.model.location.Mesto;
+import dreamteam.com.supermarket.repository.LocationProcedureDao;
 import lombok.RequiredArgsConstructor;
-import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -11,35 +11,25 @@ import java.util.List;
 @RequiredArgsConstructor
 public class MestoJdbcService {
 
-    private final JdbcTemplate jdbcTemplate;
+    private final LocationProcedureDao locationDao;
 
     public List<Mesto> findAll() {
-        String sql = """
-                SELECT PSC, NAZEV, KRAJ
-                FROM MESTO
-                ORDER BY PSC
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
+        return locationDao.listMesta().stream().map(row -> {
             Mesto m = new Mesto();
-            m.setPsc(rs.getString("PSC"));
-            m.setNazev(rs.getString("NAZEV"));
-            m.setKraj(rs.getString("KRAJ"));
+            m.setPsc(row.psc());
+            m.setNazev(row.nazev());
+            m.setKraj(row.kraj());
             return m;
-        });
+        }).toList();
     }
 
     public Mesto findById(String psc) {
-        String sql = """
-                SELECT PSC, NAZEV, KRAJ
-                FROM MESTO
-                WHERE PSC = ?
-                """;
-        return jdbcTemplate.query(sql, (rs, i) -> {
-            Mesto m = new Mesto();
-            m.setPsc(rs.getString("PSC"));
-            m.setNazev(rs.getString("NAZEV"));
-            m.setKraj(rs.getString("KRAJ"));
-            return m;
-        }, psc).stream().findFirst().orElse(null);
+        var row = locationDao.getMesto(psc);
+        if (row == null) return null;
+        Mesto m = new Mesto();
+        m.setPsc(row.psc());
+        m.setNazev(row.nazev());
+        m.setKraj(row.kraj());
+        return m;
     }
 }

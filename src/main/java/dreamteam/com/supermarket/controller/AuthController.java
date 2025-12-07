@@ -62,15 +62,23 @@ public class AuthController {
             return ResponseEntity.badRequest().body(Map.of("message", "Phone already registered"));
         }
 
-        Role role = resolveDefaultRole();
-
         String hashed = passwordEncoder.encode(request.getPassword());
-        Uzivatel savedUser = authJdbcService.createUser(firstName, lastName, email, hashed, phoneNumber, role.getIdRole());
-        return ResponseEntity.ok(Map.of(
-                "message", "User registered successfully",
-                "email", savedUser.getEmail(),
-                "role", savedUser.getRole().getNazev()
-        ));
+        Uzivatel savedUser = authJdbcService.createUser(
+                firstName,
+                lastName,
+                email,
+                hashed,
+                phoneNumber,
+                null // necháme trigger TRG_UZIVATEL_DEFAULT_ROLE dosadit NEW_USER
+        );
+        Uzivatel resolved = userJdbcService.findByEmail(email);
+        java.util.Map<String, Object> resp = new java.util.HashMap<>();
+        resp.put("message", "User registered successfully");
+        resp.put("email", resolved != null ? resolved.getEmail() : savedUser.getEmail());
+        resp.put("role", resolved != null && resolved.getRole() != null
+                ? resolved.getRole().getNazev()
+                : DEFAULT_ROLE_NAME);
+        return ResponseEntity.ok(resp);
     }
 
     @PostMapping("/login")

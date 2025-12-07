@@ -1,6 +1,7 @@
 package dreamteam.com.supermarket.repository;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 
 @Repository
 @RequiredArgsConstructor
+@Slf4j
 public class RoleChangeDao {
 
     private final JdbcTemplate jdbcTemplate;
@@ -23,9 +25,12 @@ public class RoleChangeDao {
                            String karta,
                            BigDecimal mzda,
                            LocalDate datumNastupa,
-                           String pozice) {
+                           String pozice,
+                           boolean force) {
+        log.debug("Calling PROC_CHANGE_USER_ROLE userId={}, newRoleId={}, force={}, firma={}, karta={}, mzda={}, datumNastupa={}, pozice={}",
+                userId, newRoleId, force, firma, karta, mzda, datumNastupa, pozice);
         jdbcTemplate.execute((Connection connection) -> {
-            CallableStatement cs = connection.prepareCall("{ call PROC_CHANGE_USER_ROLE(?, ?, ?, ?, ?, ?, ?) }");
+            CallableStatement cs = connection.prepareCall("{ call PROC_CHANGE_USER_ROLE(?, ?, ?, ?, ?, ?, ?, ?) }");
             cs.setLong(1, userId);
             cs.setLong(2, newRoleId);
 
@@ -58,6 +63,7 @@ public class RoleChangeDao {
             } else {
                 cs.setNull(7, Types.VARCHAR);
             }
+            cs.setInt(8, force ? 1 : 0);
             cs.execute();
             return null;
         });

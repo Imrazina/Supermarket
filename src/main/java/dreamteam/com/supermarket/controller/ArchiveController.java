@@ -2,9 +2,7 @@ package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.controller.dto.DashboardResponse;
 import dreamteam.com.supermarket.model.user.Uzivatel;
-import dreamteam.com.supermarket.Service.ArchivJdbcService;
 import dreamteam.com.supermarket.Service.LogJdbcService;
-import dreamteam.com.supermarket.Service.SouborJdbcService;
 import dreamteam.com.supermarket.Service.ObjednavkaJdbcService;
 import dreamteam.com.supermarket.Service.ObjednavkaStatusJdbcService;
 import dreamteam.com.supermarket.Service.ZboziJdbcService;
@@ -35,8 +33,6 @@ public class ArchiveController {
 
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm");
 
-    private final ArchivJdbcService archivJdbcService;
-    private final SouborJdbcService souborJdbcService;
     private final LogJdbcService logJdbcService;
     private final ZboziJdbcService zboziJdbcService;
     private final ObjednavkaJdbcService objednavkaJdbcService;
@@ -107,14 +103,10 @@ public class ArchiveController {
         if (file.isEmpty()) {
             throw new IllegalArgumentException("Soubor je prázdný.");
         }
-        var archiv = archivJdbcService.findById(archiveId);
-        if (archiv == null) {
+        boolean archiveExists = archiveDao.getTree().stream().anyMatch(n -> n.id().equals(archiveId));
+        if (!archiveExists) {
             throw new IllegalArgumentException("Archiv neexistuje");
         }
-        // blokujeme LOG složku a její děti
-//        if (isLogFolder(archiv)) {
-//            throw new IllegalArgumentException("Nahrávání do LOG není povoleno.");
-//        }
 
         Uzivatel owner = authentication != null
                 ? userJdbcService.findByEmail(authentication.getName())

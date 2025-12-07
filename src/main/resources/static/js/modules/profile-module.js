@@ -74,7 +74,7 @@ export default class ProfileModule {
         }
     }
 
-    async saveProfile() {
+    async saveProfile(force = false) {
         if (!this.formState) {
             return;
         }
@@ -99,7 +99,8 @@ export default class ProfileModule {
             houseNumber: this.formState.houseNumber,
             orientationNumber: this.formState.orientationNumber,
             cityPsc: this.normalizeCityValue(this.formState.cityPsc || ''),
-            newPassword
+            newPassword,
+            force: force ? 1 : undefined
         };
         if (this.shouldIncludeEmploymentSection()) {
             payload.position = (this.formState.position || '').trim();
@@ -113,6 +114,9 @@ export default class ProfileModule {
             payload.supplierCompany = (this.formState.supplierCompany || '').trim();
         }
         try {
+            const payloadForLog = { ...payload };
+            delete payloadForLog.newPassword;
+            console.log('[profile] save payload', payloadForLog);
             const response = await fetch(this.apiUrl('/api/profile'), {
                 method: 'PUT',
                 headers: {
@@ -121,9 +125,11 @@ export default class ProfileModule {
                 },
                 body: JSON.stringify(payload)
             });
+            console.log('[profile] response status', response.status);
             if (!response.ok) {
                 const message = await response.text();
-                throw new Error(message || 'Aktualizace profilu selhala.');
+                this.showRoleWarningModal(message || 'Aktualizace profilu selhala.');
+                return;
             }
             const [snapshot] = await Promise.all([
                 this.fetchDashboardSnapshot()
@@ -137,6 +143,28 @@ export default class ProfileModule {
             console.error('Profile update failed', error);
             alert(error.message || 'Nepodařilo se uložit změny.');
         }
+    }
+
+    showRoleWarningModal(message) {
+        const modal = document.createElement('div');
+        modal.className = 'modal-backdrop';
+        modal.innerHTML = `
+            <div class="modal">
+                <h3>Nelze změnit roli</h3>
+                <p class="profile-muted">${message}</p>
+                <div class="modal-actions">
+                    <button type="button" class="ghost-btn ghost-strong" id="role-force-btn">Pokračovat a odstranit vazby</button>
+                    <button type="button" class="ghost-btn ghost-muted" id="role-cancel-btn">Zavřít</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(modal);
+        const cleanup = () => modal.remove();
+        modal.querySelector('#role-cancel-btn')?.addEventListener('click', cleanup);
+        modal.querySelector('#role-force-btn')?.addEventListener('click', async () => {
+            cleanup();
+            await this.saveProfile(true);
+        });
     }
 
     attachAdminHandlers(isAdmin) {
