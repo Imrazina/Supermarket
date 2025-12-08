@@ -368,7 +368,14 @@
                             <h2>Objednávky (OBJEDNAVKA)</h2>
                             <p>Kliknutím zobrazíte položky</p>
                         </div>
-                        <span class="badge" id="orders-count">0</span>
+                        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                            <span class="badge" id="orders-count">0</span>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button type="button" class="ghost-btn ghost-strong" id="order-add-btn">Pridat</button>
+                                <button type="button" class="ghost-btn" id="order-edit-btn" disabled>Editovat</button>
+                                <button type="button" class="ghost-btn ghost-muted" id="order-delete-btn" disabled>Smazat</button>
+                            </div>
+                        </div>
                     </div>
                     <div class="table-wrapper">
                         <table class="orders-table">
@@ -404,6 +411,43 @@
                     </article>
                 </div>
             </section>
+
+            <div class="modal" id="order-modal" aria-hidden="true">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3 id="order-modal-title">Nova objednavka</h3>
+                        <button type="button" class="ghost-btn ghost-muted" id="order-modal-close">Zavrit</button>
+                    </div>
+                    <form id="order-form" class="profile-form-section">
+                        <div class="profile-form-grid">
+                            <label><span>Typ</span>
+                                <select id="order-type" name="type" required></select>
+                            </label>
+                            <label><span>Prodejna</span>
+                                <select id="order-store" name="store" required></select>
+                            </label>
+                            <label><span>Odpovedny</span>
+                                <select id="order-employee" name="employee" required></select>
+                            </label>
+                            <label><span>Status</span>
+                                <select id="order-status" name="status" required></select>
+                            </label>
+                            <label><span>Datum</span>
+                                <input type="datetime-local" id="order-date" name="date">
+                            </label>
+                            <label style="grid-column:1/-1;">
+                                <span>Poznamka</span>
+                                <textarea id="order-note" name="note" rows="3" style="width:100%;"></textarea>
+                            </label>
+                        </div>
+                        <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                            <button type="submit" class="ghost-btn ghost-strong" id="order-save-btn">Ulozit</button>
+                            <button type="button" class="ghost-btn ghost-muted" id="order-cancel-btn">Zrusit</button>
+                            <span class="profile-muted" id="order-form-status"></span>
+                        </div>
+                    </form>
+                </div>
+            </div>
 
             <section class="view" data-view="people">
                 <article class="panel" id="role-summary-panel">
