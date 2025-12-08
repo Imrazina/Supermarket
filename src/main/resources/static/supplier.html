@@ -1,0 +1,27 @@
+<section class="view" data-view="supplier">
+    <article class="panel">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <h2>Dodavatelské objednávky</h2>
+                <p>Správa objednávek od dodavatelů</p>
+            </div>
+            <span class="badge" id="supplier-orders-count">0</span>
+        </div>
+        <div class="table-wrapper" style="margin-top: 16px;">
+            <table class="orders-table">
+                <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Dodavatel</th>
+                    <th>Status</th>
+                    <th>Datum vytvoření</th>
+                    <th>Očekávané doručení</th>
+                    <th>Celková cena</th>
+                    <th>Akce</th>
+                </tr>
+                </thead>
+                <tbody id="supplier-orders-table-body"></tbody>
+            </table>
+        </div>
+    </article>
+</section>

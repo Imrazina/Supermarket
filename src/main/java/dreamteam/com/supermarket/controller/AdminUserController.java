@@ -93,12 +93,14 @@ public class AdminUserController {
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<?> deleteUser(@PathVariable Long id, Authentication authentication) {
+    public ResponseEntity<?> deleteUser(@PathVariable Long id,
+                                        @RequestParam(value = "force", defaultValue = "0") int force,
+                                        Authentication authentication) {
         if (!isAdmin(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         try {
-            adminUserService.deleteUser(id);
+            adminUserService.deleteUser(id, force == 1);
             return ResponseEntity.noContent().build();
         } catch (IllegalArgumentException ex) {
             return ResponseEntity.badRequest().body(ex.getMessage());
