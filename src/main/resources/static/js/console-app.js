@@ -1039,12 +1039,14 @@ function resolveAllowedViews(role, permissions = []) {
     }
 
     class FinanceModule {
-        constructor(state) {
+        constructor(state, deps = {}) {
             this.state = state;
+            this.apiUrl = deps.apiUrl;
             this.tableBody = document.getElementById('payments-table-body');
             this.statsEl = document.getElementById('payment-stats');
             this.receiptList = document.getElementById('receipt-list');
             this.filterButtons = document.querySelectorAll('[data-payment-filter]');
+            this.allPayments = [];
         }
 
         init() {
@@ -1056,43 +1058,163 @@ function resolveAllowedViews(role, permissions = []) {
                     this.render();
                 });
             });
+            this.loadPayments();
+        }
+
+        async loadPayments() {
+            if (!this.apiUrl) {
+                this.render();
+                return;
+            }
+            const token = localStorage.getItem('token') || '';
+            try {
+                const response = await fetch(this.apiUrl(`/api/platby`), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (response.status === 401) {
+                    localStorage.clear();
+                    window.location.href = 'landing.html';
+                    return;
+                }
+                if (response.ok) {
+                    const payload = await response.json();
+                    if (Array.isArray(payload)) {
+                        this.allPayments = payload;
+                        this.state.data.payments = payload;
+                    }
+                } else {
+                    console.error('Payments API error', await response.text());
+                }
+            } catch (error) {
+                console.error('Failed to load payments', error);
+            } finally {
+                this.render();
+            }
+        }
+
+        resolveTypeLabel(type) {
+            const normalized = (type || '').toUpperCase();
+            if (normalized === 'H') return 'Hotově';
+            if (normalized === 'K') return 'Karta';
+            if (normalized === 'U') return 'Účet';
+            return 'Jiné';
+        }
+
+        resolveTypeClass(type) {
+            const normalized = (type || '').toUpperCase();
+            if (normalized === 'H') return 'type-h';
+            if (normalized === 'K') return 'type-k';
+            if (normalized === 'U') return 'type-u';
+            return 'type-other';
+        }
+
+        buildGlow(segments) {
+            const base = [
+                'inset 0 0 0 1px var(--border)',
+                '0 12px 26px rgba(15, 23, 42, 0.16)'
+            ];
+            const total = segments.reduce((sum, seg) => sum + seg.value, 0) || 1;
+            const glows = segments
+                .filter(seg => seg.value > 0)
+                .map(seg => {
+                    const weight = seg.value / total;
+                    const blur = 14 + weight * 22;
+                    const spread = 6 + weight * 10;
+                    const alpha = 0.18 + weight * 0.35;
+                    const color = this.hexToRgba(seg.color, alpha);
+                    return `0 0 ${blur}px ${spread}px ${color}`;
+                });
+            const fallback = '0 0 18px 10px rgba(12, 21, 53, 0.12)';
+            return [...base, ...(glows.length ? glows : [fallback])].join(', ');
+        }
+
+        hexToRgba(hex, alpha = 1) {
+            const clean = hex.replace('#', '');
+            const bigint = parseInt(clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean, 16);
+            const r = (bigint >> 16) & 255;
+            const g = (bigint >> 8) & 255;
+            const b = bigint & 255;
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
         }
 
         render() {
             if (!this.tableBody) return;
-            const filtered = this.state.data.payments.filter(p => this.state.paymentFilter === 'all' || p.type === this.state.paymentFilter);
-            this.tableBody.innerHTML = filtered.map(p => `
-                <tr>
-                    <td>${p.id}</td>
-                    <td>${p.orderId}</td>
-                    <td>${p.type === 'K' ? 'Karta' : 'Hotově'}</td>
-                    <td>${currencyFormatter.format(p.amount)}</td>
-                    <td>${p.date}</td>
-                    <td><span class="status-badge ${p.status === 'Zpracováno' ? 'success' : 'warning'}">${p.status}</span></td>
-                </tr>
-            `).join('');
+            const payments = this.allPayments.length
+                ? this.allPayments
+                : (Array.isArray(this.state.data.payments) ? this.state.data.payments : []);
+            const filtered = payments.filter(p => this.state.paymentFilter === 'all' || p.type === this.state.paymentFilter);
+            this.tableBody.innerHTML = filtered.length
+                ? filtered.map(p => {
+                    const typeClass = this.resolveTypeClass(p.type);
+                    const statusClass = (p.status || '').toLowerCase().startsWith('zprac') ? 'success' : 'warning';
+                    return `
+                        <tr class="payment-row ${typeClass}">
+                            <td><span class="pay-type ${typeClass}">${this.resolveTypeLabel(p.type)}</span></td>
+                            <td class="payment-method">${p.method || '–'}</td>
+                            <td>${currencyFormatter.format(p.amount || 0)}</td>
+                            <td>${p.date || ''}</td>
+                            <td><span class="status-badge ${statusClass}">${p.status || ''}</span></td>
+                        </tr>
+                    `;
+                }).join('')
+                : '<tr><td colspan="5" style="text-align:center;">Žádné platby</td></tr>';
 
-            const cash = this.state.data.payments.filter(p => p.type === 'H').reduce((sum, payment) => sum + payment.amount, 0);
-            const card = this.state.data.payments.filter(p => p.type === 'K').reduce((sum, payment) => sum + payment.amount, 0);
+            const cash = payments.filter(p => p.type === 'H').reduce((sum, payment) => sum + (payment.amount || 0), 0);
+            const card = payments.filter(p => p.type === 'K').reduce((sum, payment) => sum + (payment.amount || 0), 0);
+            const account = payments.filter(p => p.type === 'U').reduce((sum, payment) => sum + (payment.amount || 0), 0);
+            const total = cash + card + account || 1;
+
             if (this.statsEl) {
+                const pct = (value) => Math.round((value / total) * 100);
+                const segments = [
+                    { key: 'K', label: 'Platební karty', value: card, color: '#4361ee' },
+                    { key: 'H', label: 'Hotovostní pokladny', value: cash, color: '#f05d5e' },
+                    { key: 'U', label: 'Účet', value: account, color: '#7c3aed' }
+                ];
+                let current = 0;
+                const gradientParts = segments.map(seg => {
+                    const width = (seg.value / total) * 100;
+                    const start = current;
+                    const end = current + width;
+                    current = end;
+                    return `${seg.color} ${start}% ${end}%`;
+                }).filter(Boolean);
+                const gradient = gradientParts.length
+                    ? `conic-gradient(${gradientParts.join(',')})`
+                    : 'conic-gradient(#e5e7eb 0 100%)';
+                const glow = this.buildGlow(segments);
+                const totalRaw = cash + card + account;
+
                 this.statsEl.innerHTML = `
-                    <div class="pill-card">
-                        <strong>Platební karty</strong>
-                        <p>${currencyFormatter.format(card)}</p>
-                        <div class="progress"><span style="width:76%"></span></div>
-                    </div>
-                    <div class="pill-card">
-                        <strong>Hotovostní pokladny</strong>
-                        <p>${currencyFormatter.format(cash)}</p>
-                        <div class="progress"><span style="width:24%"></span></div>
+                    <div class="income-chart">
+                        <div class="income-donut" style="background:${gradient}; box-shadow:${glow}"></div>
+                        <div class="income-legend">
+                            ${segments.map(seg => `
+                                <div class="legend-row" style="--legend-color:${seg.color}">
+                                    <span class="legend-dot" style="background:${seg.color}"></span>
+                                    <div class="legend-label">
+                                        <strong>${seg.label}</strong>
+                                        <small>${currencyFormatter.format(seg.value)}</small>
+                                    </div>
+                                    <span class="legend-pct">${pct(seg.value)}%</span>
+                                </div>
+                            `).join('')}
+                            <div class="income-total">
+                                <p>Celkem</p>
+                                <strong>${currencyFormatter.format(totalRaw)}</strong>
+                            </div>
+                        </div>
                     </div>
                 `;
             }
 
             if (this.receiptList) {
-                this.receiptList.innerHTML = this.state.data.payments
+                this.receiptList.innerHTML = payments
                     .filter(p => p.receipt)
-                    .map(p => `<li>Účtenka k ${p.orderId} — ${currencyFormatter.format(p.amount)} (${p.method})</li>`)
+                    .map(p => `<li>Účtenka k platbě ${this.resolveTypeLabel(p.type)} — ${currencyFormatter.format(p.amount || 0)} (${p.method || '–'})</li>`)
                     .join('');
             }
         }
@@ -2768,7 +2890,7 @@ class GlobalSearch {
             this.inventory = new InventoryModule(state);
             this.orders = new OrdersModule(state);
             this.people = new PeopleModule(state);
-            this.finance = new FinanceModule(state);
+            this.finance = new FinanceModule(state, { apiUrl });
             this.records = new RecordsModule(state);
         this.chat = new ChatModule(state, {
             apiUrl,
