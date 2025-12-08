@@ -59,7 +59,8 @@ public record DashboardResponse(
             String statusCode,
             String date,
             double amount,
-            String priority
+            String priority,
+            String note
     ) {}
 
     public record OrderLine(String orderId, String sku, String name, long qty, double price) {}

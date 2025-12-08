@@ -86,6 +86,7 @@ public class DashboardService {
                     o.setDatum(row.datum());
                     o.setStatus(statusMap.get(row.statusId()));
                     o.setTypObjednavka(row.typObjednavka());
+                    o.setPoznamka(row.poznamka());
 
                     Uzivatel u = userMap.getOrDefault(row.uzivatelId(), null);
                     if (u == null && row.uzivatelId() != null) {
@@ -200,7 +201,7 @@ public class DashboardService {
                             supplierName,
                             zbozi.getMnozstvi(),
                             zbozi.getMinMnozstvi(),
-                            "—",
+                            "вЂ”",
                             status
                     );
                 })
@@ -239,8 +240,8 @@ public class DashboardService {
                     String employeeName = order.getUzivatel() != null
                             ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
                             : "Neuvedeno";
-                    String supplierName = order.getSupermarket() != null ? order.getSupermarket().getNazev() : "—";
-                    String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Neznámý";
+                    String supplierName = order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno";
+                    String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
                     double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
                     String priority = amount > 100000 ? "high" : amount > 10000 ? "medium" : "low";
@@ -254,11 +255,11 @@ public class DashboardService {
                             statusCode,
                             order.getDatum() != null ? order.getDatum().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : "",
                             amount,
-                            priority
+                            priority,
+                            order.getPoznamka()
                     );
                 })
                 .toList();
-
         List<DashboardResponse.OrderLine> orderLineDtos = orderLines.stream()
                 .map(line -> new DashboardResponse.OrderLine(
                         "PO-" + line.getObjednavka().getIdObjednavka(),
@@ -323,7 +324,7 @@ public class DashboardService {
         List<DashboardResponse.RoleInfo> roleInfos = roles.stream()
                 .map(role -> new DashboardResponse.RoleInfo(
                         role.getNazev(),
-                        "Uživatelé s rolí " + role.getNazev(),
+                        "UЕѕivatelГ© s rolГ­ " + role.getNazev(),
                         roleCounts.getOrDefault(role.getIdRole(), 0L)
                 ))
                 .toList();
@@ -340,11 +341,11 @@ public class DashboardService {
                     return new DashboardResponse.PaymentInfo(
                             "PMT-" + payment.id(),
                             "PO-" + payment.objednavkaId(),
-                            typ, // kód H/K/U pro filtr
+                            typ, // kГіd H/K/U pro filtr
                             resolveMethod(typ, payment),
                             payment.castka() != null ? payment.castka().doubleValue() : 0d,
                             payment.datum() != null ? payment.datum().format(DATE_FORMAT) : "",
-                            "Zpracováno",
+                            "ZpracovГЎno",
                             true
                     );
                 })
@@ -392,7 +393,7 @@ public class DashboardService {
                             store.getAdresa() != null ? store.getAdresa().getUlice() + " " + store.getAdresa().getCisloPopisne() : "",
                             warehouseName,
                             "Neuvedeno",
-                            "Otevřeno"
+                            "OtevЕ™eno"
                     );
                 })
                 .toList();
@@ -434,7 +435,7 @@ public class DashboardService {
                             zbozi.getCena() != null ? zbozi.getCena().doubleValue() : 0d,
                             badge,
                             description,
-                            "🛒"
+                            "рџ›’"
                     );
                 })
                 .toList();
@@ -554,10 +555,10 @@ public class DashboardService {
 
         Map<DayOfWeek, String> labels = Map.of(
                 DayOfWeek.MONDAY, "Po",
-                DayOfWeek.TUESDAY, "Út",
+                DayOfWeek.TUESDAY, "Гљt",
                 DayOfWeek.WEDNESDAY, "St",
-                DayOfWeek.THURSDAY, "Čt",
-                DayOfWeek.FRIDAY, "Pá",
+                DayOfWeek.THURSDAY, "ДЊt",
+                DayOfWeek.FRIDAY, "PГЎ",
                 DayOfWeek.SATURDAY, "So",
                 DayOfWeek.SUNDAY, "Ne"
         );
@@ -615,7 +616,7 @@ public class DashboardService {
         Zamestnanec employee = zamestnanecJdbcService.findById(currentUser.getIdUzivatel());
         Zakaznik customer = zakaznikJdbcService.findById(currentUser.getIdUzivatel());
         Dodavatel supplier = dodavatelJdbcService.findById(currentUser.getIdUzivatel());
-        String roleName = currentUser.getRole() != null ? currentUser.getRole().getNazev() : "Uživatel";
+        String roleName = currentUser.getRole() != null ? currentUser.getRole().getNazev() : "UЕѕivatel";
         String position = employee != null ? employee.getPozice() : roleName;
         DashboardResponse.Profile.EmploymentDetails employmentDetails = employee == null ? null :
                 new DashboardResponse.Profile.EmploymentDetails(
@@ -633,7 +634,7 @@ public class DashboardService {
                 .limit(4)
                 .map(log -> new DashboardResponse.Profile.Activity(
                         log.getDatumZmeny() != null ? log.getDatumZmeny().format(DATE_TIME_FORMAT) : now.format(DATE_TIME_FORMAT),
-                        log.getTabulkaNazev() + " · " + (log.getOperace() != null ? log.getOperace() : ""),
+                        log.getTabulkaNazev() + " В· " + (log.getOperace() != null ? log.getOperace() : ""),
                         "info"
                 ))
                 .toList();
@@ -661,8 +662,8 @@ public class DashboardService {
                 Math.max(1, automations / 4),
                 Math.max(1, automations / 6),
                 permissions,
-                new DashboardResponse.Profile.Preferences("Čeština", "Světlé", "Push + e-mail", true),
-                new DashboardResponse.Profile.Security("MFA aktivní", "Web konzole", "127.0.0.1"),
+                new DashboardResponse.Profile.Preferences("ДЊeЕЎtina", "SvД›tlГ©", "Push + e-mail", true),
+                new DashboardResponse.Profile.Security("MFA aktivnГ­", "Web konzole", "127.0.0.1"),
                 activity,
                 addressDetails,
                 employmentDetails,
@@ -695,15 +696,15 @@ public class DashboardService {
         if ("K".equalsIgnoreCase(typ)) {
             String number = platba.cisloKarty();
             if (number != null && number.length() > 4) {
-                return "Karta •••• " + number.substring(number.length() - 4);
+                return "Karta вЂўвЂўвЂўвЂў " + number.substring(number.length() - 4);
             }
-            return "Platební karta";
+            return "PlatebnГ­ karta";
         }
         if ("H".equalsIgnoreCase(typ)) {
-            return "Hotově";
+            return "HotovД›";
         }
         if ("U".equalsIgnoreCase(typ)) {
-            return "Účet";
+            return "ГљДЌet";
         }
         return "Pokladna #" + platba.id();
     }
@@ -716,6 +717,6 @@ public class DashboardService {
         if (text == null) {
             return "";
         }
-        return text.length() <= length ? text : text.substring(0, length) + "…";
+        return text.length() <= length ? text : text.substring(0, length) + "вЂ¦";
     }
 }

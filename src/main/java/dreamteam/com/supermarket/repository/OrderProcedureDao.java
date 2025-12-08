@@ -11,6 +11,7 @@ import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Timestamp;
+import java.sql.Types;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -105,6 +106,64 @@ public class OrderProcedureDao {
             CallableStatement cs = con.prepareCall("{ call pkg_objednavka_zbozi.delete_item(?, ?) }");
             cs.setLong(1, orderId);
             cs.setLong(2, zboziId);
+            return cs;
+        }, (CallableStatementCallback<Void>) cs -> {
+            cs.execute();
+            return null;
+        });
+    }
+
+    public Long saveOrder(Long id,
+                          LocalDateTime datum,
+                          Long statusId,
+                          Long userId,
+                          Long supermarketId,
+                          String note,
+                          String typ) {
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_objednavka.save_objednavka(?, ?, ?, ?, ?, ?, ?, ?) }");
+            if (id != null) {
+                cs.setLong(1, id);
+            } else {
+                cs.setNull(1, Types.NUMERIC);
+            }
+            cs.setTimestamp(2, Timestamp.valueOf(datum != null ? datum : LocalDateTime.now()));
+            if (statusId != null) {
+                cs.setLong(3, statusId);
+            } else {
+                cs.setNull(3, Types.NUMERIC);
+            }
+            if (userId != null) {
+                cs.setLong(4, userId);
+            } else {
+                cs.setNull(4, Types.NUMERIC);
+            }
+            if (supermarketId != null) {
+                cs.setLong(5, supermarketId);
+            } else {
+                cs.setNull(5, Types.NUMERIC);
+            }
+            if (note != null && !note.isBlank()) {
+                cs.setString(6, note);
+            } else {
+                cs.setNull(6, Types.CLOB);
+            }
+            cs.setString(7, typ != null && !typ.isBlank() ? typ : "INTERNI");
+            cs.registerOutParameter(8, Types.NUMERIC);
+            return cs;
+        }, (CallableStatementCallback<Long>) cs -> {
+            cs.execute();
+            return cs.getLong(8);
+        });
+    }
+
+    public void deleteOrder(Long id) {
+        if (id == null) {
+            return;
+        }
+        jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_objednavka.delete_objednavka(?) }");
+            cs.setLong(1, id);
             return cs;
         }, (CallableStatementCallback<Void>) cs -> {
             cs.execute();

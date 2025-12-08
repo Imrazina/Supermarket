@@ -138,13 +138,13 @@ function updateMessageSidebar(data) {
         return;
     }
     const unread = (data && typeof data.unreadMessages === 'number') ? data.unreadMessages : '—';
-    const rawSummary = (data && data.lastMessageSummary) ? data.lastMessageSummary : 'Žádné zprávy';
+    const rawSummary = (data && data.lastMessageSummary) ? data.lastMessageSummary : 'Zadne zpravy';
     const parsed = parseMessageSummary(rawSummary);
     unreadEl.textContent = unread;
     if (unread === 0) {
         timeEl.textContent = '—';
         fromEl.textContent = '';
-        textEl.textContent = 'Žádné zprávy';
+        textEl.textContent = 'Zadne zpravy';
     } else {
         timeEl.textContent = parsed.time || '—';
         fromEl.textContent = parsed.from ? `od ${parsed.from}` : '';
@@ -153,8 +153,8 @@ function updateMessageSidebar(data) {
 }
 
 function parseMessageSummary(summary) {
-    if (!summary || summary.toLowerCase().includes('žádné')) {
-        return { time: '', from: '', text: 'Žádné zprávy' };
+    if (!summary || summary.toLowerCase().includes('zadne')) {
+        return { time: '', from: '', text: 'Zadne zpravy' };
     }
     const parts = summary.split('|');
     const time = parts[0]?.trim() || '';
@@ -221,7 +221,7 @@ async function fetchDashboardSnapshot() {
         return null;
     }
     if (!response.ok) {
-        let message = 'Nepodařilo se načíst data z API.';
+        let message = 'Nepodarilo se nacist data z API.';
         try {
             const payload = await response.json();
             if (payload?.message) {
@@ -347,17 +347,17 @@ async function fetchRolePermissions() {
 }
 
 const viewMeta = {
-    dashboard: { label: 'Hlavní panel', title: 'Řízení operací' },
-    profile: { label: 'Profil admina', title: 'Můj pracovní profil' },
-    inventory: { label: 'Sklad & katalog', title: 'Zásoby a kategorie' },
-    orders: { label: 'Dodavatelský řetězec', title: 'Objednávky a stavy' },
-    people: { label: 'Lidé & přístupy', title: 'Tým a zákazníci' },
-    finance: { label: 'Finanční řízení', title: 'Platby a účtenky' },
-    records: { label: 'Archiv', title: 'Soubory, logy, zprávy' },
-    dbobjects: { label: 'DB objekty', title: 'Systémový katalog' },
-    customer: { label: 'Zákaznická zóna', title: 'Self-service objednávky' },
-    'customer-orders': { label: 'Moje objednávky', title: 'Objednávky zákazníka' },
-    'customer-payment': { label: 'Platba', title: 'Zaplaťte objednávku' },
+    dashboard: { label: 'Hlavni panel', title: 'Rizeni operaci' },
+    profile: { label: 'Profil admina', title: 'Muj pracovni profil' },
+    inventory: { label: 'Sklad & katalog', title: 'Zasoby a kategorie' },
+    orders: { label: 'Dodavatelsky retezec', title: 'Objednavky a stavy' },
+    people: { label: 'Lide & pristupy', title: 'Tym a zakaznici' },
+    finance: { label: 'Financni rizeni', title: 'Platby a uctenky' },
+    records: { label: 'Archiv', title: 'Soubory, logy, zpravy' },
+    dbobjects: { label: 'DB objekty', title: 'Systemovy katalog' },
+    customer: { label: 'Zakaznicka zona', title: 'Self-service objednavky' },
+    'customer-orders': { label: 'Moje objednavky', title: 'Objednavky zakaznika' },
+    'customer-payment': { label: 'Platba', title: 'Zaplatte objednavku' },
     chat: { label: 'Komunikace', title: 'Chat & push centrum' }
 };
 
@@ -389,7 +389,7 @@ function resolveAllowedViews(role, permissions = []) {
         return allowed;
     }
 
-    if (normalizedRole.startsWith('DORUCOVATEL') || normalizedRole === 'COURIER' || normalizedRole === 'DORUČOVATEL') {
+    if (normalizedRole.startsWith('DORUCOVATEL') || normalizedRole === 'COURIER' || normalizedRole === 'DORUCOVATEL') {
         add('orders');
         return allowed;
     }
@@ -433,10 +433,10 @@ function resolveAllowedViews(role, permissions = []) {
             const paymentModule = new PaymentModule(state, { apiUrl });
             paymentModule.init();
         } catch (error) {
-            console.error('Chyba inicializace rozhraní', error);
+            console.error('Chyba inicializace rozhrani', error);
             root.innerHTML = `
                 <div class="boot-card error">
-                    <p>${error.message || 'Nepodařilo se načíst rozhraní. Obnovte prosím stránku.'}</p>
+                    <p>${error.message || 'Nepodarilo se nacist rozhrani. Obnovte prosim stranku.'}</p>
                 </div>`;
         }
     }
@@ -452,7 +452,7 @@ function resolveAllowedViews(role, permissions = []) {
                 window.location.href = 'landing.html';
                 return false;
             }
-            document.getElementById('user-name').textContent = localStorage.getItem('fullName') || localStorage.getItem('email') || 'Uživatel';
+            document.getElementById('user-name').textContent = localStorage.getItem('fullName') || localStorage.getItem('email') || 'Uzivatel';
             document.getElementById('user-role').textContent = localStorage.getItem('role') || 'NEW_USER';
             updateMessageSidebar(this.state.data);
             document.getElementById('logout-btn').addEventListener('click', () => {
@@ -575,9 +575,9 @@ function resolveAllowedViews(role, permissions = []) {
             this.kpiOrders.textContent = this.state.data.orders.length;
             this.kpiRevenue.textContent = currencyFormatter.format(revenue);
             this.kpiCritical.textContent = critical.length;
-            this.kpiSkuTrend.textContent = `${new Set(this.state.data.inventory.map(item => item.category)).size} kategorií`;
-            this.kpiOrdersTrend.textContent = `${openOrders} v práci`;
-            this.kpiCriticalTrend.textContent = critical.length ? 'nutné doplnit' : 'vše stabilní';
+            this.kpiSkuTrend.textContent = `${new Set(this.state.data.inventory.map(item => item.category)).size} kategorii`;
+            this.kpiOrdersTrend.textContent = `${openOrders} v praci`;
+            this.kpiCriticalTrend.textContent = critical.length ? 'nutne doplnit' : 'vse stabilni';
 
             const maxValue = Math.max(...this.state.data.weeklyDemand.map(point => point.value));
             this.chart.innerHTML = this.state.data.weeklyDemand.map(point => {
@@ -586,13 +586,13 @@ function resolveAllowedViews(role, permissions = []) {
             }).join('');
 
             this.lowStockList.innerHTML = critical.length
-                ? critical.map(item => `<li>${item.sku} · ${item.name} — zbývá ${item.stock}, minimum ${item.minStock}</li>`).join('')
-                : '<p>Všechny položky jsou nad minimem.</p>';
+                ? critical.map(item => `<li>${item.sku} · ${item.name} — zbyva ${item.stock}, minimum ${item.minStock}</li>`).join('')
+                : '<p>Vsechny polozky jsou nad minimem.</p>';
 
             this.statusBoard.innerHTML = this.state.data.statuses.map(stat => `
                 <div class="pill-card">
                     <strong>${stat.label}</strong>
-                    <p>${stat.count} záznamů</p>
+                    <p>${stat.count} zaznamu</p>
                     <div class="progress"><span style="width:${Math.min(stat.count * 8, 100)}%"></span></div>
                 </div>
             `).join('');
@@ -604,7 +604,7 @@ function resolveAllowedViews(role, permissions = []) {
                     <td>${store.address}</td>
                     <td>${store.warehouse}</td>
                     <td>${store.manager}</td>
-                    <td><span class="status-badge ${store.status === 'Otevřeno' ? 'success' : 'warning'}">${store.status}</span></td>
+                    <td><span class="status-badge ${store.status === 'Otevreno' ? 'success' : 'warning'}">${store.status}</span></td>
                 </tr>`).join('');
     }
 }
@@ -685,13 +685,13 @@ function resolveAllowedViews(role, permissions = []) {
                 const storeOptions = (this.state.data.inventory || []).map(item => item.supermarket);
                 const supplierOptions = (this.state.data.inventory || []).map(item => item.supplier);
                 const statusOptions = ['critical', 'ok', 'draft', ...(this.state.data.inventory || []).map(item => this.resolveStatus(item))];
-                this.applyFilterOptions(this.filterCategory, categoryOptions, 'Všechny kategorie', this.state.inventoryFilters.category);
-                this.applyFilterOptions(this.filterWarehouse, warehouseOptions, 'Všechny sklady', this.state.inventoryFilters.warehouse);
-                this.applyFilterOptions(this.filterStore, storeOptions, 'Všechny prodejny', this.state.inventoryFilters.store);
-                this.applyFilterOptions(this.filterSupplier, supplierOptions, 'Všichni dodavatelé', this.state.inventoryFilters.supplier);
-                this.applyFilterOptions(this.filterStatus, statusOptions, 'Všechny stavy', this.state.inventoryFilters.status, {
+                this.applyFilterOptions(this.filterCategory, categoryOptions, 'Vsechny kategorie', this.state.inventoryFilters.category);
+                this.applyFilterOptions(this.filterWarehouse, warehouseOptions, 'Vsechny sklady', this.state.inventoryFilters.warehouse);
+                this.applyFilterOptions(this.filterStore, storeOptions, 'Vsechny prodejny', this.state.inventoryFilters.store);
+                this.applyFilterOptions(this.filterSupplier, supplierOptions, 'Vsichni dodavatele', this.state.inventoryFilters.supplier);
+                this.applyFilterOptions(this.filterStatus, statusOptions, 'Vsechny stavy', this.state.inventoryFilters.status, {
                     critical: 'Pod minimem',
-                    ok: 'V normě',
+                    ok: 'V norme',
                     draft: 'Koncept'
                 });
             }
@@ -763,7 +763,7 @@ function resolveAllowedViews(role, permissions = []) {
                 name: formData.get('name'),
                 category: formData.get('category'),
                 warehouse: formData.get('warehouse'),
-                supermarket: 'Nová prodejna',
+                supermarket: 'Nova prodejna',
                 supplier: formData.get('supplier'),
                 stock: Number(formData.get('stock')) || 0,
                 minStock: Number(formData.get('minStock')) || 0,
@@ -771,7 +771,7 @@ function resolveAllowedViews(role, permissions = []) {
                 status: 'draft'
             });
             this.form.reset();
-            this.messageEl.textContent = `Koncept ${sku} byl přidán do seznamu.`;
+            this.messageEl.textContent = `Koncept ${sku} byl pridan do seznamu.`;
             this.render();
         }
 
@@ -789,9 +789,9 @@ function resolveAllowedViews(role, permissions = []) {
         getStatusLabel(status) {
             const labels = {
                 critical: 'Pod minimem',
-                ok: 'V normě',
+                ok: 'V norme',
                 draft: 'Koncept',
-                unknown: 'Neznámý'
+                unknown: 'Neznamy'
             };
             return labels[status] || status || '—';
         }
@@ -842,7 +842,7 @@ function resolveAllowedViews(role, permissions = []) {
                 <div class="pill-card">
                     <strong>${cat.name}</strong>
                     <p>${cat.assortment} SKU · Obrat ${cat.turnover}</p>
-                    <small>Zodpovídá: ${cat.manager}</small>
+                    <small>Zodpovida: ${cat.manager}</small>
                 </div>
             `).join('');
 
@@ -853,7 +853,7 @@ function resolveAllowedViews(role, permissions = []) {
                     <div class="progress">
                         <span style="width:${w.used}%"></span>
                     </div>
-                    <small>Vytížení ${w.used}% z ${w.capacity.toLocaleString()} míst</small>
+                    <small>Vytizeni ${w.used}% z ${w.capacity.toLocaleString()} mist</small>
                 </div>
             `).join('');
         }
@@ -871,7 +871,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (searchTerm) chips.push({ key: 'search', label: `Hledat: ${searchTerm}` });
 
             if (!chips.length) {
-                this.activeFilters.innerHTML = '<p class="profile-muted" style="margin:4px 0;">Žádné filtry nejsou použité.</p>';
+                this.activeFilters.innerHTML = '<p class="profile-muted" style="margin:4px 0;">Zadne filtry nejsou pouzite.</p>';
                 this.resetBtn?.setAttribute('disabled', 'disabled');
                 return;
             }
@@ -879,7 +879,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.activeFilters.innerHTML = chips.map(chip => `
                 <button class="chip active" data-filter-key="${chip.key}">
                     ${chip.label}
-                    <span aria-hidden="true">×</span>
+                    <span aria-hidden="true">?</span>
                 </button>
             `).join('');
             this.activeFilters.querySelectorAll('[data-filter-key]').forEach(btn => {
@@ -907,14 +907,33 @@ function resolveAllowedViews(role, permissions = []) {
     }
 
     class OrdersModule {
-        constructor(state) {
+        constructor(state, deps = {}) {
             this.state = state;
+            this.apiUrl = deps.apiUrl;
+            this.refreshApp = typeof deps.refreshApp === 'function' ? deps.refreshApp : async () => true;
             this.tableBody = document.getElementById('orders-table-body');
             this.statusBoard = document.getElementById('order-status-board');
             this.orderLines = document.getElementById('order-lines');
             this.orderLinesTitle = document.getElementById('order-lines-title');
             this.orderLinesBadge = document.getElementById('order-lines-badge');
             this.ordersCount = document.getElementById('orders-count');
+            this.addBtn = document.getElementById('order-add-btn');
+            this.editBtn = document.getElementById('order-edit-btn');
+            this.deleteBtn = document.getElementById('order-delete-btn');
+            this.modal = document.getElementById('order-modal');
+            this.form = document.getElementById('order-form');
+            this.modalTitle = document.getElementById('order-modal-title');
+            this.formStatus = document.getElementById('order-form-status');
+            this.typeSelect = document.getElementById('order-type');
+            this.storeSelect = document.getElementById('order-store');
+            this.employeeSelect = document.getElementById('order-employee');
+            this.statusSelect = document.getElementById('order-status');
+            this.dateInput = document.getElementById('order-date');
+            this.noteInput = document.getElementById('order-note');
+            this.cancelBtn = document.getElementById('order-cancel-btn');
+            this.closeBtn = document.getElementById('order-modal-close');
+            this.saveBtn = document.getElementById('order-save-btn');
+            this.options = { statuses: [], stores: [], employees: [], types: [] };
         }
 
         init() {
@@ -924,12 +943,113 @@ function resolveAllowedViews(role, permissions = []) {
                 this.state.selectedOrderId = row.dataset.orderId;
                 this.highlightSelection();
                 this.renderOrderLines();
+                this.syncActionButtons();
             });
+            this.addBtn?.addEventListener('click', () => this.openForm());
+            this.editBtn?.addEventListener('click', () => this.openForm(this.state.selectedOrderId));
+            this.deleteBtn?.addEventListener('click', () => this.confirmDelete());
+            this.cancelBtn?.addEventListener('click', () => this.closeModal());
+            this.closeBtn?.addEventListener('click', () => this.closeModal());
+            this.modal?.addEventListener('click', event => {
+                if (event.target === this.modal) {
+                    this.closeModal();
+                }
+            });
+            this.form?.addEventListener('submit', event => {
+                event.preventDefault();
+                this.submitForm();
+            });
+            this.loadOptions();
+            this.syncActionButtons();
+        }
+
+        async loadOptions() {
+            this.options = this.buildFallbackOptions();
+            if (!this.apiUrl) {
+                this.syncFormSelects();
+                return;
+            }
+            const token = localStorage.getItem('token') || '';
+            if (!token) {
+                this.syncFormSelects();
+                return;
+            }
+            try {
+                const response = await fetch(this.apiUrl('/api/orders/options'), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (response.ok) {
+                    const payload = await response.json();
+                    this.options = {
+                        statuses: Array.isArray(payload.statuses) ? payload.statuses : this.options.statuses,
+                        stores: Array.isArray(payload.stores) ? payload.stores : this.options.stores,
+                        employees: Array.isArray(payload.employees) ? payload.employees : this.options.employees,
+                        types: Array.isArray(payload.types) ? payload.types : this.options.types
+                    };
+                }
+            } catch (error) {
+                console.warn('Orders options load failed', error);
+            } finally {
+                this.syncFormSelects();
+            }
+        }
+
+        buildFallbackOptions() {
+            const statuses = Array.isArray(this.state.data.statuses)
+                ? this.state.data.statuses.map(stat => ({ id: stat.code, label: stat.label }))
+                : [];
+            const stores = Array.isArray(this.state.data.stores)
+                ? this.state.data.stores.map(store => typeof store === 'string'
+                    ? { id: store, label: store }
+                    : { id: store.name || store.city || Math.random(), label: store.name || store.city || 'Prodejna' })
+                : [];
+            const employees = Array.isArray(this.state.data.employees)
+                ? this.state.data.employees.map(emp => ({ id: emp.id?.replace('EMP-', '') || emp.id || emp.name || '0', label: emp.name || emp.id || 'Uzivatel' }))
+                : [];
+            const types = Array.from(new Set((this.state.data.orders || []).map(o => o.type).filter(Boolean)));
+            return {
+                statuses,
+                stores,
+                employees,
+                types: types.length ? types : ['INTERNI', 'ZAKAZNIK']
+            };
+        }
+
+        syncFormSelects(order = null) {
+            if (this.typeSelect) {
+                this.populateSelect(this.typeSelect, this.options.types.map(type => ({ id: type, label: type })), order?.type || 'INTERNI');
+            }
+            if (this.storeSelect) {
+                this.populateSelect(this.storeSelect, this.options.stores, order?.store);
+            }
+            if (this.employeeSelect) {
+                this.populateSelect(this.employeeSelect, this.options.employees, order?.employeeId || order?.employee);
+            }
+            if (this.statusSelect) {
+                this.populateSelect(this.statusSelect, this.options.statuses, order?.statusCode || order?.status);
+            }
+        }
+
+        populateSelect(selectEl, options, selected) {
+            if (!selectEl) return;
+            const safeOptions = Array.isArray(options) ? options : [];
+            selectEl.innerHTML = safeOptions.map(opt => `<option value="${opt.id ?? ''}">${opt.label ?? opt.id ?? ''}</option>`).join('');
+            if (selected !== undefined && selected !== null) {
+                const normalized = String(selected).replace('EMP-', '');
+                const match = Array.from(selectEl.options).find(opt => opt.value == normalized || opt.textContent === normalized);
+                if (match) {
+                    selectEl.value = match.value;
+                }
+            }
         }
 
         render() {
             if (!this.tableBody) return;
-            this.tableBody.innerHTML = this.state.data.orders.map(order => `
+            const orders = Array.isArray(this.state.data.orders) ? this.state.data.orders : [];
+            this.tableBody.innerHTML = orders.map(order => `
                 <tr data-order-id="${order.id}">
                     <td>${order.id}</td>
                     <td>${order.type}</td>
@@ -941,21 +1061,25 @@ function resolveAllowedViews(role, permissions = []) {
                     <td>${currencyFormatter.format(order.amount)}</td>
                 </tr>
             `).join('');
-            this.ordersCount.textContent = this.state.data.orders.length;
-            if (!this.state.selectedOrderId && this.state.data.orders.length) {
-                this.state.selectedOrderId = this.state.data.orders[0].id;
+            if (this.ordersCount) {
+                this.ordersCount.textContent = orders.length;
+            }
+            if (!this.state.selectedOrderId && orders.length) {
+                this.state.selectedOrderId = orders[0].id;
             }
             this.highlightSelection();
             this.renderStatusBoard();
             this.renderOrderLines();
+            this.syncActionButtons();
         }
 
         renderStatusBoard() {
             if (!this.statusBoard) return;
-            this.statusBoard.innerHTML = this.state.data.statuses.map(stat => `
+            const statuses = Array.isArray(this.state.data.statuses) ? this.state.data.statuses : [];
+            this.statusBoard.innerHTML = statuses.map(stat => `
                 <div class="pill-card">
                     <strong>${stat.label}</strong>
-                    <p>${stat.count} objednávek</p>
+                    <p>${stat.count} objednavek</p>
                     <div class="progress"><span style="width:${Math.min(stat.count * 8, 100)}%"></span></div>
                 </div>
             `).join('');
@@ -971,12 +1095,142 @@ function resolveAllowedViews(role, permissions = []) {
         renderOrderLines() {
             if (!this.orderLines) return;
             const orderId = this.state.selectedOrderId;
-            this.orderLinesTitle.textContent = orderId ? `Složení ${orderId}` : 'Složení objednávky';
-            this.orderLinesBadge.textContent = orderId || '—';
-            const lines = this.state.data.orderItems.filter(item => item.orderId === orderId);
+            this.orderLinesTitle.textContent = orderId ? `Slozeni ${orderId}` : 'Slozeni objednavky';
+            this.orderLinesBadge.textContent = orderId || '-';
+            const lines = (this.state.data.orderItems || []).filter(item => item.orderId === orderId);
             this.orderLines.innerHTML = lines.length
-                ? lines.map(line => `<li>${line.sku} · ${line.name} — ${line.qty} ks × ${currencyFormatter.format(line.price)}</li>`).join('')
-                : '<p>Žádná data o položkách.</p>';
+                ? lines.map(line => `<li>${line.sku} x ${line.name} - ${line.qty} ks - ${currencyFormatter.format(line.price)}</li>`).join('')
+                : '<p>Zadna data o polozkach.</p>';
+        }
+
+        openForm(orderId = null) {
+            if (!this.form || !this.modal) return;
+            const order = (this.state.data.orders || []).find(o => o.id === orderId) || null;
+            this.form.dataset.mode = order ? 'edit' : 'create';
+            this.form.dataset.orderId = order?.id || '';
+            if (this.modalTitle) {
+                this.modalTitle.textContent = order ? 'Editovat objednavku' : 'Nova objednavka';
+            }
+            this.syncFormSelects(order);
+            if (this.dateInput) {
+                this.dateInput.value = order?.date ? this.formatDateForInput(order.date) : new Date().toISOString().slice(0, 16);
+            }
+            if (this.noteInput) {
+                this.noteInput.value = order?.note || '';
+            }
+            if (this.formStatus) {
+                this.formStatus.textContent = '';
+            }
+            this.modal.classList.add('active');
+            this.modal.setAttribute('aria-hidden', 'false');
+            document.body.classList.add('modal-open');
+        }
+
+        closeModal() {
+            if (!this.modal) return;
+            this.modal.classList.remove('active');
+            this.modal.setAttribute('aria-hidden', 'true');
+            document.body.classList.remove('modal-open');
+        }
+
+        formatDateForInput(value) {
+            if (!value) return '';
+            return value.replace(' ', 'T').slice(0, 16);
+        }
+
+        async submitForm() {
+            if (!this.form || !this.apiUrl) {
+                return;
+            }
+            const mode = this.form.dataset.mode || 'create';
+            const orderId = this.form.dataset.orderId || this.state.selectedOrderId || '';
+            const payload = {
+                statusId: this.statusSelect?.value ? Number(this.statusSelect.value) : null,
+                statusCode: this.statusSelect?.value || null,
+                storeId: this.storeSelect?.value ? Number(this.storeSelect.value) : null,
+                storeName: this.storeSelect?.selectedOptions?.[0]?.textContent?.trim() || null,
+                employeeId: this.employeeSelect?.value ? Number(this.employeeSelect.value) : null,
+                type: this.typeSelect?.value || 'INTERNI',
+                date: this.dateInput?.value || null,
+                note: this.noteInput?.value || null
+            };
+            if (this.formStatus) {
+                this.formStatus.textContent = 'Ukladam...';
+            }
+            if (this.saveBtn) {
+                this.saveBtn.disabled = true;
+            }
+            try {
+                const token = localStorage.getItem('token') || '';
+                const response = await fetch(mode === 'edit' ? this.apiUrl(`/api/orders/${orderId}`) : this.apiUrl('/api/orders'), {
+                    method: mode === 'edit' ? 'PUT' : 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify(payload)
+                });
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    throw new Error(errorText || 'Ulozeni se nezdarilo.');
+                }
+                const result = await response.json().catch(() => null);
+                if (this.formStatus) {
+                    this.formStatus.textContent = 'Ulozeno.';
+                }
+                if (result?.id) {
+                    this.state.selectedOrderId = result.id;
+                }
+                await this.refreshApp();
+                this.closeModal();
+            } catch (error) {
+                if (this.formStatus) {
+                    this.formStatus.textContent = error.message || 'Akce se nezdarila.';
+                }
+            } finally {
+                if (this.saveBtn) {
+                    this.saveBtn.disabled = false;
+                }
+            }
+        }
+
+        async confirmDelete() {
+            if (!this.apiUrl) return;
+            const orderId = this.state.selectedOrderId;
+            if (!orderId) {
+                if (this.formStatus) {
+                    this.formStatus.textContent = 'Vyberte objednavku pro smazani.';
+                }
+                return;
+            }
+            if (!window.confirm(`Opravdu smazat ${orderId}?`)) {
+                return;
+            }
+            try {
+                const token = localStorage.getItem('token') || '';
+                const response = await fetch(this.apiUrl(`/api/orders/${orderId}`), {
+                    method: 'DELETE',
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Smazani se nezdarilo.');
+                }
+                this.state.selectedOrderId = null;
+                await this.refreshApp();
+            } catch (error) {
+                alert(error.message || 'Smazani se nezdarilo.');
+            }
+        }
+
+        syncActionButtons() {
+            const hasSelection = !!this.state.selectedOrderId;
+            if (this.editBtn) {
+                this.editBtn.disabled = !hasSelection;
+            }
+            if (this.deleteBtn) {
+                this.deleteBtn.disabled = !hasSelection;
+            }
         }
     }
 
@@ -1031,10 +1285,10 @@ function resolveAllowedViews(role, permissions = []) {
                     <div class="pill-card">
                         <strong>${role.name}</strong>
                         <p>${role.description || 'Bez popisu'}</p>
-                        <small>${role.count} uživatelů</small>
+                        <small>${role.count} uzivatelu</small>
                     </div>
                 `).join('')
-                : '<p class="profile-muted">Žádné role nejsou k dispozici.</p>';
+                : '<p class="profile-muted">Zadne role nejsou k dispozici.</p>';
         }
     }
 
@@ -1097,10 +1351,10 @@ function resolveAllowedViews(role, permissions = []) {
 
         resolveTypeLabel(type) {
             const normalized = (type || '').toUpperCase();
-            if (normalized === 'H') return 'Hotově';
+            if (normalized === 'H') return 'Hotove';
             if (normalized === 'K') return 'Karta';
-            if (normalized === 'U') return 'Účet';
-            return 'Jiné';
+            if (normalized === 'U') return 'Ucet';
+            return 'Jine';
         }
 
         resolveTypeClass(type) {
@@ -1160,7 +1414,7 @@ function resolveAllowedViews(role, permissions = []) {
                         </tr>
                     `;
                 }).join('')
-                : '<tr><td colspan="5" style="text-align:center;">Žádné platby</td></tr>';
+                : '<tr><td colspan="5" style="text-align:center;">Zadne platby</td></tr>';
 
             const cash = payments.filter(p => p.type === 'H').reduce((sum, payment) => sum + (payment.amount || 0), 0);
             const card = payments.filter(p => p.type === 'K').reduce((sum, payment) => sum + (payment.amount || 0), 0);
@@ -1170,9 +1424,9 @@ function resolveAllowedViews(role, permissions = []) {
             if (this.statsEl) {
                 const pct = (value) => Math.round((value / total) * 100);
                 const segments = [
-                    { key: 'K', label: 'Platební karty', value: card, color: '#4361ee' },
-                    { key: 'H', label: 'Hotovostní pokladny', value: cash, color: '#f05d5e' },
-                    { key: 'U', label: 'Účet', value: account, color: '#7c3aed' }
+                    { key: 'K', label: 'Platebni karty', value: card, color: '#4361ee' },
+                    { key: 'H', label: 'Hotovostni pokladny', value: cash, color: '#f05d5e' },
+                    { key: 'U', label: 'Ucet', value: account, color: '#7c3aed' }
                 ];
                 let current = 0;
                 const gradientParts = segments.map(seg => {
@@ -1214,7 +1468,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (this.receiptList) {
                 this.receiptList.innerHTML = payments
                     .filter(p => p.receipt)
-                    .map(p => `<li>Účtenka k platbě ${this.resolveTypeLabel(p.type)} — ${currencyFormatter.format(p.amount || 0)} (${p.method || '–'})</li>`)
+                    .map(p => `<li>Uctenka k platbe ${this.resolveTypeLabel(p.type)} — ${currencyFormatter.format(p.amount || 0)} (${p.method || '–'})</li>`)
                     .join('');
             }
         }
@@ -1420,7 +1674,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.feed) {
                 return;
             }
-            const safeText = this.escapeHtml(text || 'Žádné zprávy zatím nemáme.');
+            const safeText = this.escapeHtml(text || 'Zadne zpravy zatim nemame.');
             this.feed.innerHTML = `<p class="profile-muted chat-empty">${safeText}</p>`;
             this.scrollFeedToBottom();
         }
@@ -1438,8 +1692,8 @@ function resolveAllowedViews(role, permissions = []) {
                 grid.classList.toggle('chat-panel-collapsed', !this.isPanelOpen);
             }
             if (this.collapseBtn) {
-                this.collapseBtn.setAttribute('aria-label', this.isPanelOpen ? 'Zavřít chat' : 'Otevřít chat');
-                this.collapseBtn.title = this.isPanelOpen ? 'Zavřít chat' : 'Otevřít chat';
+                this.collapseBtn.setAttribute('aria-label', this.isPanelOpen ? 'Zavrit chat' : 'Otevrit chat');
+                this.collapseBtn.title = this.isPanelOpen ? 'Zavrit chat' : 'Otevrit chat';
             }
         }
 
@@ -1496,7 +1750,7 @@ function resolveAllowedViews(role, permissions = []) {
                 ? messages.filter(message => this.isConversationMessage(message, targetEmail))
                 : messages;
             if (!filtered.length) {
-                this.renderPlaceholder('Žádné zprávy zatím nemáme.');
+                this.renderPlaceholder('Zadne zpravy zatim nemame.');
                 return;
             }
             const ordered = filtered.slice().reverse();
@@ -1553,7 +1807,7 @@ function resolveAllowedViews(role, permissions = []) {
                 ? sourceList.filter(contact => contact.search.includes(term))
                 : sourceList;
             if (!filtered.length) {
-                this.contactsList.innerHTML = `<p class="profile-muted">${term ? 'Žádné výsledky hledání.' : 'Zatím nemáte žádná vlákna.'}</p>`;
+                this.contactsList.innerHTML = `<p class="profile-muted">${term ? 'Zadne vysledky hledani.' : 'Zatim nemate zadna vlakna.'}</p>`;
                 return;
             }
             this.contactsList.innerHTML = filtered.map(contact => `
@@ -1639,7 +1893,7 @@ function resolveAllowedViews(role, permissions = []) {
                 addDescriptor(this.makeContactDescriptor(
                         user.email,
                         fullName || user.email,
-                        user.role || user.roleCode || 'Uživatel'
+                        user.role || user.roleCode || 'Uzivatel'
                 ));
             });
             (this.state.data.customers || []).forEach(customer => {
@@ -1649,7 +1903,7 @@ function resolveAllowedViews(role, permissions = []) {
                 addDescriptor(this.makeContactDescriptor(
                         customer.email,
                         customer.name || customer.email,
-                        'Zákazník'
+                        'Zakaznik'
                 ));
             });
             return Array.from(map.values()).sort((a, b) => a.label.localeCompare(b.label, 'cs'));
@@ -1664,7 +1918,7 @@ function resolveAllowedViews(role, permissions = []) {
                 const fullName = [user.firstName, user.lastName].filter(Boolean).join(' ').trim();
                 map.set(this.normalizeEmail(user.email), {
                     label: fullName || user.email,
-                    meta: user.role || user.roleCode || 'Uživatel'
+                    meta: user.role || user.roleCode || 'Uzivatel'
                 });
             });
             (this.state.data.customers || []).forEach(customer => {
@@ -1673,7 +1927,7 @@ function resolveAllowedViews(role, permissions = []) {
                 }
                 map.set(this.normalizeEmail(customer.email), {
                     label: customer.name || customer.email,
-                    meta: 'Zákazník'
+                    meta: 'Zakaznik'
                 });
             });
             return map;
@@ -1726,7 +1980,7 @@ function resolveAllowedViews(role, permissions = []) {
                 const label = this.activeContactLabel || this.resolveDisplayLabel(email) || email;
                 this.selectedLabel.textContent = `Komunikace s ${label}`;
             } else {
-                this.selectedLabel.textContent = 'Vyberte kontakt vlevo nebo použijte vyhledávání.';
+                this.selectedLabel.textContent = 'Vyberte kontakt vlevo nebo pouzijte vyhledavani.';
             }
         }
 
@@ -1899,9 +2153,9 @@ function resolveAllowedViews(role, permissions = []) {
                 if (!options.silent) {
                     console.error('Failed to refresh chat messages', error);
                     if (!(this.state.data.messages || []).length) {
-                        this.renderPlaceholder('Nepodařilo se načíst zprávy.');
+                        this.renderPlaceholder('Nepodarilo se nacist zpravy.');
                     }
-                    this.setFormStatus('Nepodařilo se načíst zprávy.', false);
+                    this.setFormStatus('Nepodarilo se nacist zpravy.', false);
                 }
             } finally {
                 this.refreshInFlight = false;
@@ -1969,11 +2223,11 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.emojiPanel) return;
             if (this.emojiPanel.dataset.ready === '1') return;
             const emojis = [
-                '😀','😁','😂','🤣','😊','😍','😘','😉','😎','🤔','😇','😅','🥰','🤩','🥳','🤯',
-                '😭','😢','😤','😡','😴','🤗','🤭','😱','🤤','🤒','🤕','🤧','🤮','🤡','👀','🤝',
-                '👍','👎','👏','🙏','🙌','✌️','🤞','👌','👊','💪','💅','🤙','🫶','🤲','🫰','🤌',
-                '🔥','✨','🎉','❤️','🧡','💛','💚','💙','💜','🖤','🤍','💔','💯','✅','❗','❓',
-                '⚡','🌟','🍀','☕','🍕','🍰','🎂','🍎','🍪','🍺','🥂','🍾','🚀','🏆','📌','📝'
+                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
+                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
+                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
+                '??','?','??','??','??','??','??','??','??','??','??','??','??','?','?','?',
+                '?','??','??','?','??','??','??','??','??','??','??','??','??','??','??','??'
             ];
             this.emojiPanel.innerHTML = emojis.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('');
             this.emojiPanel.querySelectorAll('button[data-emoji]').forEach(btn => {
@@ -2088,7 +2342,7 @@ function resolveAllowedViews(role, permissions = []) {
                 body: JSON.stringify({ content })
             });
             if (!response.ok) {
-                throw new Error('Upravit zprávu se nepodařilo.');
+                throw new Error('Upravit zpravu se nepodarilo.');
             }
         }
 
@@ -2148,7 +2402,7 @@ function resolveAllowedViews(role, permissions = []) {
                     return;
                 }
                 const registration = await this.getServiceWorkerRegistration();
-                const title = message.sender || 'Nová zpráva';
+                const title = message.sender || 'Nova zprava';
                 const body = this.truncateWords(message.content || message.preview || '', 12);
                 this.logger('push:local show', { title, body });
                 await registration.showNotification(title, {
@@ -2170,26 +2424,26 @@ function resolveAllowedViews(role, permissions = []) {
                     : await Notification.requestPermission();
                 this.logger('push:test permission', permission);
                 if (permission !== 'granted') {
-                    alert('Povolte prosím notifikace v prohlížeči.');
+                    alert('Povolte prosim notifikace v prohlizeci.');
                     return;
                 }
                 await registration.showNotification('Test push', {
-                    body: 'Tohle je ukázkové upozornění z aplikace.',
+                    body: 'Tohle je ukazkove upozorneni z aplikace.',
                     tag: `bdas-test-${Date.now()}`,
                     renotify: false
                 });
                 this.logger('push:test shown');
             } catch (error) {
                 console.error('Test push failed', error);
-                alert(error.message || 'Test push se nepodařil.');
+                alert(error.message || 'Test push se nepodaril.');
             }
         }
 
         async refreshPushState() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
                 this.pushToggleLocked = true;
-                this.pushError = 'Push nepodporuje prohlížeč.';
-                this.setPushToggleState(false, 'Push nedostupný');
+                this.pushError = 'Push nepodporuje prohlizec.';
+                this.setPushToggleState(false, 'Push nedostupny');
                 return;
             }
             try {
@@ -2202,9 +2456,9 @@ function resolveAllowedViews(role, permissions = []) {
                 this.logger('push:state', { granted: isGranted, subscribed: !!subscription });
             } catch (error) {
                 console.warn('Failed to refresh push state', error);
-                this.pushError = error?.message || 'Push není dostupný.';
+                this.pushError = error?.message || 'Push neni dostupny.';
                 this.pushToggleLocked = true;
-                this.setPushToggleState(false, 'Push nedostupný');
+                this.setPushToggleState(false, 'Push nedostupny');
             }
         }
 
@@ -2245,7 +2499,7 @@ function resolveAllowedViews(role, permissions = []) {
                 await this.refreshPushState();
             } catch (error) {
                 console.error('Push toggle failed', error);
-                alert(error.message || 'Nepodařilo se změnit stav push upozornění.');
+                alert(error.message || 'Nepodarilo se zmenit stav push upozorneni.');
             } finally {
                 this.pushToggleLoading = false;
                 this.pushToggle?.classList.remove('loading');
@@ -2254,20 +2508,20 @@ function resolveAllowedViews(role, permissions = []) {
 
         async subscribeToPush() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window) || typeof Notification === 'undefined') {
-                throw new Error('Prohlížeč nepodporuje push notifikace.');
+                throw new Error('Prohlizec nepodporuje push notifikace.');
             }
             const token = this.getAuthToken();
             const username = localStorage.getItem('username') || localStorage.getItem('email');
             if (!token || !username) {
-                throw new Error('Pro přihlášení odběru se nejdřív přihlaste.');
+                throw new Error('Pro prihlaseni odberu se nejdriv prihlaste.');
             }
             this.logger('push:subscribe request');
             const registration = await this.getServiceWorkerRegistration();
             const permission = await Notification.requestPermission();
             this.logger('push:permission', permission);
             if (permission !== 'granted') {
-                this.setPushToggleState(false, 'Povolte push v prohlížeči');
-                throw new Error('Povolení pro upozornění bylo zamítnuto. Povolit v nastavení prohlížeče.');
+                this.setPushToggleState(false, 'Povolte push v prohlizeci');
+                throw new Error('Povoleni pro upozorneni bylo zamitnuto. Povolit v nastaveni prohlizece.');
             }
             const subscription = await registration.pushManager.subscribe({
                 userVisibleOnly: true,
@@ -2311,9 +2565,9 @@ function resolveAllowedViews(role, permissions = []) {
             try {
                 this.swRegistration = await navigator.serviceWorker.register(this.serviceWorkerPath);
             } catch (error) {
-                this.pushError = error?.message || 'Service worker se nepodařilo zaregistrovat.';
+                this.pushError = error?.message || 'Service worker se nepodarilo zaregistrovat.';
                 this.pushToggleLocked = true;
-                this.setPushToggleState(false, 'Push nedostupný');
+                this.setPushToggleState(false, 'Push nedostupny');
                 throw error;
             }
             return this.swRegistration;
@@ -2337,7 +2591,7 @@ function resolveAllowedViews(role, permissions = []) {
                 body: JSON.stringify(payload)
             });
             if (!response.ok) {
-                throw new Error('Server odběr odmítl.');
+                throw new Error('Server odber odmitl.');
             }
             this.logger('push:server subscription stored');
             this.pushError = '';
@@ -2427,7 +2681,7 @@ function resolveAllowedViews(role, permissions = []) {
                 const body = data.content || data.preview || '';
                 const message = {
                     id: data.id || data.messageId,
-                    sender: data.sender?.email || data.senderEmail || data.sender || 'Neznámý',
+                    sender: data.sender?.email || data.senderEmail || data.sender || 'Neznamy',
                     receiver: data.receiver?.email || data.receiverEmail || data.receiver || 'Broadcast',
                     content: body,
                     preview: body,
@@ -2488,11 +2742,11 @@ function resolveAllowedViews(role, permissions = []) {
             const content = (customPayload?.content ?? this.messageInput?.value ?? '').trim();
             const receiver = (customPayload?.receiver ?? this.receiverInput?.value ?? '').trim();
             if (!content) {
-                this.setFormStatus('Zpráva je prázdná.', false);
+                this.setFormStatus('Zprava je prazdna.', false);
                 return false;
             }
             if (!receiver) {
-                this.setFormStatus('Vyplňte prosím adresáta.', false);
+                this.setFormStatus('Vyplnte prosim adresata.', false);
                 return false;
             }
             const token = this.getAuthToken();
@@ -2511,14 +2765,14 @@ function resolveAllowedViews(role, permissions = []) {
                         this.autoResizeMessage();
                     }
                     await this.refreshMessages({ force: true });
-                    this.setFormStatus('✓ Upraveno', true);
+                    this.setFormStatus('? Upraveno', true);
                     return true;
                 } else {
                     if (!this.connected) {
                         await this.initWebsocket();
                     }
                     if (!this.client || !this.connected) {
-                        throw new Error('Spojení s chatem není dostupné.');
+                        throw new Error('Spojeni s chatem neni dostupne.');
                     }
                     this.logger('send:payload', { receiver, length: content.length });
                     this.client.send('/app/chat', { Authorization: `Bearer ${token}` }, JSON.stringify({ content, receiver }));
@@ -2528,7 +2782,7 @@ function resolveAllowedViews(role, permissions = []) {
                     }
                     const optimisticMessage = {
                         id: `temp-${Date.now()}`,
-                        sender: this.state.data.profile?.email || this.currentUserEmail || localStorage.getItem('email') || 'já',
+                        sender: this.state.data.profile?.email || this.currentUserEmail || localStorage.getItem('email') || 'ja',
                         receiver,
                         content,
                         preview: content,
@@ -2541,13 +2795,13 @@ function resolveAllowedViews(role, permissions = []) {
                     this.renderContacts();
                     this.renderFeed();
                     this.highlightActiveContact();
-                    this.setFormStatus('✓ Odesláno', true);
+                    this.setFormStatus('? Odeslano', true);
                     this.logger('send:optimistic', optimisticMessage);
                     return true;
                 }
             } catch (error) {
                 console.error('Chat send failed', error);
-                this.setFormStatus(error.message || 'Odeslání selhalo.', false);
+                this.setFormStatus(error.message || 'Odeslani selhalo.', false);
                 return false;
             }
         }
@@ -2713,7 +2967,7 @@ function resolveAllowedViews(role, permissions = []) {
             }
             this.grid.innerHTML = products.map(prod => `
                 <article class="product-card">
-                    <div class="product-icon">${prod.image || '🛒'}</div>
+                    <div class="product-icon">${prod.image || '??'}</div>
                     <div>
                         <strong>${prod.name}</strong>
                         <p>${prod.description}</p>
@@ -2764,7 +3018,7 @@ function resolveAllowedViews(role, permissions = []) {
                         <span>${currencyFormatter.format(total)}</span>
                     </div>
                     <div class="cart-actions">
-                        <button data-clear-cart type="button">Vyprázdnit</button>
+                        <button data-clear-cart type="button">Vyprazdnit</button>
                         <a class="cart-submit" data-view="customer-payment" href="pay.html">Zaplatit</a>
                     </div>
                 </div>`;
@@ -2848,7 +3102,7 @@ class GlobalSearch {
             });
             this.results.innerHTML = hits.length
                 ? hits.slice(0, 6).map(hit => `<div class="search-hit"><span class="badge">${hit.type}</span> ${hit.label}</div>`).join('')
-                : '<p>Žádné výsledky, zkuste jiný dotaz.</p>';
+                : '<p>Zadne vysledky, zkuste jiny dotaz.</p>';
             this.results.classList.add('visible');
         }
 
@@ -2868,7 +3122,7 @@ class GlobalSearch {
             this.navigation = new NavigationController(state, meta, {
                 allowedViews,
                 defaultView: 'dashboard',
-                onBlocked: () => alert('Na tuto sekci nemáte přístup. Přesměrovávám na Přehled.')
+                onBlocked: () => alert('Na tuto sekci nemate pristup. Presmerovavam na Prehled.')
             });
             this.dashboard = new DashboardModule(state);
             this.profile = new ProfileModule(state, this, {
@@ -2888,7 +3142,10 @@ class GlobalSearch {
                 refreshApp: () => this.refreshData()
             });
             this.inventory = new InventoryModule(state);
-            this.orders = new OrdersModule(state);
+            this.orders = new OrdersModule(state, {
+                apiUrl,
+                refreshApp: () => this.refreshData()
+            });
             this.people = new PeopleModule(state);
             this.finance = new FinanceModule(state, { apiUrl });
             this.records = new RecordsModule(state);
@@ -2929,7 +3186,13 @@ class GlobalSearch {
             const walletBtn = document.getElementById("wallet-btn");
             walletBtn?.addEventListener('click', () => this.openWalletPanel());
             this.updateWalletChip();
-            document.getElementById("new-order-btn")?.addEventListener("click", () => alert("Pruvodce vytvorenim objednavky bude brzy dostupny."));
+            document.getElementById("new-order-btn")?.addEventListener("click", () => {
+                if (this.orders && typeof this.orders.openForm === 'function') {
+                    this.orders.openForm();
+                } else {
+                    alert("Pruvodce vytvorenim objednavky bude brzy dostupny.");
+                }
+            });
             document.getElementById("new-store-btn")?.addEventListener("click", () => alert("Pruvodce otevrenim prodejny bude brzy dostupny."));
             document.getElementById("export-store-btn")?.addEventListener("click", () => alert("Export seznamu prodejen bude brzy pripraven."));
             document.getElementById("upload-btn")?.addEventListener("click", () => alert("Nahravani souboru pridame pozdeji."));
@@ -2961,7 +3224,7 @@ class GlobalSearch {
             const chip = document.createElement('button');
             chip.id = chipId;
             chip.type = 'button';
-            chip.textContent = '← Zpět k původnímu účtu';
+            chip.textContent = '< Zpet k puvodnimu uctu';
             chip.style.position = 'fixed';
             chip.style.right = '20px';
             chip.style.bottom = '20px';
@@ -3346,7 +3609,7 @@ class GlobalSearch {
                 cardNumber: method === 'CARD' ? (this.cardNumber.value || '').replace(/\s+/g, '') : null,
                 note: ''
             };
-            this.statusEl.textContent = 'Zpracovávám platbu...';
+            this.statusEl.textContent = 'Zpracovavam platbu...';
             this.statusEl.classList.remove('chat-status-success');
             this.submitBtn && (this.submitBtn.disabled = true);
             try {
@@ -3368,13 +3631,16 @@ class GlobalSearch {
                 if (typeof window?.app?.updateWalletChip === 'function' && method === 'WALLET') {
                     try { window.app.updateWalletChip(); } catch (e) { console.debug('Wallet chip refresh skip', e); }
                 }
-                this.statusEl.textContent = 'Objednávka a platba byly uloženy.';
+                this.statusEl.textContent = 'Objednavka a platba byly ulozeny.';
                 this.statusEl.classList.add('chat-status-success');
             } catch (error) {
-                this.statusEl.textContent = error.message || 'Platbu se nepodařilo dokončit.';
+                this.statusEl.textContent = error.message || 'Platbu se nepodarilo dokoncit.';
             } finally {
                 this.submitBtn && (this.submitBtn.disabled = false);
             }
         }
     }
+
+
+
 
