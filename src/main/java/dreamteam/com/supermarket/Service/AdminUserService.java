@@ -7,6 +7,7 @@ import dreamteam.com.supermarket.controller.dto.RoleDependencyResponse;
 import dreamteam.com.supermarket.jwt.JwtUtil;
 import dreamteam.com.supermarket.model.location.Adresa;
 import dreamteam.com.supermarket.model.location.Mesto;
+import dreamteam.com.supermarket.model.market.DodavatelZboziId;
 import dreamteam.com.supermarket.model.user.*;
 import dreamteam.com.supermarket.Service.AdresaJdbcService;
 import dreamteam.com.supermarket.Service.MestoJdbcService;
@@ -24,6 +25,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
@@ -123,10 +125,18 @@ public class AdminUserService {
     }
 
     @Transactional
-    public void deleteUser(Long userId) {
+    public void deleteUser(Long userId, boolean force) {
         Uzivatel user = userJdbcService.findById(userId);
         if (user == null) {
             throw new IllegalArgumentException("Uzivatel s ID " + userId + " neexistuje.");
+        }
+        RoleDependencyResponse deps = getRoleDependencies(userId);
+        boolean hasDeps = hasDependencies(deps);
+        if (hasDeps && !force) {
+            throw new IllegalArgumentException(buildDependencyMessage(deps));
+        }
+        if (force) {
+            cleanDependencies(userId, deps);
         }
         userJdbcService.deleteById(userId);
     }
@@ -173,6 +183,73 @@ public class AdminUserService {
     @Transactional(readOnly = true)
     public String nextLoyaltyCard() {
         return zakaznikJdbcService.nextLoyaltyCard();
+    }
+
+    private boolean hasDependencies(RoleDependencyResponse deps) {
+        if (deps == null) {
+            return false;
+        }
+        return deps.isHasSupplier()
+                || deps.isHasCustomer()
+                || deps.isHasEmployee()
+                || deps.getSupplierItems() > 0;
+    }
+
+    private String buildDependencyMessage(RoleDependencyResponse deps) {
+        if (deps == null) {
+            return "Uživatel nemá vazby.";
+        }
+        List<String> items = new ArrayList<>();
+        if (deps.isHasSupplier()) {
+            String text = "DODAVATEL";
+            if (StringUtils.hasText(deps.getSupplierCompany())) {
+                text += " (" + deps.getSupplierCompany().trim() + ")";
+            }
+            items.add(text);
+        }
+        if (deps.getSupplierItems() > 0) {
+            items.add("ZBOZI_DODAVATEL: " + deps.getSupplierItems() + " vazeb");
+        }
+        if (deps.isHasCustomer()) {
+            String text = "ZAKAZNIK";
+            if (StringUtils.hasText(deps.getLoyaltyCard())) {
+                text += " (karta " + deps.getLoyaltyCard().trim() + ")";
+            }
+            items.add(text);
+        }
+        if (deps.isHasEmployee()) {
+            List<String> parts = new ArrayList<>();
+            if (StringUtils.hasText(deps.getPosition())) {
+                parts.add(deps.getPosition().trim());
+            }
+            if (deps.getSalary() != null) {
+                parts.add("mzda " + deps.getSalary());
+            }
+            if (StringUtils.hasText(deps.getHireDate())) {
+                parts.add("nástup " + deps.getHireDate().trim());
+            }
+            String detail = parts.isEmpty() ? "" : " (" + String.join(", ", parts) + ")";
+            items.add("ZAMESTNANEC" + detail);
+        }
+        if (items.isEmpty()) {
+            return "Uživatel nemá vazby.";
+        }
+        return "Nelze smazat, uživatel má vazby: " + String.join(", ", items)
+                + ". Přidejte parametr force=1 pro smazání s odstraněním vazeb.";
+    }
+
+    private void cleanDependencies(Long userId, RoleDependencyResponse deps) {
+        if (deps == null) {
+            return;
+        }
+        if (deps.getSupplierItems() > 0) {
+            dodavatelZboziJdbcService.findByDodavatel(userId).forEach(rel -> {
+                DodavatelZboziId relId = rel.getId();
+                if (relId != null && relId.getZboziId() != null) {
+                    dodavatelZboziJdbcService.deleteRelation(relId.getZboziId(), userId);
+                }
+            });
+        }
     }
 
     private AdminUserResponse toResponse(Uzivatel user) {

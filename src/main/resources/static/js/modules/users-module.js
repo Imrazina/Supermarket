@@ -345,16 +345,32 @@ export default class UsersModule {
         if (!id) return;
         const user = (this.state.adminUsers || []).find(u => u.id === id);
         const name = user ? `${user.firstName || ''} ${user.lastName || ''}`.trim() : '';
+        const deps = await this.fetchRoleDependencies(id);
+        const proceed = async (force = false) => this.performDelete(id, { force });
+        if (this.hasRoleDependencies(deps)) {
+            this.showRoleWarningModal(name, deps, () => proceed(true), {
+                title: 'Opravdu smazat uživatele?',
+                description: 'Smazání odstraní také následující záznamy:',
+                confirmLabel: 'Smazat uživatele',
+                cancelLabel: 'Zrušit'
+            });
+            return;
+        }
         if (!confirm(`Opravdu smazat uživatele ${name || id}?`)) {
             return;
         }
+        await proceed(false);
+    }
+
+    async performDelete(id, options = {}) {
         const token = localStorage.getItem('token');
         if (!token) {
             window.location.href = 'landing.html';
             return;
         }
+        const forceParam = options.force ? '?force=1' : '';
         try {
-            const response = await fetch(this.apiUrl(`/api/admin/users/${id}`), {
+            const response = await fetch(this.apiUrl(`/api/admin/users/${id}${forceParam}`), {
                 method: 'DELETE',
                 headers: {
                     'Authorization': `Bearer ${token}`
@@ -553,6 +569,11 @@ export default class UsersModule {
         return /-2000(1|16|17|99)/.test(message) || lower.includes('ora-20001') || lower.includes('zbozi_dodavatel') || lower.includes('dodavatel');
     }
 
+    hasRoleDependencies(deps) {
+        if (!deps) return false;
+        return deps.hasSupplier || deps.hasCustomer || deps.hasEmployee || (deps.supplierItems || 0) > 0;
+    }
+
     async fetchRoleDependencies(userId) {
         const token = localStorage.getItem('token');
         if (!token) {
@@ -600,7 +621,7 @@ export default class UsersModule {
         }
     }
 
-    showRoleWarningModal(userName, deps, onConfirm) {
+    showRoleWarningModal(userName, deps, onConfirm, options = {}) {
         const tables = [];
         if (deps?.hasSupplier) {
             tables.push(`DODAVATEL${deps.supplierCompany ? ` (firma: ${deps.supplierCompany})` : ''}`);
@@ -619,6 +640,12 @@ export default class UsersModule {
             tables.push(`ZAMESTNANEC${parts.length ? ` (${parts.join(', ')})` : ''}`);
         }
 
+        const title = options.title || 'Opravdu změnit roli?';
+        const confirmLabel = options.confirmLabel || 'Pokračovat a odstranit vazby';
+        const cancelLabel = options.cancelLabel || 'Zavřít';
+        const descriptionText = options.description ? this.escapeHtml(options.description) : 'Tato akce odstraní následující záznamy:';
+        const descriptionPrefix = userName ? `Uživatel: <strong>${this.escapeHtml(userName)}</strong><br>` : '';
+
         const listHtml = tables.length
             ? `<ul style="margin:12px 0 0 18px; padding-left:0; list-style: disc;">${tables.map(t => `<li>${t}</li>`).join('')}</ul>`
             : '<p class="profile-muted">Žádné vazby k odstranění.</p>';
@@ -630,14 +657,14 @@ export default class UsersModule {
         overlay.innerHTML = `
             <div class="modal-content" role="dialog" aria-modal="true" style="max-width:520px;">
                 <div class="modal-header">
-                    <h3 style="margin:0;">Opravdu změnit roli?</h3>
+                    <h3 style="margin:0;">${this.escapeHtml(title)}</h3>
                     <button type="button" class="ghost-btn ghost-muted" id="role-force-cancel" aria-label="Zavřít">×</button>
                 </div>
-                <p>${userName ? `Uživatel: <strong>${userName}</strong><br>` : ''}Tato akce odstraní následující záznamy:</p>
+                <p>${descriptionPrefix}${descriptionText}</p>
                 ${listHtml}
                 <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-                    <button type="button" class="ghost-btn ghost-muted" id="role-force-cancel-2">Zavřít</button>
-                    <button type="button" class="ghost-btn ghost-strong" id="role-force-confirm">Pokračovat a odstranit vazby</button>
+                    <button type="button" class="ghost-btn ghost-muted" id="role-force-cancel-2">${this.escapeHtml(cancelLabel)}</button>
+                    <button type="button" class="ghost-btn ghost-strong" id="role-force-confirm">${this.escapeHtml(confirmLabel)}</button>
                 </div>
             </div>
         `;

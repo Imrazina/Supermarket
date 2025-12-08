@@ -107,6 +107,11 @@ public class CheckoutService {
             platbaId = createPlatba(objednavkaId, total, paymentType, cardNumber, prijato, vraceno);
         }
 
+        CashbackResult cashback = null;
+        if (isCustomer) {
+            cashback = tryCashback(user.getIdUzivatel());
+        }
+
         return new CheckoutResponse(
                 objednavkaId,
                 platbaId,
@@ -114,7 +119,11 @@ public class CheckoutService {
                 prijato,
                 vraceno,
                 paymentType,
-                responseLines
+                responseLines,
+                cashback != null ? cashback.cashback() : null,
+                cashback != null ? cashback.turnover() : null,
+                cashback != null ? cashback.balance() : null,
+                cashback != null ? cashback.code() : null
         );
     }
 
@@ -236,4 +245,36 @@ public class CheckoutService {
     private record StatusRow(Long id, String nazev) {}
 
     private record SupermarketRow(Long id, String nazev) {}
+
+    private record CashbackResult(int code, BigDecimal turnover, BigDecimal cashback, BigDecimal balance) {}
+
+    private CashbackResult tryCashback(Long userId) {
+        try {
+            Long ucetId = walletJdbcService.ensureAccountForUser(userId);
+            return jdbcTemplate.execute(
+                    (org.springframework.jdbc.core.CallableStatementCreator) (Connection con) -> {
+                        CallableStatement cs = con.prepareCall("{ ? = call fn_cashback_5orders(?, ?, ?, ?, ?, ?) }");
+                        cs.registerOutParameter(1, java.sql.Types.NUMERIC); // return code
+                        cs.setLong(2, userId);
+                        cs.setInt(3, 5); // min orders
+                        cs.setInt(4, 7); // cooldown days
+                        cs.registerOutParameter(5, java.sql.Types.NUMERIC); // turnover
+                        cs.registerOutParameter(6, java.sql.Types.NUMERIC); // cashback
+                        cs.registerOutParameter(7, java.sql.Types.NUMERIC); // balance
+                        return cs;
+                    },
+                    (org.springframework.jdbc.core.CallableStatementCallback<CashbackResult>) cs -> {
+                        cs.execute();
+                        int code = cs.getInt(1);
+                        BigDecimal turnover = cs.getBigDecimal(5);
+                        BigDecimal cashback = cs.getBigDecimal(6);
+                        BigDecimal balance = cs.getBigDecimal(7);
+                        return new CashbackResult(code, turnover, cashback, balance);
+                    }
+            );
+        } catch (Exception ex) {
+            // neblokuj checkout kvůli cashbacku
+            return new CashbackResult(-99, null, null, null);
+        }
+    }
 }

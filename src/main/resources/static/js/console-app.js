@@ -5,6 +5,100 @@ import UsersModule from './modules/users-module.js';
 import RecordsModule from './modules/archive-module.js';
 import CustomerOrdersView from './modules/customer-orders-view.js';
 
+class SupplierModule {
+    constructor(state, deps) {
+        this.state = state;
+        this.apiUrl = deps.apiUrl;
+        this.container = document.getElementById('supplier-orders-container');
+        this.emptyState = document.getElementById('supplier-orders-empty');
+        this.countBadge = document.getElementById('supplier-orders-count');
+    }
+
+    init() {
+        this.loadOrders();
+        this.container?.addEventListener('click', e => {
+            const button = e.target.closest('[data-claim-id]');
+            if (button) {
+                this.claimOrder(button.dataset.claimId);
+            }
+        });
+    }
+
+    async loadOrders() {
+        if (!this.container) return;
+        try {
+            const token = localStorage.getItem('token');
+            const freeOrders = await fetch(this.apiUrl('/api/supplier/orders/free'), {
+                headers: { 'Authorization': `Bearer ${token}` }
+            }).then(res => res.ok ? res.json() : Promise.reject(new Error('Failed to load orders')));
+            
+            this.state.supplierOrders.free = freeOrders || [];
+            this.render();
+        } catch (error) {
+            console.error("Failed to load supplier orders:", error);
+            if (this.container) this.container.innerHTML = `<p class="profile-muted">Chyba při načítání objednávek.</p>`;
+        }
+    }
+
+    async claimOrder(orderId) {
+        try {
+            const token = localStorage.getItem('token');
+            await fetch(this.apiUrl(`/api/supplier/orders/${orderId}/claim`), {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            // Optimistically remove the card
+            const card = this.container.querySelector(`[data-order-id="${orderId}"]`);
+            card?.remove();
+            this.state.supplierOrders.free = this.state.supplierOrders.free.filter(o => o.id !== orderId);
+            this.render();
+        } catch (error) {
+            console.error("Failed to claim order:", error);
+            alert('Nepodařilo se převzít objednávku.');
+        }
+    }
+
+    render() {
+        const orders = this.state.supplierOrders.free || [];
+        if (this.countBadge) {
+            this.countBadge.textContent = orders.length;
+        }
+
+        if (!orders.length) {
+            this.container.style.display = 'none';
+            this.emptyState.style.display = 'block';
+            return;
+        }
+
+        this.container.style.display = 'grid';
+        this.emptyState.style.display = 'none';
+
+        this.container.innerHTML = orders.map(order => `
+            <div class="supplier-order-card" data-order-id="${order.id}">
+                <h4>${order.supermarket || 'Neznámý supermarket'}</h4>
+                <div class="supplier-order-meta">
+                    <div class="meta-row">
+                        <span class="material-symbols-rounded">calendar_today</span>
+                        <span>Vytvořeno: ${new Date(order.createdAt).toLocaleDateString('cs-CZ')}</span>
+                    </div>
+                    <div class="meta-row">
+                        <span class="material-symbols-rounded">schedule</span>
+                        <span>Očekáváno: ${new Date(order.expectedAt).toLocaleDateString('cs-CZ')}</span>
+                    </div>
+                     <div class="meta-row">
+                        <span class="material-symbols-rounded">flag</span>
+                        <span>Stav: ${order.status || 'Nové'}</span>
+                    </div>
+                </div>
+                <div class="supplier-order-footer">
+                    <span class="supplier-order-price">${currencyFormatter.format(order.totalPrice || 0)}</span>
+                    <button class="take-order-btn" data-claim-id="${order.id}">Převzít</button>
+                </div>
+            </div>
+        `).join('');
+    }
+}
+
 const currencyFormatter = new Intl.NumberFormat('cs-CZ', {
     style: 'currency',
     currency: 'CZK',
@@ -96,6 +190,7 @@ const state = {
     customerSearchTerm: '',
     customerCart: [],
     customerCartLoaded: false,
+    supplierOrders: { free: [], mine: [], loading: false, error: null },
     data: createEmptyData(),
     permissionsCatalog: [],
     profileMeta: { roles: [], cities: [], positions: [] },
@@ -112,6 +207,63 @@ const apiBaseUrl = (document.body.dataset.apiBase?.trim() || window.API_BASE_URL
 const apiUrl = (path) => `${apiBaseUrl}${path.startsWith('/') ? '' : '/'}${path}`;
 const webpushPublicKey = document.body.dataset.webpushKey || 'BBoYaoc8zDDFcRjeUDuO4HI15lrxOhtqEgdWfcfkn5vqTHmUeZc_DU6yodFwDNcthvOyKSK-K_Us9xdEDVYR_5I';
 const serviceWorkerPath = document.body.dataset.swPath || '/sw.js';
+const appLoadingId = 'app-loading-overlay';
+
+function ensureLoadingOverlay() {
+    const root = document.getElementById('app-root');
+    if (!root) return null;
+    let overlay = document.getElementById(appLoadingId);
+    if (!overlay) {
+        overlay = document.createElement('div');
+        overlay.id = appLoadingId;
+        overlay.className = 'app-loading-overlay hidden';
+        overlay.setAttribute('role', 'status');
+        overlay.setAttribute('aria-live', 'polite');
+        overlay.innerHTML = `
+            <div class="app-loading-orbit" aria-hidden="true">
+                <div class="orbit-layer back">
+                    <span class="orbit-item orbit-e" style="--shift-x:-320px; --shift-y:-220px;">🍇</span>
+                    <span class="orbit-item orbit-f" style="--shift-x:320px; --shift-y:-220px; animation-delay:-3s;">🥦</span>
+                    <span class="orbit-item orbit-g" style="--shift-x:-320px; --shift-y:240px; animation-delay:-6s;">🥖</span>
+                    <span class="orbit-item orbit-h" style="--shift-x:320px; --shift-y:240px; animation-delay:-9s;">🍉</span>
+                    <span class="orbit-item orbit-i" style="--shift-x:-480px; --shift-y:0px; animation-delay:-12s;">🍣</span>
+                    <span class="orbit-item orbit-j" style="--shift-x:480px; --shift-y:0px; animation-delay:-15s;">🍋</span>
+                </div>
+                <div class="orbit-layer front">
+                    <span class="orbit-item orbit-a" style="--shift-x:-240px; --shift-y:-140px;">🍏</span>
+                    <span class="orbit-item orbit-b" style="--shift-x:240px; --shift-y:-140px; animation-delay:-1.5s;">🥐</span>
+                    <span class="orbit-item orbit-c" style="--shift-x:-240px; --shift-y:160px; animation-delay:-3s;">🥑</span>
+                    <span class="orbit-item orbit-d" style="--shift-x:240px; --shift-y:160px; animation-delay:-4.5s;">🧀</span>
+                    <span class="orbit-item orbit-e" style="--shift-x:0px; --shift-y:-280px; animation-delay:-6s;">🍅</span>
+                    <span class="orbit-item orbit-f" style="--shift-x:0px; --shift-y:280px; animation-delay:-7.5s;">🍩</span>
+                </div>
+            </div>
+            <div class="app-loading-card">
+                <div class="loader-spinner" aria-hidden="true"></div>
+                <div>
+                    <h3 class="app-loading-title">BDAS</h3>
+                    <p class="app-loading-text">Načítáme data…</p>
+                </div>
+            </div>
+        `;
+        root.appendChild(overlay);
+    }
+    return overlay;
+}
+
+function setAppLoading(visible, text) {
+    const overlay = ensureLoadingOverlay();
+    if (!overlay) {
+        return;
+    }
+    if (text) {
+        const textEl = overlay.querySelector('.app-loading-text');
+        if (textEl) {
+            textEl.textContent = text;
+        }
+    }
+    overlay.classList.toggle('hidden', !visible);
+}
 
 function restoreOriginalSession() {
     const originalToken = localStorage.getItem('admin_original_token');
@@ -366,7 +518,8 @@ state.activeView = document.body.dataset.initialView || state.activeView;
 
 const allViews = [
     'dashboard', 'profile', 'inventory', 'orders', 'people', 'finance', 'records',
-    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-orders', 'customer-payment', 'chat'
+    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-orders', 'customer-payment', 'chat',
+    'supplier'
 ];
 
 function resolveAllowedViews(role, permissions = []) {
@@ -386,6 +539,11 @@ function resolveAllowedViews(role, permissions = []) {
 
     if (normalizedRole === 'ZAKAZNIK' || normalizedRole === 'CUSTOMER' || normalizedRole === 'NEW_USER') {
         add('customer', 'customer-cart', 'customer-orders', 'customer-payment');
+        return allowed;
+    }
+
+    if (normalizedRole === 'DODAVATEL') {
+        add('supplier');
         return allowed;
     }
 
@@ -409,7 +567,7 @@ function resolveAllowedViews(role, permissions = []) {
             const buffer = await response.arrayBuffer();
             const markup = new TextDecoder('utf-8').decode(buffer);
             root.innerHTML = markup;
-            root.classList.remove('app-boot');
+            setAppLoading(true, 'Načítáme data…');
 
             const [snapshot, permissionsCatalog, profileMeta, adminPermissions, rolePermissions] = await Promise.all([
                 fetchDashboardSnapshot(),
@@ -419,6 +577,7 @@ function resolveAllowedViews(role, permissions = []) {
                 fetchRolePermissions()
             ]);
             if (!snapshot) {
+                setAppLoading(false);
                 return;
             }
             state.data = mergeDashboardData(snapshot);
@@ -432,8 +591,13 @@ function resolveAllowedViews(role, permissions = []) {
 
             const paymentModule = new PaymentModule(state, { apiUrl });
             paymentModule.init();
+
+            setAppLoading(false);
+            root.classList.remove('app-boot');
         } catch (error) {
             console.error('Chyba inicializace rozhraní', error);
+            setAppLoading(false);
+            root.className = 'app-boot';
             root.innerHTML = `
                 <div class="boot-card error">
                     <p>${error.message || 'Nepodařilo se načíst rozhraní. Obnovte prosím stránku.'}</p>
@@ -509,6 +673,10 @@ function resolveAllowedViews(role, permissions = []) {
             return match?.dataset.url || match?.getAttribute('href') || window.location.pathname;
         }
 
+        hasViewSection(view) {
+            return Array.from(this.views).some(section => section.dataset.view === view);
+        }
+
         init() {
             this.refreshNavVisibility();
             const initialView = this.ensureAllowed(this.state.activeView || this.defaultView);
@@ -519,6 +687,10 @@ function resolveAllowedViews(role, permissions = []) {
                 btn.addEventListener('click', event => {
                     const targetView = btn.dataset.view;
                     const targetUrl = btn.dataset.url || btn.getAttribute('href') || window.location.pathname;
+                    // Pokud pro view nemáme sekci, necháme klasickou navigaci
+                    if (!this.hasViewSection(targetView)) {
+                        return;
+                    }
                     if (!allowSpaHandling(event)) {
                         return;
                     }
@@ -539,6 +711,9 @@ function resolveAllowedViews(role, permissions = []) {
         setActive(view) {
             const target = this.ensureAllowed(view);
             this.state.activeView = target;
+            if (!this.hasViewSection(target)) {
+                return this.state.activeView;
+            }
             this.navButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === target));
             this.views.forEach(section => section.classList.toggle('active', section.dataset.view === target));
             const meta = this.meta[target];
@@ -2900,6 +3075,7 @@ class GlobalSearch {
         this.customer = new CustomerModule(state);
         this.customerOrders = new CustomerOrdersView(state, currencyFormatter);
         this.search = new GlobalSearch(state);
+        this.supplier = new SupplierModule(state, { apiUrl });
         }
 
         init() {
@@ -2919,6 +3095,7 @@ class GlobalSearch {
             this.customer.init();
             this.customerOrders.render();
             this.search.init();
+            this.supplier.init();
             this.registerUtilityButtons();
             this.renderAll();
             this.startMessagePolling();
@@ -3259,6 +3436,7 @@ class GlobalSearch {
             this.customer.render();
             this.customerOrders.render();
             this.permissionsModule.render();
+            this.supplier.render();
         }
     }
 
@@ -3363,10 +3541,17 @@ class GlobalSearch {
                     const text = await response.text();
                     throw new Error(text || 'Platbu se nepodarilo dokoncit.');
                 }
+                const data = await response.json();
                 this.state.customerCart = [];
                 try { localStorage.removeItem('customerCart'); } catch (e) {}
                 if (typeof window?.app?.updateWalletChip === 'function' && method === 'WALLET') {
                     try { window.app.updateWalletChip(); } catch (e) { console.debug('Wallet chip refresh skip', e); }
+                }
+                if (data && typeof data.walletBalance !== 'undefined' && typeof window?.app?.setWalletChipBalance === 'function') {
+                    window.app.setWalletChipBalance(data.walletBalance || 0);
+                }
+                if (data && data.cashbackAmount && Number(data.cashbackAmount) > 0) {
+                    this.showCashbackModal(data.cashbackAmount, data.walletBalance, data.cashbackTurnover);
                 }
                 this.statusEl.textContent = 'Objednávka a platba byly uloženy.';
                 this.statusEl.classList.add('chat-status-success');
@@ -3376,5 +3561,31 @@ class GlobalSearch {
                 this.submitBtn && (this.submitBtn.disabled = false);
             }
         }
-    }
 
+        showCashbackModal(amount, balance, turnover) {
+            const overlay = document.createElement('div');
+            overlay.className = 'modal active';
+            overlay.style.zIndex = '9999';
+            const amt = currencyFormatter.format(Number(amount) || 0);
+            const bal = balance !== undefined && balance !== null ? currencyFormatter.format(Number(balance) || 0) : '';
+            const turn = turnover ? currencyFormatter.format(Number(turnover) || 0) : '';
+            overlay.innerHTML = `
+                <div class="modal-content" role="dialog" aria-modal="true" style="max-width:520px;">
+                    <div class="modal-header">
+                        <h3 style="margin:0;">🎉 Ura, cashback!</h3>
+                        <button type="button" class="ghost-btn ghost-muted" id="cashback-close">×</button>
+                    </div>
+                    <p style="margin-top:8px;">Gratulujeme! Na váš účet jsme připsali <strong>${amt}</strong>.</p>
+                    ${turn ? `<p style="margin-top:0;">Zohledněný obrat: <strong>${turn}</strong>.</p>` : ''}
+                    ${bal ? `<p style="margin-top:0;">Nový zůstatek peněženky: <strong>${bal}</strong>.</p>` : ''}
+                    <div class="modal-actions" style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px;">
+                        <button type="button" class="ghost-btn ghost-strong" id="cashback-ok">Super!</button>
+                    </div>
+                </div>
+            `;
+            const cleanup = () => overlay.remove();
+            overlay.querySelector('#cashback-close')?.addEventListener('click', cleanup);
+            overlay.querySelector('#cashback-ok')?.addEventListener('click', cleanup);
+            document.body.appendChild(overlay);
+        }
+    }

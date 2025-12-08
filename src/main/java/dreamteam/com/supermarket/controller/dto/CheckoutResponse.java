@@ -10,7 +10,11 @@ public record CheckoutResponse(
         BigDecimal cashGiven,
         BigDecimal change,
         String paymentType,
-        List<Line> lines
+        List<Line> lines,
+        BigDecimal cashbackAmount,
+        BigDecimal cashbackTurnover,
+        BigDecimal walletBalance,
+        Integer cashbackCode
 ) {
     public record Line(String sku, String name, int qty, BigDecimal price) {}
 }

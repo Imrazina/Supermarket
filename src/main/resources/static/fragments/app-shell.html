@@ -42,6 +42,10 @@
                 <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
                 <span>Zákaznická zóna</span>
             </a>
+            <a class="nav-link" data-view="supplier" data-url="supplier.html" href="supplier.html">
+                <span class="material-symbols-rounded" aria-hidden="true">local_shipping</span>
+                <span>Dodavatel</span>
+            </a>
             <a class="nav-link" data-view="chat" data-url="chat.html" href="chat.html">
                 <span class="material-symbols-rounded" aria-hidden="true">forum</span>
                 <span>Komunikace</span>
@@ -785,6 +789,26 @@
                             </thead>
                             <tbody id="customer-orders-body"></tbody>
                         </table>
+                    </div>
+                </article>
+            </section>
+
+            <section class="view" data-view="supplier">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;">
+                        <div>
+                            <h2>Dodavatelské objednávky</h2>
+                            <p>Správa objednávek od dodavatelů</p>
+                        </div>
+                        <span class="badge" id="supplier-orders-count">0</span>
+                    </div>
+                    <div id="supplier-orders-container" class="supplier-orders-grid" style="margin-top: 16px;">
+                        
+                    </div>
+                    <div id="supplier-orders-empty" class="empty-state" style="display: none; text-align: center; padding: 40px;">
+                        <span class="material-symbols-rounded" style="font-size: 48px; color: var(--muted-fg);">local_shipping</span>
+                        <h3 style="margin-top: 16px;">Žádné volné objednávky</h3>
+                        <p class="profile-muted">Momentálně nejsou k dispozici žádné nové objednávky k převzetí.</p>
                     </div>
                 </article>
             </section>
