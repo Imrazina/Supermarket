@@ -6,324 +6,406 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap&subset=latin,latin-ext" rel="stylesheet">
     <style>
         :root {
-            font-family: "Inter", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            color: #0c1535;
-            --primary: #4361ee;
-            --primary-dark: #3046d3;
-            --accent: #ff9f43;
-            --muted: rgba(12, 21, 53, 0.65);
-            --border: rgba(15, 23, 42, 0.08);
-            --role-employee: #4c6fff;
-            --role-courier: #16a34a;
-            --role-customer: #f97316;
+            font-family: "Space Grotesk", "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            color: #0d0f1c;
+            --ink: #0f162d;
+            --muted: rgba(255, 255, 255, 0.7);
+            --surface: rgba(255, 255, 255, 0.08);
+            --card: rgba(7, 9, 20, 0.4);
+            --primary: #6f7cff;
+            --primary-strong: #5764f6;
+            --accent: #f7c266;
+            --stroke: rgba(255, 255, 255, 0.15);
+            --glow: 0 24px 60px rgba(111, 124, 255, 0.25);
         }
         * { box-sizing: border-box; }
         body {
             margin: 0;
             min-height: 100vh;
-            background: radial-gradient(circle at 15% 20%, rgba(67, 97, 238, 0.22), transparent 48%),
-                        radial-gradient(circle at 75% 0%, rgba(255, 159, 67, 0.18), transparent 42%),
-                        linear-gradient(135deg, #eef2ff 0%, #f8fafc 45%, #fefefe 100%);
-            color: #0c1535;
+            background: radial-gradient(circle at 12% 18%, rgba(111, 124, 255, 0.24), transparent 38%),
+                        radial-gradient(circle at 82% 8%, rgba(247, 194, 102, 0.23), transparent 40%),
+                        linear-gradient(135deg, #0b0e1e 0%, #11162c 45%, #191a27 100%);
+            color: #e9ecff;
+            overflow-x: hidden;
+        }
+        .grain {
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160' viewBox='0 0 160 160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.04'/%3E%3C/svg%3E");
+            mix-blend-mode: soft-light;
+            z-index: 0;
         }
         header {
+            position: sticky;
+            top: 0;
+            z-index: 2;
+            backdrop-filter: blur(12px);
+            background: rgba(11, 14, 30, 0.68);
+            border-bottom: 1px solid var(--stroke);
+        }
+        .topbar {
+            max-width: 1180px;
+            margin: 0 auto;
+            padding: 18px clamp(18px, 5vw, 32px);
             display: flex;
             align-items: center;
             justify-content: space-between;
-            padding: 26px clamp(20px, 6vw, 70px);
-            max-width: 1200px;
-            margin: 0 auto;
+            gap: 12px;
         }
         .brand {
             display: flex;
             align-items: center;
-            gap: 14px;
+            gap: 12px;
         }
-        .brand-badge {
-            width: 48px;
-            height: 48px;
+        .brand-mark {
+            width: 46px;
+            height: 46px;
             border-radius: 14px;
-            background: linear-gradient(135deg, #4361ee, #6c63ff);
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: #fff;
-            font-weight: 600;
+            background: linear-gradient(135deg, #6f7cff, #97a5ff);
+            color: #0c0f24;
+            font-weight: 700;
             font-size: 18px;
-            letter-spacing: 0.5px;
+            display: grid;
+            place-items: center;
+            box-shadow: var(--glow);
+        }
+        .brand strong {
+            display: block;
+            font-size: 16px;
+            color: #ffffff;
+            letter-spacing: 0.2px;
+        }
+        .brand small {
+            color: var(--muted);
+            font-size: 14px;
         }
         nav {
             display: flex;
-            gap: 18px;
+            align-items: center;
+            gap: 16px;
             flex-wrap: wrap;
         }
         nav a {
-            text-decoration: none;
             color: var(--muted);
-            font-size: 15px;
-            font-weight: 500;
+            text-decoration: none;
+            font-weight: 600;
+            padding: 10px 14px;
+            border-radius: 999px;
+            border: 1px solid transparent;
+            transition: 0.2s ease;
         }
-        nav a:hover { color: var(--primary); }
-        main { width: 100%; }
+        nav a:hover { border-color: var(--stroke); color: #fff; }
+        .pill-cta {
+            background: linear-gradient(120deg, var(--primary), var(--primary-strong));
+            color: #0b0e1e;
+            border-radius: 999px;
+            padding: 10px 16px;
+            font-weight: 700;
+            box-shadow: var(--glow);
+        }
+        main { position: relative; z-index: 1; }
         .hero {
-            max-width: 1200px;
+            max-width: 1180px;
             margin: 0 auto;
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: clamp(24px, 5vw, 70px);
-            padding: clamp(20px, 8vw, 90px) clamp(20px, 6vw, 70px);
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: clamp(22px, 5vw, 48px);
+            padding: clamp(26px, 7vw, 86px) clamp(18px, 5vw, 32px) clamp(26px, 7vw, 72px);
             align-items: center;
         }
         .eyebrow {
-            color: var(--primary-dark);
-            font-weight: 600;
-            letter-spacing: 0.5px;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
             text-transform: uppercase;
-            font-size: 13px;
-            margin: 0 0 10px;
+            letter-spacing: 0.8px;
+            font-weight: 700;
+            color: #cdd4ff;
+            font-size: 12px;
+            padding: 8px 12px;
+            border-radius: 999px;
+            background: var(--surface);
+            border: 1px solid var(--stroke);
         }
-        .hero h1 {
-            font-size: clamp(32px, 5vw, 52px);
-            margin: 0 0 16px;
-            line-height: 1.1;
+        h1 {
+            font-size: clamp(36px, 5vw, 56px);
+            line-height: 1.05;
+            margin: 14px 0;
         }
-        .hero p {
-            margin: 0 0 22px;
-            line-height: 1.6;
-            color: var(--muted);
+        .lede {
+            margin: 0 0 20px;
+            color: rgba(233, 236, 255, 0.8);
             font-size: 18px;
+            line-height: 1.6;
         }
         .hero-actions {
             display: flex;
-            flex-wrap: wrap;
             gap: 12px;
-            margin-bottom: 12px;
+            flex-wrap: wrap;
+            margin: 6px 0 20px;
         }
         .cta {
-            border: none;
-            border-radius: 999px;
-            padding: 14px 26px;
-            font-size: 16px;
-            font-weight: 600;
+            border: 1px solid var(--stroke);
+            background: linear-gradient(135deg, #ffffff 0%, #dfe5ff 100%);
+            color: #0c0f24;
+            border-radius: 12px;
+            padding: 14px 22px;
+            font-weight: 700;
             cursor: pointer;
-            transition: transform 0.15s ease, box-shadow 0.2s ease;
-        }
-        .cta.primary {
-            background: linear-gradient(120deg, #4361ee, #6c63ff);
-            color: #fff;
-            box-shadow: 0 18px 40px rgba(67, 97, 238, 0.25);
+            font-size: 15px;
+            letter-spacing: 0.1px;
+            box-shadow: 0 15px 35px rgba(255, 255, 255, 0.08);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
         }
         .cta.secondary {
-            background: #fff;
-            color: #0c1535;
-            border: 1px solid var(--border);
+            background: transparent;
+            color: #ffffff;
+            border-color: var(--stroke);
         }
-        .cta:hover { transform: translateY(-1px); }
-        .pill-row {
+        .cta:hover { transform: translateY(-2px); box-shadow: var(--glow); }
+        .chips {
             display: flex;
             flex-wrap: wrap;
-            gap: 8px;
-            margin-top: 12px;
+            gap: 10px;
         }
-        .pill {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
+        .chip {
             padding: 9px 12px;
             border-radius: 999px;
-            background: rgba(67, 97, 238, 0.08);
-            color: #1e2a55;
-            font-size: 14px;
-            border: 1px solid rgba(67, 97, 238, 0.14);
+            background: var(--surface);
+            color: #ffffff;
+            border: 1px solid var(--stroke);
+            font-size: 13px;
         }
-        .hero-card {
-            background: #fff;
-            border-radius: 24px;
-            padding: 24px;
-            border: 1px solid var(--border);
-            box-shadow: 0 25px 55px rgba(15,23,42,0.12);
+        .card {
+            background: var(--card);
+            border: 1px solid var(--stroke);
+            border-radius: 20px;
+            padding: 20px;
+            box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(10px);
         }
-        .hero-card h3 {
-            margin: 0 0 12px;
-            font-size: 18px;
+        .snapshot {
+            display: grid;
+            gap: 10px;
         }
-        .hero-card ul {
+        .snapshot h3 {
+            margin: 0 0 6px;
+            font-size: 16px;
+            letter-spacing: 0.2px;
+        }
+        .snapshot ul {
             margin: 0;
             padding-left: 18px;
-            color: var(--muted);
+            color: rgba(233, 236, 255, 0.8);
             line-height: 1.6;
         }
-        .section {
-            max-width: 1200px;
+        .panel {
+            max-width: 1180px;
             margin: 0 auto;
-            padding: clamp(20px, 7vw, 70px) clamp(20px, 6vw, 70px);
+            padding: 0 clamp(18px, 5vw, 32px) clamp(36px, 8vw, 80px);
         }
-        .section-header {
+        .panel-header {
             display: flex;
-            align-items: center;
+            align-items: baseline;
             justify-content: space-between;
             gap: 12px;
             flex-wrap: wrap;
-            margin-bottom: 18px;
+            margin-bottom: 16px;
         }
-        .section h2 {
+        .panel h2 {
             margin: 0;
             font-size: 26px;
+            letter-spacing: 0.2px;
         }
-        .section p {
+        .panel p {
             margin: 0;
-            color: var(--muted);
-            line-height: 1.6;
+            color: rgba(233, 236, 255, 0.7);
         }
-        .role-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-            gap: 16px;
-        }
-        .role-card {
-            background: #fff;
-            border-radius: 16px;
-            padding: 18px;
-            border: 1px solid var(--border);
-            box-shadow: 0 14px 35px rgba(15, 23, 42, 0.08);
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .role-card .label {
-            font-weight: 700;
-            letter-spacing: 0.3px;
-            text-transform: uppercase;
-            font-size: 12px;
-            color: var(--muted);
-        }
-        .role-card h3 {
-            margin: 0;
-            font-size: 18px;
-        }
-        .role-card ul {
-            margin: 0;
-            padding-left: 18px;
-            color: var(--muted);
-            line-height: 1.5;
-        }
-        .role-card.employee { border-top: 4px solid var(--role-employee); }
-        .role-card.courier { border-top: 4px solid var(--role-courier); }
-        .role-card.customer { border-top: 4px solid var(--role-customer); }
         .feature-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 16px;
         }
         .feature-card {
-            background: #fff;
-            border-radius: 14px;
+            background: var(--card);
+            border: 1px solid var(--stroke);
+            border-radius: 16px;
             padding: 16px;
-            border: 1px solid var(--border);
-            box-shadow: 0 12px 28px rgba(15, 23, 42, 0.08);
+            box-shadow: 0 12px 36px rgba(0, 0, 0, 0.28);
         }
-        .feature-card h3 {
-            margin: 0 0 8px;
+        .feature-card strong {
+            display: block;
+            margin-bottom: 8px;
+            color: #ffffff;
             font-size: 16px;
         }
         .feature-card p {
             margin: 0;
-            color: var(--muted);
-            font-size: 15px;
-            line-height: 1.5;
+            color: rgba(233, 236, 255, 0.75);
+            line-height: 1.6;
         }
-        .security {
-            background: linear-gradient(135deg, rgba(67, 97, 238, 0.08), rgba(255, 159, 67, 0.05));
-            border-radius: 24px;
-            border: 1px solid var(--border);
-        }
-        .security-grid {
+        .roles {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 12px;
-            margin-top: 14px;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 16px;
         }
-        .security-item {
-            background: #fff;
-            border-radius: 12px;
-            padding: 14px;
-            border: 1px solid var(--border);
-            box-shadow: 0 10px 22px rgba(15, 23, 42, 0.08);
+        .role-card {
+            background: linear-gradient(145deg, rgba(111, 124, 255, 0.1), rgba(11, 14, 30, 0.8));
+            border: 1px solid var(--stroke);
+            border-radius: 18px;
+            padding: 18px;
+            box-shadow: 0 14px 40px rgba(0, 0, 0, 0.32);
         }
-        .security-item strong {
-            display: block;
-            margin-bottom: 6px;
-            font-size: 15px;
+        .role-label {
+            display: inline-flex;
+            padding: 6px 12px;
+            border-radius: 10px;
+            background: var(--surface);
+            color: #ffffff;
+            border: 1px solid var(--stroke);
+            font-weight: 600;
+            letter-spacing: 0.2px;
+            margin-bottom: 8px;
         }
-        .security-item p {
+        .role-card h3 {
+            margin: 0 0 8px;
+        }
+        .role-card ul {
             margin: 0;
-            color: var(--muted);
-            line-height: 1.5;
+            padding-left: 18px;
+            color: rgba(233, 236, 255, 0.78);
+            line-height: 1.55;
         }
         footer {
-            padding: 30px clamp(20px, 6vw, 70px);
-            display: flex;
-            flex-wrap: wrap;
-            gap: 18px;
-            justify-content: space-between;
-            color: var(--muted);
-            font-size: 14px;
-            max-width: 1200px;
+            max-width: 1180px;
             margin: 0 auto;
+            padding: 28px clamp(18px, 5vw, 32px) 36px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            color: var(--muted);
+            border-top: 1px solid var(--stroke);
+            font-size: 14px;
         }
         @media (max-width: 720px) {
-            header {
-                flex-direction: column;
-                align-items: flex-start;
-                gap: 12px;
-            }
-            nav { flex-wrap: wrap; }
+            .topbar { flex-direction: column; align-items: flex-start; }
+            nav { width: 100%; justify-content: flex-start; }
         }
     </style>
 </head>
 <body>
+<div class="grain"></div>
 <header>
-    <div class="brand">
-        <div class="brand-badge">BD</div>
-        <div>
-            <strong>BDAS Supermarket</strong><br>
-            <small style="color: var(--muted);">Platforma pro řízení retail sítě</small>
+    <div class="topbar">
+        <div class="brand">
+            <div class="brand-mark">BD</div>
+            <div>
+                <strong>BDAS Supermarket</strong>
+                <small>Jedna konzole pro retail, rozvozy i zákazníky</small>
+            </div>
         </div>
+        <nav>
+            <a href="login.html">Přihlásit se</a>
+            <a class="pill-cta" href="register.html">Registrace</a>
+        </nav>
     </div>
-    <nav>
-        <a href="login.html">Přihlášení</a>
-        <a href="register.html">Registrace</a>
-    </nav>
 </header>
 
 <main>
     <section class="hero">
         <div>
-            <p class="eyebrow">Jedna konzole pro tým, doručení i zákazníky</p>
-            <h1>Řiďte zásoby, rozvozy i klienty z jednoho místa.</h1>
-            <p>Přehledná konzole pro tým i zákazníky: profil, objednávky a komunikace s jasnými rolemi a dohledem.</p>
+            <span class="eyebrow">Jasný přehled pro všechny role</span>
+            <h1>Řiďte pobočky, rozvozy i zákazníky z jednoho místa.</h1>
+            <p class="lede">Moderní konzole, kde vedení, kurýři i zákazníci najdou objednávky, stav doručení, profilové údaje i zprávy pod jednou střechou.</p>
             <div class="hero-actions">
-                <button class="cta primary" onclick="location.href='login.html'">Přihlásit se</button>
-                <button class="cta secondary" onclick="location.href='register.html'">Registrovat účet</button>
+                <button class="cta" onclick="location.href='login.html'">Otevřít konzoli</button>
+                <button class="cta secondary" onclick="location.href='register.html'">Založit účet</button>
+            </div>
+            <div class="chips">
+                <div class="chip">Úkoly v reálném čase</div>
+                <div class="chip">Bezpečný přístup</div>
+                <div class="chip">Notifikace a chat</div>
             </div>
         </div>
-        <div class="hero-card">
+        <div class="card snapshot">
             <h3>Co uvidíte po přihlášení</h3>
             <ul>
-                <li>Osobní profil, kontakty a údaje na jednom místě</li>
-                <li>Přehled dne: otevřené úkoly a stav práce podle vaší role</li>
-                <li>Chat a upozornění pro rychlé dotazy, potvrzení a novinky</li>
+                <li>Profil, kontakty a přístup pro vaši roli na jednom místě.</li>
+                <li>Přehled dne: objednávky, termíny a stav práce v reálném čase.</li>
+                <li>Chat, potvrzení a upozornění, aby tým i zákazníci měli jasno.</li>
             </ul>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Proč BDAS</h2>
+            <p>Rychlejší provoz, méně volání a lepší zážitek pro zákazníky i tým.</p>
+        </div>
+        <div class="feature-grid">
+            <div class="feature-card">
+                <strong>Jedno místo pravdy</strong>
+                <p>Objednávky, reklamace, platby a historie komunikace se propojí do jednoho kontextu.</p>
+            </div>
+            <div class="feature-card">
+                <strong>Řízení dopravy</strong>
+                <p>Přidělení kurýrů, časové sloty, potvrzení doručení a přehled rozvozů bez chaosu.</p>
+            </div>
+            <div class="feature-card">
+                <strong>Bezpečnost a role</strong>
+                <p>Jasně oddělené role a oprávnění, audit přístupů a transparentní logy změn.</p>
+            </div>
+            <div class="feature-card">
+                <strong>Podpora týmu</strong>
+                <p>Integrovaný chat a notifikace snižují počet hovorů a drží všechny na stejné vlně.</p>
+            </div>
+        </div>
+    </section>
+
+    <section class="panel">
+        <div class="panel-header">
+            <h2>Pro každého v retailu</h2>
+            <p>Rozhraní se přizpůsobí vaší roli, aby práce byla rychlá a přehledná.</p>
+        </div>
+        <div class="roles">
+            <div class="role-card">
+                <span class="role-label">Management</span>
+                <h3>Řízení provozu</h3>
+                <ul>
+                    <li>Dashboard výkonu, SLA a výjimky na jednom panelu.</li>
+                    <li>Správa poboček, cen a skladových zásob.</li>
+                    <li>Reporty ke sdílení s týmem i vedením.</li>
+                </ul>
+            </div>
+            <div class="role-card">
+                <span class="role-label">Kurýři &amp; obchod</span>
+                <h3>Rozvozy bez čekání</h3>
+                <ul>
+                    <li>Jasný seznam úkolů s trasami a kontakty.</li>
+                    <li>Potvrzení doručení a rychlá komunikace se zákazníkem.</li>
+                    <li>Offline-friendly mód pro cesty.</li>
+                </ul>
+            </div>
+            <div class="role-card">
+                <span class="role-label">Zákazníci</span>
+                <h3>Transparentní nákupy</h3>
+                <ul>
+                    <li>Stav objednávky, platby a faktury na jednom místě.</li>
+                    <li>Možnost změny termínu, adresy či kontaktu.</li>
+                    <li>Notifikace o každém kroku doručení.</li>
+                </ul>
+            </div>
         </div>
     </section>
 </main>
 
 <footer>
-    <span>© 2024 BDAS Retail Data Systems</span>
-    <span id="contact">Podpora: support@bdas-retail.cz</span>
+    <span>&copy; 2024 BDAS Retail Data Systems</span>
+    <span>Podpora: support@bdas-retail.cz</span>
 </footer>
 </body>
 </html>

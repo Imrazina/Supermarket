@@ -68,6 +68,7 @@ public class DashboardService {
             throw new IllegalArgumentException("Uzivatel neexistuje.");
         }
         LocalDateTime now = LocalDateTime.now();
+        Zakaznik currentCustomer = zakaznikJdbcService.findById(user.getIdUzivatel());
 
         List<Zbozi> goods = zboziJdbcService.findAll();
         List<Sklad> warehouses = skladJdbcService.findAll();
@@ -107,6 +108,11 @@ public class DashboardService {
                     return o;
                 })
                 .toList();
+        if (currentCustomer != null) {
+            orders = orders.stream()
+                    .filter(o -> o.getUzivatel() != null && Objects.equals(o.getUzivatel().getIdUzivatel(), user.getIdUzivatel()))
+                    .toList();
+        }
         List<ObjednavkaZbozi> orderLines = orders.stream()
                 .flatMap(o -> objednavkaZboziJdbcService.findByObjednavka(o.getIdObjednavka()).stream())
                 .toList();
@@ -393,7 +399,22 @@ public class DashboardService {
 
         List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archiveTree);
 
-        List<DashboardResponse.CustomerProduct> customerProducts = goods.stream()
+        // Show customer-facing products only from the primary supermarket (first in list) to avoid mixing stock
+        Long primarySupermarketId = supermarkets.stream()
+                .findFirst()
+                .map(Supermarket::getIdSupermarket)
+                .orElse(null);
+        Set<Long> primaryWarehouseIds = warehouses.stream()
+                .filter(sklad -> sklad.getSupermarket() != null && Objects.equals(sklad.getSupermarket().getIdSupermarket(), primarySupermarketId))
+                .map(Sklad::getIdSklad)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        List<Zbozi> customerGoods = goods.stream()
+                .filter(zbozi -> belongsToSupermarket(zbozi, primarySupermarketId, primaryWarehouseIds))
+                .toList();
+
+        List<DashboardResponse.CustomerProduct> customerProducts = customerGoods.stream()
                 .sorted(Comparator.comparing(
                         z -> z.getNazev() == null ? "" : z.getNazev().toLowerCase(LOCALE_CZ)))
                 .map(zbozi -> {
@@ -418,10 +439,14 @@ public class DashboardService {
                 })
                 .toList();
 
-        List<String> suggestions = inventory.stream()
-                .filter(item -> item.stock() <= item.minStock())
+        List<String> suggestions = customerGoods.stream()
+                .filter(zbozi -> {
+                    Integer stock = zbozi.getMnozstvi();
+                    Integer min = zbozi.getMinMnozstvi();
+                    return stock != null && min != null && stock <= min;
+                })
                 .limit(3)
-                .map(item -> "Doplnit " + item.name() + " (zbývá " + item.stock() + " ks)")
+                .map(item -> "Doplnit " + item.getNazev() + " (zbyva " + item.getMnozstvi() + " ks)")
                 .toList();
 
         DashboardResponse.Profile profile = buildProfile(currentUser, now, storeInfos.size(), orders.size(), logs.size());
@@ -465,6 +490,21 @@ public class DashboardService {
                 suggestions,
                 archiveNodes
         );
+    }
+
+    private boolean belongsToSupermarket(Zbozi zbozi, Long supermarketId, Set<Long> warehouseIds) {
+        if (supermarketId == null) {
+            return true;
+        }
+        if (zbozi == null || zbozi.getSklad() == null) {
+            return false;
+        }
+        Long skladId = zbozi.getSklad().getIdSklad();
+        if (skladId != null && warehouseIds != null && !warehouseIds.isEmpty() && warehouseIds.contains(skladId)) {
+            return true;
+        }
+        Supermarket sm = zbozi.getSklad().getSupermarket();
+        return sm != null && Objects.equals(sm.getIdSupermarket(), supermarketId);
     }
 
     private DashboardResponse.AddressInfo mapAddressInfo(Supermarket supermarket) {

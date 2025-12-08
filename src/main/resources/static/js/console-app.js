@@ -366,7 +366,7 @@ state.activeView = document.body.dataset.initialView || state.activeView;
 
 const allViews = [
     'dashboard', 'profile', 'inventory', 'orders', 'people', 'finance', 'records',
-    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-payment', 'chat'
+    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-orders', 'customer-payment', 'chat'
 ];
 
 function resolveAllowedViews(role, permissions = []) {
@@ -385,7 +385,7 @@ function resolveAllowedViews(role, permissions = []) {
     }
 
     if (normalizedRole === 'ZAKAZNIK' || normalizedRole === 'CUSTOMER' || normalizedRole === 'NEW_USER') {
-        add('customer', 'customer-cart', 'customer-payment');
+        add('customer', 'customer-cart', 'customer-orders', 'customer-payment');
         return allowed;
     }
 
@@ -394,7 +394,7 @@ function resolveAllowedViews(role, permissions = []) {
         return allowed;
     }
 
-    add('inventory', 'orders', 'finance', 'records', 'customer', 'customer-cart', 'customer-payment');
+    add('inventory', 'orders', 'finance', 'records', 'customer', 'customer-cart', 'customer-orders', 'customer-payment');
     return allowed;
 }
 
@@ -405,7 +405,9 @@ function resolveAllowedViews(role, permissions = []) {
             if (!response.ok) {
                 throw new Error(`Failed to load layout fragment (${response.status})`);
             }
-            const markup = await response.text();
+            // Force UTF-8 decoding regardless of server-supplied charset to keep Czech text intact
+            const buffer = await response.arrayBuffer();
+            const markup = new TextDecoder('utf-8').decode(buffer);
             root.innerHTML = markup;
             root.classList.remove('app-boot');
 
@@ -2625,7 +2627,6 @@ function resolveAllowedViews(role, permissions = []) {
                             <li class="cart-line">
                                 <div>
                                     <strong>${item.name}</strong>
-                                    <p style="margin:0;">${item.sku}</p>
                                 </div>
                                 <div class="cart-qty">
                                     <button type="button" data-cart-minus="${item.sku}" aria-label="Odebrat">-</button>
@@ -2641,7 +2642,7 @@ function resolveAllowedViews(role, permissions = []) {
                         <span>${currencyFormatter.format(total)}</span>
                     </div>
                     <div class="cart-actions">
-                        <button data-clear-cart type="button">Vyprzdnit</button>
+                        <button data-clear-cart type="button">Vyprázdnit</button>
                         <a class="cart-submit" data-view="customer-payment" href="pay.html">Zaplatit</a>
                     </div>
                 </div>`;
@@ -3134,6 +3135,7 @@ class GlobalSearch {
             this.records.render();
             this.chat.render();
             this.customer.render();
+            this.customerOrders.render();
             this.permissionsModule.render();
         }
     }
@@ -3154,6 +3156,7 @@ class GlobalSearch {
             this.cardSection = document.getElementById('card-section');
             this.statusEl = document.getElementById('payment-status');
             this.backBtn = document.getElementById('payment-back');
+            this.submitBtn = this.form?.querySelector('button[type="submit"]');
         }
 
         init() {
@@ -3188,10 +3191,12 @@ class GlobalSearch {
         updateMethod() {
             const method = new FormData(this.form).get('paymentType');
             const isCash = method === 'CASH';
+            const isCard = method === 'CARD';
+            const isWallet = method === 'WALLET';
             this.cashSection.style.display = isCash ? 'block' : 'none';
-            this.cardSection.style.display = isCash ? 'none' : 'block';
+            this.cardSection.style.display = isCard ? 'block' : 'none';
             this.cashGiven.required = isCash;
-            this.cardNumber.required = !isCash;
+            this.cardNumber.required = isCard;
         }
 
         updateChange() {
@@ -3208,6 +3213,10 @@ class GlobalSearch {
         async handleSubmit(event) {
             event.preventDefault();
             const method = new FormData(this.form).get('paymentType');
+            if (!method) {
+                this.statusEl.textContent = 'Vyberte metodu platby.';
+                return;
+            }
             const payload = {
                 items: this.state.customerCart.map(item => ({ sku: item.sku, qty: item.qty })),
                 paymentType: method,
@@ -3215,8 +3224,9 @@ class GlobalSearch {
                 cardNumber: method === 'CARD' ? (this.cardNumber.value || '').replace(/\s+/g, '') : null,
                 note: ''
             };
-            this.statusEl.textContent = 'Zpracovavam platbu...';
+            this.statusEl.textContent = 'Zpracovávám platbu...';
             this.statusEl.classList.remove('chat-status-success');
+            this.submitBtn && (this.submitBtn.disabled = true);
             try {
                 const token = localStorage.getItem('token');
                 const response = await fetch(this.apiUrl('/api/customer/checkout'), {
@@ -3233,10 +3243,15 @@ class GlobalSearch {
                 }
                 this.state.customerCart = [];
                 try { localStorage.removeItem('customerCart'); } catch (e) {}
-                this.statusEl.textContent = 'Objednavka a platba byly ulozeny.';
+                if (typeof window?.app?.updateWalletChip === 'function' && method === 'WALLET') {
+                    try { window.app.updateWalletChip(); } catch (e) { console.debug('Wallet chip refresh skip', e); }
+                }
+                this.statusEl.textContent = 'Objednávka a platba byly uloženy.';
                 this.statusEl.classList.add('chat-status-success');
             } catch (error) {
-                this.statusEl.textContent = error.message;
+                this.statusEl.textContent = error.message || 'Platbu se nepodařilo dokončit.';
+            } finally {
+                this.submitBtn && (this.submitBtn.disabled = false);
             }
         }
     }

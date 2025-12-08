@@ -1,4 +1,4 @@
-<div class="app-shell">
+﻿<div class="app-shell">
     <aside class="sidebar">
         <div class="brand">
             <div class="brand-badge">BD</div>
@@ -96,12 +96,16 @@
                 <h1 id="view-title">Řízení operací</h1>
             </div>
             <div class="topbar-right">
+                <a class="nav-link topbar-icon-btn" data-view="chat" data-url="chat.html" href="chat.html" aria-label="Komunikace" title="Komunikace">
+                    <span class="material-symbols-rounded" aria-hidden="true">forum</span>
+                    <span class="topbar-icon-label">Komunikace</span>
+                </a>
                 <div class="search">
                     <span class="material-symbols-rounded" aria-hidden="true">search</span>
                     <input type="search" id="global-search" placeholder="Hledat SKU, objednávku nebo klienta…" autocomplete="off">
                     <div class="search-results" id="search-results"></div>
                 </div>
-                                <button class="nav-link" id="wallet-btn" style="width:auto; gap:6px; padding:8px 12px;">
+                <button class="nav-link" id="wallet-btn" style="width:auto; gap:6px; padding:8px 12px;">
                     <span class="material-symbols-rounded" aria-hidden="true">account_balance_wallet</span>
                     <span id="wallet-chip-balance">Peněženka</span>
                 </button>
@@ -672,11 +676,13 @@
                                 <span class="material-symbols-rounded" aria-hidden="true">shopping_cart</span>
                                 <span class="cart-count" id="customer-cart-count">0</span>
                             </a>
-                            <a class="nav-link" data-view="customer-orders" href="customer-orders.html" style="width:auto;gap:8px;padding:8px 12px;">Moje objednávky</a>
                             <div class="search" style="max-width:260px;min-width:200px;">
                                 <span class="material-symbols-rounded" aria-hidden="true">search</span>
                                 <input type="search" id="customer-search" placeholder="Hledat produkt podle názvu nebo SKU">
                             </div>
+                            <a class="nav-link" data-view="customer-orders" href="customer-orders.html" aria-label="Moje objednávky" title="Moje objednávky" style="width:auto;gap:8px;padding:8px 12px;">
+                                <span class="material-symbols-rounded" aria-hidden="true">receipt_long</span>
+                            </a>
                             <div id="customer-category-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
                         </div>
                     </div>
@@ -724,6 +730,10 @@
                                 <label style="display:flex;align-items:center;gap:6px;">
                                     <input type="radio" name="paymentType" value="CARD">
                                     <span>Kartou</span>
+                                </label>
+                                <label style="display:flex;align-items:center;gap:6px;">
+                                    <input type="radio" name="paymentType" value="WALLET">
+                                    <span>Účtem</span>
                                 </label>
                             </div>
                         </div>

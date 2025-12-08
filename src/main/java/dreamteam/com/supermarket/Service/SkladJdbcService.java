@@ -1,6 +1,7 @@
 package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.model.market.Sklad;
+import dreamteam.com.supermarket.model.market.Supermarket;
 import lombok.RequiredArgsConstructor;
 import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import org.springframework.stereotype.Service;
@@ -28,6 +29,11 @@ public class SkladJdbcService {
         s.setNazev(row.nazev());
         s.setKapacita(row.kapacita());
         s.setTelefonniCislo(row.telefon());
+        if (row.supermarketId() != null) {
+            Supermarket supermarket = new Supermarket();
+            supermarket.setIdSupermarket(row.supermarketId());
+            s.setSupermarket(supermarket);
+        }
         return s;
     }
 }
