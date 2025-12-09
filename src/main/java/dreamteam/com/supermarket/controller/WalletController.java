@@ -6,6 +6,8 @@ import dreamteam.com.supermarket.controller.dto.WalletBalanceResponse;
 import dreamteam.com.supermarket.controller.dto.WalletMovementResponse;
 import dreamteam.com.supermarket.controller.dto.WalletTopUpRequest;
 import dreamteam.com.supermarket.controller.dto.WalletTopUpResponse;
+import dreamteam.com.supermarket.controller.dto.WalletRefundRequest;
+import dreamteam.com.supermarket.controller.dto.WalletRefundResponse;
 import dreamteam.com.supermarket.model.user.Uzivatel;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -62,6 +64,28 @@ public class WalletController {
         return ResponseEntity.ok(new WalletTopUpResponse(res.pohybId(), ucetId, zustatek));
     }
 
+    @PostMapping("/refund")
+    public ResponseEntity<?> refund(@RequestBody WalletRefundRequest request, Authentication authentication) {
+        Uzivatel user = resolveUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (request == null || request.orderId() == null) {
+            return ResponseEntity.badRequest().body("Chybi ID objednavky.");
+        }
+        if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().body("Castka musi byt vetsi nez 0.");
+        }
+        Long orderId = parseOrderId(request.orderId());
+        if (orderId == null) {
+            return ResponseEntity.badRequest().body("Neplatne ID objednavky.");
+        }
+        Long ucetId = walletService.ensureAccountForUser(user.getIdUzivatel());
+        WalletJdbcService.RefundResult res = walletService.refundOrder(ucetId, orderId, request.amount());
+        BigDecimal zustatek = walletService.findBalance(ucetId);
+        return ResponseEntity.ok(new WalletRefundResponse(res.pohybId(), ucetId, zustatek));
+    }
+
     @GetMapping("/history")
     public ResponseEntity<List<WalletMovementResponse>> history(Authentication authentication) {
         Uzivatel user = resolveUser(authentication);
@@ -98,5 +122,20 @@ public class WalletController {
             case "HOTOVOST", "H", "CASH" -> "HOTOVOST";
             default -> null;
         };
+    }
+
+    private Long parseOrderId(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String digits = raw.replaceAll("\\D+", "");
+        if (digits.isBlank()) {
+            return null;
+        }
+        try {
+            return Long.parseLong(digits);
+        } catch (NumberFormatException ex) {
+            return null;
+        }
     }
 }

@@ -1051,7 +1051,6 @@ function resolveAllowedViews(role, permissions = []) {
             const orders = Array.isArray(this.state.data.orders) ? this.state.data.orders : [];
             this.tableBody.innerHTML = orders.map(order => `
                 <tr data-order-id="${order.id}">
-                    <td>${order.id}</td>
                     <td>${order.type}</td>
                     <td>${order.store}</td>
                     <td>${order.employee}</td>
@@ -1095,8 +1094,8 @@ function resolveAllowedViews(role, permissions = []) {
         renderOrderLines() {
             if (!this.orderLines) return;
             const orderId = this.state.selectedOrderId;
-            this.orderLinesTitle.textContent = orderId ? `Slozeni ${orderId}` : 'Slozeni objednavky';
-            this.orderLinesBadge.textContent = orderId || '-';
+            this.orderLinesTitle.textContent = 'Slozeni objednavky';
+            this.orderLinesBadge.textContent = orderId ? 'vybrana' : '-';
             const lines = (this.state.data.orderItems || []).filter(item => item.orderId === orderId);
             this.orderLines.innerHTML = lines.length
                 ? lines.map(line => `<li>${line.sku} x ${line.name} - ${line.qty} ks - ${currencyFormatter.format(line.price)}</li>`).join('')
@@ -3155,7 +3154,7 @@ class GlobalSearch {
             serviceWorkerPath
         });
         this.customer = new CustomerModule(state);
-        this.customerOrders = new CustomerOrdersView(state, currencyFormatter);
+        this.customerOrders = new CustomerOrdersView(state, currencyFormatter, { apiUrl, refreshWalletChip: () => this.updateWalletChip() });
         this.search = new GlobalSearch(state);
         }
 
@@ -3640,6 +3639,8 @@ class GlobalSearch {
             }
         }
     }
+
+
 
 
 

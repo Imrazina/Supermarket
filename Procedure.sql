@@ -172,6 +172,38 @@ EXCEPTION
 END;
 /
 
+--------------------------------------------------------------------------------
+-- PROCEDURA: PROC_DELETE_OBJEDNAVKA_CASCADE
+-- Popis:
+--   Smaze objednavku vcetne vazanych plateb a polozek. Poradi mazani
+--   respektuje FK: nejdrive KARTA/HOTOVOST, pote PLATBA, POHYB_UCTU,
+--   OBJEDNAVKA_ZBOZI a nakonec OBJEDNAVKA.
+--------------------------------------------------------------------------------
+CREATE OR REPLACE PROCEDURE PROC_DELETE_OBJEDNAVKA_CASCADE(
+    p_id IN OBJEDNAVKA.ID_Objednavka%TYPE
+)
+AS
+BEGIN
+    DELETE FROM KARTA
+     WHERE ID_platba IN (SELECT ID_platba FROM PLATBA WHERE ID_Objednavka = p_id);
+
+    DELETE FROM HOTOVOST
+     WHERE ID_platba IN (SELECT ID_platba FROM PLATBA WHERE ID_Objednavka = p_id);
+
+    DELETE FROM PLATBA
+     WHERE ID_Objednavka = p_id;
+
+    DELETE FROM POHYB_UCTU
+     WHERE ID_Objednavka = p_id;
+
+    DELETE FROM OBJEDNAVKA_ZBOZI
+     WHERE ID_Objednavka = p_id;
+
+    DELETE FROM OBJEDNAVKA
+     WHERE ID_Objednavka = p_id;
+END;
+/
+
 CREATE OR REPLACE PACKAGE BODY PKG_APP_CRUD AS
   PROCEDURE edit(
     p_entity    IN  VARCHAR2,

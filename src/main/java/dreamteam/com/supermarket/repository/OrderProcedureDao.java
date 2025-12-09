@@ -171,6 +171,20 @@ public class OrderProcedureDao {
         });
     }
 
+    public void deleteOrderCascade(Long id) {
+        if (id == null) {
+            return;
+        }
+        jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_objednavka.delete_objednavka_cascade(?) }");
+            cs.setLong(1, id);
+            return cs;
+        }, (CallableStatementCallback<Void>) cs -> {
+            cs.execute();
+            return null;
+        });
+    }
+
     private CallableStatementCreator call(String sql, SqlConfigurer configurer) {
         return (Connection con) -> {
             CallableStatement cs = con.prepareCall(sql);
