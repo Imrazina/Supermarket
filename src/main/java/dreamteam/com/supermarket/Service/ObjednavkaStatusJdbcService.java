@@ -35,4 +35,22 @@ public class ObjednavkaStatusJdbcService {
         status.setNazev(r.nazev());
         return status;
     }
+
+    public ObjednavkaStatus findByName(String name) {
+        if (name == null || name.isBlank()) {
+            return null;
+        }
+        String normalized = normalize(name);
+        return findAll().stream()
+                .filter(s -> normalize(s.getNazev()).equals(normalized))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String normalize(String input) {
+        if (input == null) return "";
+        String base = java.text.Normalizer.normalize(input, java.text.Normalizer.Form.NFD)
+                .replaceAll("\\p{InCombiningDiacriticalMarks}+", "");
+        return base.trim().toUpperCase();
+    }
 }

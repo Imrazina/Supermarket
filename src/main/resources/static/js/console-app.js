@@ -726,6 +726,7 @@ function createEmptyData() {
         categories: [],
         warehouses: [],
         orders: [],
+        customerOrders: [],
         orderItems: [],
         statuses: [],
         employees: [],
@@ -942,12 +943,12 @@ function mergeDashboardData(payload) {
     if (!payload || typeof payload !== 'object') {
         return base;
     }
-    for (const [key, value] of Object.entries(payload)) {
-        if (key === 'profile' && value) {
-            base.profile = {
-                ...base.profile,
-                ...value,
-                preferences: {
+        for (const [key, value] of Object.entries(payload)) {
+            if (key === 'profile' && value) {
+                base.profile = {
+                    ...base.profile,
+                    ...value,
+                    preferences: {
                     ...base.profile.preferences,
                     ...(value.preferences || {})
                 },
@@ -957,6 +958,8 @@ function mergeDashboardData(payload) {
                 },
                 activity: value.activity || []
             };
+        } else if (key === 'customerOrders' && Array.isArray(value)) {
+            base.customerOrders = value;
         } else {
             base[key] = value ?? base[key];
         }
@@ -2235,6 +2238,18 @@ function resolveAllowedViews(role, permissions = []) {
 
         render() {
             if (!this.tableBody) return;
+            const orders = Array.isArray(this.state.data.orders) ? this.state.data.orders : [];
+            this.tableBody.innerHTML = orders.map(order => `
+                <tr data-order-id="${order.id}">
+                    <td>${order.type}</td>
+                    <td>${order.store}</td>
+                    <td>${order.employee}</td>
+                    <td>${order.supplier}</td>
+                    <td><span class="status-badge info">${order.status}</span></td>
+                    <td>${new Date(order.date).toLocaleString('cs-CZ')}</td>
+                    <td>${currencyFormatter.format(order.amount)}</td>
+                </tr>
+            `).join('');
             const orders = this.getOrders();
             if (!orders.length) {
                 this.tableBody.innerHTML = '<tr><td colspan="7" class="table-placeholder">Žádné objednávky</td></tr>';
@@ -2283,6 +2298,8 @@ function resolveAllowedViews(role, permissions = []) {
             this.orderLinesBadge.textContent = activeOrder
                 ? (activeOrder.status || activeOrder.type || 'vybráno')
                 : 'nevybráno';
+            this.orderLinesTitle.textContent = 'Slozeni objednavky';
+            this.orderLinesBadge.textContent = orderId ? 'vybrana' : '-';
             const lines = (this.state.data.orderItems || []).filter(item => item.orderId === orderId);
             this.orderLines.innerHTML = lines.length
                 ? lines.map(line => `<li>${line.sku} &times; ${line.name} — ${line.qty} ks · ${currencyFormatter.format(line.price)}</li>`).join('')
@@ -4423,7 +4440,7 @@ class GlobalSearch {
             serviceWorkerPath
         });
         this.customer = new CustomerModule(state);
-        this.customerOrders = new CustomerOrdersView(state, currencyFormatter);
+        this.customerOrders = new CustomerOrdersView(state, currencyFormatter, { apiUrl, refreshWalletChip: () => this.updateWalletChip() });
         this.search = new GlobalSearch(state);
         this.supplier = new SupplierModule(state, { apiUrl });
         }
@@ -4545,7 +4562,7 @@ class GlobalSearch {
                         <p class="muted-label">Muj ucet</p>
                         <div class="wallet-balance" id="wallet-balance">Nacitam...</div>
                     </div>
-                    <button class="wallet-close" type="button" id="wallet-close">
+                    <button class="wallet-download" type="button" id="wallet-download" title="Stáhnout výpis"><span class="material-symbols-rounded" aria-hidden="true">download</span></button><button class="wallet-close" type="button" id="wallet-close">
                         <span class="material-symbols-rounded" aria-hidden="true">close</span>
                     </button>
                 </div>
@@ -4589,6 +4606,8 @@ class GlobalSearch {
             this.walletHistoryList = panel.querySelector('#wallet-history');
             this.walletStatus = panel.querySelector('#wallet-status');
             const closeBtn = panel.querySelector('#wallet-close');
+            const downloadBtn = panel.querySelector('#wallet-download');
+            downloadBtn?.addEventListener('click', () => this.downloadWalletStatement());
             closeBtn.addEventListener('click', () => overlay.style.display = 'none');
             overlay.addEventListener('click', (e) => {
                 if (e.target === overlay) {
@@ -4608,6 +4627,9 @@ class GlobalSearch {
         }
 
         async loadWalletData() {
+            if (!this.walletData) {
+                this.walletData = { balance: 0, history: [] };
+            }
             try {
                 if (this.walletStatus) {
                     this.walletStatus.textContent = 'Nacitam...';
@@ -4632,9 +4654,11 @@ class GlobalSearch {
                     const val = balance && typeof balance.balance !== 'undefined' ? balance.balance : 0;
                     this.walletBalanceEl.textContent = currencyFormatter.format(val || 0);
                     this.setWalletChipBalance(val || 0);
+                    this.walletData.balance = val || 0;
                 }
                 if (this.walletHistoryList) {
                     this.walletHistoryList.innerHTML = '';
+                    this.walletData.history = Array.isArray(history) ? history : [];
                     (history || []).forEach(item => {
                         const li = document.createElement('li');
                         const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
@@ -4727,6 +4751,75 @@ class GlobalSearch {
             }
         }
 
+        formatCurrency(amount) {
+            return currencyFormatter.format(amount || 0);
+        }
+
+        downloadWalletStatement() {
+            const { balance, history } = this.walletData || {};
+            if (!history || !history.length) {
+                alert('Žádné pohyby k exportu.');
+                return;
+            }
+            const rows = history.map(item => {
+                const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
+                const castka = this.formatCurrency(item.amount || 0);
+                return `
+                    <tr>
+                        <td>${item.createdAt || ''}</td>
+                        <td>${dir} ${castka}</td>
+                        <td>${item.method || ''}</td>
+                        <td>${item.note || ''}</td>
+                        <td>${item.orderId ? 'PO-' + item.orderId : ''}</td>
+                    </tr>`;
+            }).join('');
+            const html = `
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Výpis účtu</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; color:#111; }
+        h1 { margin: 0 0 4px 0; }
+        p { margin: 4px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }
+        th { background: #f2f2f2; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Výpis účtu</h1>
+    <p>Datum: ${new Date().toLocaleString('cs-CZ')}</p>
+    <p>Zůstatek: ${this.formatCurrency(balance || 0)}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Datum</th>
+                <th>Částka</th>
+                <th>Metoda</th>
+                <th>Poznámka</th>
+                <th>Objednávka</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows}
+        </tbody>
+    </table>
+</body>
+</html>
+            `;
+            const w = window.open('', '_blank');
+            if (!w) {
+                alert('Povolte vyskakovací okna pro stažení výpisu.');
+                return;
+            }
+            w.document.write(html);
+            w.document.close();
+            w.focus();
+            w.print();
+        }
+
         setWalletChipBalance(amount) {
             const chip = document.getElementById('wallet-chip-balance');
             if (chip) {
@@ -4813,6 +4906,7 @@ class GlobalSearch {
             this.statusEl = document.getElementById('payment-status');
             this.backBtn = document.getElementById('payment-back');
             this.submitBtn = this.form?.querySelector('button[type="submit"]');
+            this.walletData = { balance: 0, history: [] };
         }
 
         init() {
@@ -4918,6 +5012,77 @@ class GlobalSearch {
                 this.submitBtn && (this.submitBtn.disabled = false);
             }
         }
+
+        downloadWalletStatement() {
+            const { balance, history } = this.walletData || {};
+            if (!history || !history.length) {
+                alert('Žádné pohyby k exportu.');
+                return;
+            }
+            const rows = history.map(item => {
+                const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
+                const castka = this.formatCurrency(item.amount || 0);
+                return `
+                    <tr>
+                        <td>${item.createdAt || ''}</td>
+                        <td>${dir} ${castka}</td>
+                        <td>${item.method || ''}</td>
+                        <td>${item.note || ''}</td>
+                        <td>${item.orderId ? 'PO-' + item.orderId : ''}</td>
+                    </tr>`;
+            }).join('');
+            const html = `
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <title>Výpis účtu</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 24px; color:#111; }
+        h1 { margin: 0 0 4px 0; }
+        p { margin: 4px 0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 12px; }
+        th, td { border: 1px solid #ccc; padding: 6px 8px; font-size: 12px; }
+        th { background: #f2f2f2; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>Výpis účtu</h1>
+    <p>Datum: ${new Date().toLocaleString('cs-CZ')}</p>
+    <p>Zůstatek: ${this.formatCurrency(balance || 0)}</p>
+    <table>
+        <thead>
+            <tr>
+                <th>Datum</th>
+                <th>Částka</th>
+                <th>Metoda</th>
+                <th>Poznámka</th>
+                <th>Objednávka</th>
+            </tr>
+        </thead>
+        <tbody>
+            ${rows}
+        </tbody>
+    </table>
+</body>
+</html>
+            `;
+            const w = window.open('', '_blank');
+            if (!w) {
+                alert('Povolte vyskakovací okna pro stažení výpisu.');
+                return;
+            }
+            w.document.write(html);
+            w.document.close();
+            w.focus();
+            w.print();
+        }
+    }
+
+
+
+
+
 
         showCashbackModal(amount, balance, turnover) {
             const overlay = document.createElement('div');
