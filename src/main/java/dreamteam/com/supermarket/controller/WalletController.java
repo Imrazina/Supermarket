@@ -2,6 +2,7 @@ package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.Service.UserJdbcService;
 import dreamteam.com.supermarket.Service.WalletJdbcService;
+import dreamteam.com.supermarket.Service.ObjednavkaStatusJdbcService;
 import dreamteam.com.supermarket.controller.dto.WalletBalanceResponse;
 import dreamteam.com.supermarket.controller.dto.WalletMovementResponse;
 import dreamteam.com.supermarket.controller.dto.WalletTopUpRequest;
@@ -9,6 +10,7 @@ import dreamteam.com.supermarket.controller.dto.WalletTopUpResponse;
 import dreamteam.com.supermarket.controller.dto.WalletRefundRequest;
 import dreamteam.com.supermarket.controller.dto.WalletRefundResponse;
 import dreamteam.com.supermarket.model.user.Uzivatel;
+import dreamteam.com.supermarket.repository.OrderProcedureDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -27,6 +29,8 @@ public class WalletController {
 
     private final WalletJdbcService walletService;
     private final UserJdbcService userJdbcService;
+    private final OrderProcedureDao orderProcedureDao;
+    private final ObjednavkaStatusJdbcService statusService;
 
     @GetMapping
     public ResponseEntity<WalletBalanceResponse> balance(Authentication authentication) {
@@ -80,8 +84,15 @@ public class WalletController {
         if (orderId == null) {
             return ResponseEntity.badRequest().body("Neplatne ID objednavky.");
         }
+        if (walletService.hasRefundForOrder(orderId)) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Objednavka jiz byla vracena.");
+        }
         Long ucetId = walletService.ensureAccountForUser(user.getIdUzivatel());
         WalletJdbcService.RefundResult res = walletService.refundOrder(ucetId, orderId, request.amount());
+        Long targetStatusId = resolveTargetCancelStatus(orderId);
+        if (targetStatusId != null) {
+            orderProcedureDao.updateStatus(orderId, targetStatusId);
+        }
         BigDecimal zustatek = walletService.findBalance(ucetId);
         return ResponseEntity.ok(new WalletRefundResponse(res.pohybId(), ucetId, zustatek));
     }
@@ -137,5 +148,23 @@ public class WalletController {
         } catch (NumberFormatException ex) {
             return null;
         }
+    }
+
+    private Long resolveCancelStatusId() {
+        var status = statusService.findByName("Zruseno");
+        if (status == null) {
+            status = statusService.findByName("Zrušeno");
+        }
+        return status != null ? status.getIdStatus() : null;
+    }
+
+    private Long resolveTargetCancelStatus(Long orderId) {
+        Long cancelIdByName = resolveCancelStatusId();
+        var order = orderProcedureDao.getOrder(orderId);
+        if (order != null && order.statusId() != null && order.statusId() == 1L) {
+            // Specifikace: pokud byl status 1, po refundu nastav na 6.
+            return 6L;
+        }
+        return cancelIdByName;
     }
 }

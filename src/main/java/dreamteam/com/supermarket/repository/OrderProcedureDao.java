@@ -185,6 +185,30 @@ public class OrderProcedureDao {
         });
     }
 
+    /**
+     * Updates only status for an existing order using the same stored procedure.
+     * Other fields are preserved from current DB state.
+     */
+    public boolean updateStatus(Long orderId, Long statusId) {
+        if (orderId == null || statusId == null) {
+            return false;
+        }
+        OrderRow existing = getOrder(orderId);
+        if (existing == null) {
+            return false;
+        }
+        Long newId = saveOrder(
+                existing.id(),
+                existing.datum(),
+                statusId,
+                existing.uzivatelId(),
+                existing.supermarketId(),
+                existing.poznamka(),
+                existing.typObjednavka()
+        );
+        return newId != null;
+    }
+
     private CallableStatementCreator call(String sql, SqlConfigurer configurer) {
         return (Connection con) -> {
             CallableStatement cs = con.prepareCall(sql);
