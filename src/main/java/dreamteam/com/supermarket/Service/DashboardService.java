@@ -137,6 +137,9 @@ public class DashboardService {
 
         Map<Long, List<DodavatelZbozi>> suppliersByZbozi = supplierRelations.stream()
                 .collect(Collectors.groupingBy(rel -> rel.getId().getZboziId()));
+        Map<Long, Dodavatel> suppliersByUserId = suppliers.stream()
+                .filter(s -> s.getUzivatel() != null)
+                .collect(Collectors.toMap(s -> s.getUzivatel().getIdUzivatel(), Function.identity(), (a, b) -> a));
 
         Map<Long, Double> orderAmounts = paymentRows.stream()
                 .collect(Collectors.groupingBy(
@@ -240,7 +243,7 @@ public class DashboardService {
                     String employeeName = order.getUzivatel() != null
                             ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
                             : "Neuvedeno";
-                    String supplierName = order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno";
+                    String supplierName = resolveOrderSupplier(order, suppliersByUserId);
                     String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
                     double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
@@ -690,6 +693,31 @@ public class DashboardService {
             return "DODAVATEL";
         }
         return "UZIVATEL";
+    }
+
+    private String resolveOrderSupplier(Objednavka order, Map<Long, Dodavatel> suppliersByUserId) {
+        if (order == null) {
+            return "—";
+        }
+        String typ = Optional.ofNullable(order.getTypObjednavka()).orElse("");
+        if ("DODAVATEL".equalsIgnoreCase(typ)) {
+            if (order.getUzivatel() != null && order.getUzivatel().getIdUzivatel() != null) {
+                Dodavatel dod = suppliersByUserId.get(order.getUzivatel().getIdUzivatel());
+                if (dod != null && dod.getFirma() != null) {
+                    return dod.getFirma();
+                }
+                String fallback = (Optional.ofNullable(order.getUzivatel().getJmeno()).orElse("") + " "
+                        + Optional.ofNullable(order.getUzivatel().getPrijmeni()).orElse("")).trim();
+                if (!fallback.isBlank()) {
+                    return fallback;
+                }
+            }
+            return "Dodavatel";
+        }
+        if ("ZAKAZNIK".equalsIgnoreCase(typ)) {
+            return "Zákaznická objednávka";
+        }
+        return "Interní proces";
     }
 
     private String resolveMethod(String typ, PlatbaJdbcService.PlatbaDetail platba) {

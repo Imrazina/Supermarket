@@ -245,122 +245,81 @@
             </section>
 
             <section class="view" data-view="inventory">
-                <div class="two-column">
-                    <div class="layout-stack">
-                        <article class="panel">
-                            <div class="inventory-header">
-                                <div>
-                                    <h2>Katalog (ZBOZI)</h2>
-                                    <p>Počet položek: <span id="inventory-count">0</span></p>
-                                </div>
-                                <div class="inventory-actions">
-                                    <input id="inventory-search" type="search" placeholder="Hledat podle názvu nebo SKU">
-                                    <button type="button" class="ghost-btn ghost-muted" id="inventory-reset">Vymazat filtry</button>
-                                </div>
+                <div class="market-grid">
+                    <article class="panel market-panel">
+                        <div class="market-panel-header">
+                            <div>
+                                <h2>Supermarkety</h2>
+                                <p class="profile-muted">SUPERMARKET</p>
                             </div>
-                            <div class="filters inventory-filters">
-                                <label class="filter-field">
-                                    <span>Kategorie</span>
-                                    <select id="inventory-filter-category">
-                                        <option value="all">Všechny kategorie</option>
-                                    </select>
-                                </label>
-                                <label class="filter-field">
-                                    <span>Sklad</span>
-                                    <select id="inventory-filter-warehouse">
-                                        <option value="all">Všechny sklady</option>
-                                    </select>
-                                </label>
-                                <label class="filter-field">
-                                    <span>Prodejna</span>
-                                    <select id="inventory-filter-store">
-                                        <option value="all">Všechny prodejny</option>
-                                    </select>
-                                </label>
-                                <label class="filter-field">
-                                    <span>Dodavatel</span>
-                                    <select id="inventory-filter-supplier">
-                                        <option value="all">Všichni dodavatelé</option>
-                                    </select>
-                                </label>
-                                <label class="filter-field">
-                                    <span>Stav</span>
-                                    <select id="inventory-filter-status">
-                                        <option value="all">Všechny stavy</option>
-                                        <option value="critical">Pod minimem</option>
-                                        <option value="ok">V normě</option>
-                                        <option value="draft">Koncept</option>
-                                    </select>
-                                </label>
-                                <label class="filter-toggle">
-                                    <input type="checkbox" id="inventory-filter-critical">
-                                    <span>Jen pod minimem</span>
-                                </label>
+                            <button type="button" class="ghost-btn ghost-strong" id="supermarket-add-btn">Nový záznam</button>
+                        </div>
+                        <p class="profile-muted market-status" id="supermarket-status"></p>
+                        <div class="table-wrapper scroll-x market-scroll">
+                            <table class="fixed">
+                                <thead>
+                                <tr>
+                                    <th>Název</th>
+                                    <th>Telefon</th>
+                                    <th>Email</th>
+                                    <th>Adresa</th>
+                                    <th>Akce</th>
+                                </tr>
+                                </thead>
+                                <tbody id="market-supermarket-body"></tbody>
+                            </table>
+                        </div>
+                    </article>
+
+                    <article class="panel market-panel market-panel-wide">
+                        <div class="market-panel-header">
+                            <div>
+                                <h2>Zboží</h2>
+                                <p class="profile-muted">ZBOZI</p>
                             </div>
-                            <div id="inventory-active-filters" class="active-filters"></div>
-                            <div class="table-wrapper">
-                                <table>
-                                    <thead>
-                                    <tr>
-                                        <th>sku</th>
-                                        <th>název</th>
-                                        <th>kategorie</th>
-                                        <th>sklad</th>
-                                        <th>prodejna</th>
-                                        <th>dodavatel</th>
-                                        <th>zásoba</th>
-                                        <th>min.</th>
-                                        <th>stav</th>
-                                    </tr>
-                                    </thead>
-                                    <tbody id="inventory-table-body"></tbody>
-                                </table>
+                            <button type="button" class="ghost-btn ghost-strong" id="goods-add-btn">Nový záznam</button>
+                        </div>
+                        <p class="profile-muted market-status" id="goods-status"></p>
+                        <div class="table-wrapper scroll-x market-scroll tall">
+                            <table class="fixed">
+                                <thead>
+                                <tr>
+                                    <th>Název</th>
+                                    <th>Kategorie</th>
+                                    <th>Sklad</th>
+                                    <th>Množství</th>
+                                    <th>Cena</th>
+                                    <th>Akce</th>
+                                </tr>
+                                </thead>
+                                <tbody id="market-goods-body"></tbody>
+                            </table>
+                        </div>
+                    </article>
+
+                    <article class="panel market-panel">
+                        <div class="market-panel-header">
+                            <div>
+                                <h2>Sklady</h2>
+                                <p class="profile-muted">SKLAD</p>
                             </div>
-                        </article>
-
-                        <article class="panel">
-                            <h2>Kategorie (KATEGORIE_ZBOZI)</h2>
-                            <div id="category-board"></div>
-                        </article>
-
-                        <article class="panel">
-                            <h2>Sklady (SKLAD)</h2>
-                            <div id="warehouse-grid"></div>
-                        </article>
-                    </div>
-
-                    <article class="panel">
-                        <h2>Nové SKU</h2>
-                        <p>Koncept se uloží lokálně a naváže na ZBOZI po integraci API.</p>
-                        <form id="new-sku-form">
-                            <label for="sku-code">SKU / kód</label>
-                            <input id="sku-code" name="sku" maxlength="10" required placeholder="SKU-00000">
-
-                            <label for="sku-name">Název</label>
-                            <input id="sku-name" name="name" required>
-
-                            <label for="sku-category">Kategorie</label>
-                            <select id="sku-category" name="category" required>
-                                <option value="">Vyberte kategorii</option>
-                            </select>
-
-                            <label for="sku-warehouse">Sklad</label>
-                            <select id="sku-warehouse" name="warehouse" required>
-                                <option value="">Vyberte sklad</option>
-                            </select>
-
-                            <label for="sku-stock">Aktuální množství</label>
-                            <input id="sku-stock" name="stock" type="number" min="0" required>
-
-                            <label for="sku-min">Minimální zásoba</label>
-                            <input id="sku-min" name="minStock" type="number" min="0" required>
-
-                            <label for="sku-supplier">Dodavatel</label>
-                            <input id="sku-supplier" name="supplier" required>
-
-                            <button type="submit">Uložit koncept</button>
-                        </form>
-                        <p class="form-msg" id="sku-form-msg"></p>
+                            <button type="button" class="ghost-btn ghost-strong" id="warehouse-add-btn">Nový záznam</button>
+                        </div>
+                        <p class="profile-muted market-status" id="warehouse-status"></p>
+                        <div class="table-wrapper scroll-x market-scroll">
+                            <table class="fixed">
+                                <thead>
+                                <tr>
+                                    <th>Název</th>
+                                    <th>Supermarket</th>
+                                    <th>Kapacita</th>
+                                    <th>Telefon</th>
+                                    <th>Akce</th>
+                                </tr>
+                                </thead>
+                                <tbody id="market-warehouse-body"></tbody>
+                            </table>
+                        </div>
                     </article>
                 </div>
             </section>
@@ -385,11 +344,10 @@
                         <table class="orders-table">
                             <thead>
                             <tr>
-                                <th>ID</th>
                                 <th>typ</th>
                                 <th>prodejna</th>
-                                <th>odpovědný</th>
                                 <th>dodavatel</th>
+                                <th>odpovědný</th>
                                 <th>status</th>
                                 <th>datum</th>
                                 <th>částka</th>
@@ -449,6 +407,26 @@
                             <button type="button" class="ghost-btn ghost-muted" id="order-cancel-btn">Zrusit</button>
                             <span class="profile-muted" id="order-form-status"></span>
                         </div>
+                    </form>
+                </div>
+            </div>
+
+            <div class="modal" id="market-editor-modal" aria-hidden="true">
+                <div class="modal-content market-modal">
+                    <div class="modal-header">
+                        <h3 id="market-modal-title">Záznam</h3>
+                        <button type="button" class="ghost-btn ghost-muted" data-market-close>&times;</button>
+                    </div>
+                    <form id="market-editor-form" class="market-form">
+                        <div class="market-form-grid" id="market-form-fields"></div>
+                        <div class="modal-actions">
+                            <button type="button" class="ghost-btn ghost-muted" id="market-delete-btn">Smazat záznam</button>
+                            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                                <button type="button" class="ghost-btn" data-market-close>Zavřít</button>
+                                <button type="submit" class="ghost-btn ghost-strong">Uložit</button>
+                            </div>
+                        </div>
+                        <p class="form-msg" id="market-form-status"></p>
                     </form>
                 </div>
             </div>
@@ -839,20 +817,75 @@
 
             <section class="view" data-view="supplier">
                 <article class="panel">
-                    <div style="display:flex;justify-content:space-between;align-items:center;">
-                        <div>
-                            <h2>Dodavatelské objednávky</h2>
-                            <p>Správa objednávek od dodavatelů</p>
-                        </div>
-                        <span class="badge" id="supplier-orders-count">0</span>
+                    <div class="supplier-hero">
+                        <p class="eyebrow" style="margin:0;">Dodavatel</p>
+                        <h2 style="margin:4px 0 6px;">Dodavatelské objednávky</h2>
+                        <p class="profile-muted" style="margin:0;">Sleduj dostupné objednávky a spravuj ty, které jsi převzal.</p>
                     </div>
-                    <div id="supplier-orders-container" class="supplier-orders-grid" style="margin-top: 16px;">
-                        
-                    </div>
-                    <div id="supplier-orders-empty" class="empty-state" style="display: none; text-align: center; padding: 40px;">
-                        <span class="material-symbols-rounded" style="font-size: 48px; color: var(--muted-fg);">local_shipping</span>
-                        <h3 style="margin-top: 16px;">Žádné volné objednávky</h3>
-                        <p class="profile-muted">Momentálně nejsou k dispozici žádné nové objednávky k převzetí.</p>
+                    <div class="supplier-layout">
+                        <section class="supplier-section">
+                            <div class="supplier-section-head">
+                                <div>
+                                    <p class="eyebrow" style="margin:0;">Fronta</p>
+                                    <h3 style="margin:4px 0 6px;">Volné objednávky</h3>
+                                    <p class="profile-muted" style="margin:0;">Objednávky čekající na převzetí.</p>
+                                </div>
+                                <span class="badge" id="supplier-orders-count">0</span>
+                            </div>
+                            <div class="supplier-section-body">
+                                <div id="supplier-orders-container" class="supplier-orders-grid supplier-scroll">
+                                    
+                                </div>
+                                <div id="supplier-orders-empty" class="empty-state" style="display: none; text-align: center; padding: 32px;">
+                                    <span class="material-symbols-rounded" style="font-size: 44px; color: var(--muted-fg);">local_shipping</span>
+                                    <h3 style="margin-top: 12px;font-size:1.1rem;">Žádné volné objednávky</h3>
+                                    <p class="profile-muted">Momentálně nejsou k dispozici žádné nové objednávky k převzetí.</p>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="supplier-section">
+                            <div class="supplier-section-head">
+                                <div>
+                                    <p class="eyebrow" style="margin:0;">Převzaté</p>
+                                    <h3 style="margin:4px 0 6px;">Moje objednávky</h3>
+                                    <p class="profile-muted" style="margin:0;">Převzaté objednávky a jejich stav.</p>
+                                </div>
+                                <span class="badge" id="supplier-mine-count">0</span>
+                            </div>
+                            <div class="supplier-section-body">
+                                <div id="supplier-mine-container" class="supplier-mine-list supplier-scroll">
+                                    
+                                </div>
+                                <div id="supplier-mine-empty" class="empty-state" style="display: none; text-align: center; padding: 32px;">
+                                    <span class="material-symbols-rounded" style="font-size: 44px; color: var(--muted-fg);">assignment_turned_in</span>
+                                    <h3 style="margin-top: 12px;font-size:1.1rem;">Zatím nemáš žádné objednávky</h3>
+                                    <p class="profile-muted">Převzít můžeš některou z volných objednávek vlevo.</p>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="supplier-section">
+                            <div class="supplier-section-head">
+                                <div>
+                                    <p class="eyebrow" style="margin:0;">Chronologie</p>
+                                    <h3 style="margin:4px 0 6px;">Historie objednávek</h3>
+                                    <p class="profile-muted" style="margin:0;">Dokončené nebo zrušené zakázky.</p>
+                                </div>
+                                <div class="supplier-history-actions">
+                                    <span class="badge" id="supplier-history-count">0</span>
+                                    <button type="button" class="ghost-btn ghost-muted" id="supplier-history-toggle" aria-expanded="false" aria-controls="supplier-history-section">Zobrazit historii</button>
+                                </div>
+                            </div>
+                            <div class="supplier-section-body" id="supplier-history-section" hidden>
+                                <div id="supplier-history-container" class="supplier-mine-list supplier-scroll">
+                                    
+                                </div>
+                                <div id="supplier-history-empty" class="empty-state" style="display:none;text-align:center;padding:32px;">
+                                    <span class="material-symbols-rounded" style="font-size:44px;color:var(--muted-fg);">history</span>
+                                    <h3 style="margin-top:12px;font-size:1.1rem;">Žádné zakončené objednávky</h3>
+                                    <p class="profile-muted">Jakmile zakázku dokončíš nebo zrušíš, objeví se zde.</p>
+                                </div>
+                            </div>
+                        </section>
                     </div>
                 </article>
             </section>
@@ -896,6 +929,24 @@
         <div class="dialog-actions">
             <button type="button" class="ghost-btn ghost-muted" id="dialog-cancel">Ne</button>
             <button type="button" class="ghost-btn ghost-strong" id="dialog-confirm">Ano</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal" id="db-error-modal" aria-hidden="true">
+    <div class="modal-content dialog-modal">
+        <div class="modal-header" style="align-items:flex-start;">
+            <div>
+                <p class="eyebrow">Chyba databáze</p>
+                <h3 id="db-error-title">Operace se nezdařila</h3>
+            </div>
+        </div>
+        <p id="db-error-message" class="muted" style="white-space:pre-wrap;word-break:break-word;"></p>
+        <pre id="db-error-detail"
+             class="code-block"
+             style="display:none;white-space:pre-wrap;word-break:break-word;max-height:60vh;overflow:auto;"></pre>
+        <div class="dialog-actions" style="justify-content:flex-end;">
+            <button type="button" class="ghost-btn ghost-strong" data-db-error-close>Rozumím</button>
         </div>
     </div>
 </div>

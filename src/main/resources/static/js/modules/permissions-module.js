@@ -1,3 +1,11 @@
+const emitDbError = (message, detail) => {
+    if (typeof window !== 'undefined' && typeof window.showDbError === 'function') {
+        window.showDbError(message, detail);
+    } else {
+        alert(detail || message || 'Operace se nezdařila.');
+    }
+};
+
 export default class PermissionsModule {
     constructor(state, deps = {}) {
         this.state = state;
@@ -75,7 +83,7 @@ export default class PermissionsModule {
             this.resetForm();
         } catch (error) {
             console.error('Permission save failed', error);
-            alert(error.message || 'Nepodařilo se uložit právo.');
+            emitDbError('Nepodařilo se uložit právo.', error?.message);
         }
     }
 
@@ -127,7 +135,7 @@ export default class PermissionsModule {
             await this.reloadAdminData();
         } catch (error) {
             console.error('Permission delete failed', error);
-            alert(error.message || 'Právo se nepodařilo smazat.');
+            emitDbError('Právo se nepodařilo smazat.', error?.message);
         }
     }
 
@@ -241,7 +249,7 @@ export default class PermissionsModule {
             await this.reloadAdminData();
         } catch (error) {
             console.error('Role permission update failed', error);
-            alert(error.message || 'Nepodařilo se upravit přiřazení rolí.');
+            emitDbError('Nepodařilo se upravit přiřazení rolí.', error?.message);
         }
     }
 

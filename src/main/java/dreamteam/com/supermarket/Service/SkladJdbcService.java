@@ -32,6 +32,7 @@ public class SkladJdbcService {
         if (row.supermarketId() != null) {
             Supermarket supermarket = new Supermarket();
             supermarket.setIdSupermarket(row.supermarketId());
+            supermarket.setNazev(row.supermarketNazev());
             s.setSupermarket(supermarket);
         }
         return s;
