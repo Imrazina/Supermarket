@@ -80,33 +80,50 @@ END;
 --   Počet "nepřečtených" zpráv: příchozí po poslední vlastní odeslané zprávě
 --   (tabulka nemá flag přečteno, takže je to praktický aproximant).
 -- Parametry:
---   p_user - ID příjemce
+--   p_user       - ID příjemce
+--   p_from_user  - (volitelné) ID konkrétního odesílatele; pokud je NULL,
+--                  vrací globální počet jako dříve
 -- Návratová hodnota:
 --   Číslo s počtem zpráv
 --------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION unread_messages(
-    p_user INTEGER
+    p_user INTEGER,
+    p_from_user INTEGER DEFAULT NULL
 ) RETURN NUMBER
 IS
     v_last_sent DATE := DATE '1970-01-01';
     v_unread NUMBER := 0;
 BEGIN
     --------------------------------------------------------------------
-    -- Kdy uživatel naposledy sám psal (bereme to jako hranici přečtení)
+    -- Pokud je zadán konkrétní odesílatel, počítáme unread pro danou dvojici.
+    -- Jinak počítáme součet nepřečtených po poslední odpovědi pro KAŽDÉHO odesílatele.
     --------------------------------------------------------------------
-    SELECT NVL(MAX(datumZasilani), DATE '1970-01-01')
-    INTO v_last_sent
-    FROM ZPRAVA
-    WHERE odesilatel_ID = p_user;
+    IF p_from_user IS NOT NULL THEN
+        SELECT NVL(MAX(datumZasilani), DATE '1970-01-01')
+        INTO v_last_sent
+        FROM ZPRAVA
+        WHERE odesilatel_ID = p_user
+          AND prijimac_ID = p_from_user;
 
-    --------------------------------------------------------------------
-    -- Příchozí zprávy po této hranici
-    --------------------------------------------------------------------
-    SELECT COUNT(*)
-    INTO v_unread
-    FROM ZPRAVA
-    WHERE prijimac_ID = p_user
-      AND datumZasilani > v_last_sent;
+        SELECT COUNT(*)
+        INTO v_unread
+        FROM ZPRAVA
+        WHERE prijimac_ID = p_user
+          AND odesilatel_ID = p_from_user
+          AND datumZasilani > v_last_sent;
+    ELSE
+        SELECT COUNT(*)
+        INTO v_unread
+        FROM ZPRAVA z
+        WHERE z.prijimac_ID = p_user
+          AND z.odesilatel_ID <> p_user
+          AND z.datumZasilani > NVL((
+                SELECT MAX(resp.datumZasilani)
+                FROM ZPRAVA resp
+                WHERE resp.odesilatel_ID = p_user
+                  AND resp.prijimac_ID = z.odesilatel_ID
+            ), DATE '1970-01-01');
+    END IF;
 
     RETURN v_unread;
 END;
@@ -131,6 +148,26 @@ IS
     v_text CLOB;
     v_out VARCHAR2(4000);
 BEGIN
+    ----------------------------------------------------------------
+    -- Nejnovější nepřečtená (po vlastní poslední odpovědi v dané konverzaci)
+    ----------------------------------------------------------------
+    WITH last_replies AS (
+        SELECT prijimac_ID, MAX(datumZasilani) AS last_reply
+        FROM ZPRAVA
+        WHERE odesilatel_ID = p_user
+        GROUP BY prijimac_ID
+    ),
+    unread AS (
+        SELECT z.odesilatel_ID,
+               z.datumZasilani,
+               z.zprava,
+               ROW_NUMBER() OVER (ORDER BY z.datumZasilani DESC) AS rn
+        FROM ZPRAVA z
+        LEFT JOIN last_replies lr ON lr.prijimac_ID = z.odesilatel_ID
+        WHERE z.prijimac_ID = p_user
+          AND z.odesilatel_ID <> p_user
+          AND z.datumZasilani > NVL(lr.last_reply, DATE '1970-01-01')
+    )
     SELECT COALESCE(
                TRIM(u.jmeno || ' ' || u.prijmeni),
                u.email,
@@ -139,14 +176,9 @@ BEGIN
            z.datumZasilani,
            z.zprava
     INTO v_sender_name, v_time, v_text
-    FROM (
-        SELECT odesilatel_ID, datumZasilani, zprava
-        FROM ZPRAVA
-        WHERE prijimac_ID = p_user
-        ORDER BY datumZasilani DESC
-    ) z
+    FROM unread z
     LEFT JOIN UZIVATEL u ON u.ID_Uzivatel = z.odesilatel_ID
-    WHERE ROWNUM = 1;
+    WHERE z.rn = 1;
 
     v_out := TO_CHAR(v_time, 'YYYY-MM-DD HH24:MI') || ' | od ' || v_sender_name || ': ' || DBMS_LOB.SUBSTR(v_text, 200, 1);
     RETURN v_out;

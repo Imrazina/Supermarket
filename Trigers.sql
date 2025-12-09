@@ -38,13 +38,178 @@ BEGIN
         WHERE ID_UZIVATELU = :NEW.ID_UZIVATEL;
 
         IF v_count = 0 THEN
+            -- povolíme také systémového uživatele s rolí ADMIN (auto-objednávky)
+            SELECT COUNT(*) INTO v_count
+            FROM UZIVATEL u
+            JOIN APP_ROLE r ON r.ID_Role = u.ID_Role
+            WHERE u.ID_Uzivatel = :NEW.ID_UZIVATEL
+              AND UPPER(r.nazev) = 'ADMIN';
+        END IF;
+
+        IF v_count = 0 THEN
             RAISE_APPLICATION_ERROR(
                 -20002,
-                'Chyba: Pro TYP_OBJEDNAVKA = DODAVATEL musi ID_UZIVATEL existovat v tabulce DODAVATEL.'
+                'Chyba: Pro TYP_OBJEDNAVKA = DODAVATEL musi ID_UZIVATEL existovat v tabulce DODAVATEL nebo mit roli ADMIN.'
             );
         END IF;
     END IF;
 
+END;
+/
+
+------------------------------------------------------------
+-- PROCEDURA: PROC_CLAIM_SUPPLIER_ORDER
+-- Popis:
+--   Dodavatel si vezme volnou objednávku (typ DODAVATEL) ve stavu 1.
+--   Volná objednávka musí mít vlastníka = ADMIN (automatické objednávky).
+-- Výstup: p_out_code 0=OK, -1 není typ DODAVATEL, -2 špatný stav,
+--         -3 není volný (owner není ADMIN), -4 nenalezeno
+------------------------------------------------------------
+CREATE OR REPLACE PROCEDURE proc_claim_supplier_order(
+    p_order_id   IN NUMBER,
+    p_user_id    IN NUMBER,
+    p_out_code   OUT NUMBER
+) AS
+    v_typ     OBJEDNAVKA.typ_objednavka%TYPE;
+    v_status  OBJEDNAVKA.ID_Status%TYPE;
+    v_owner   OBJEDNAVKA.ID_Uzivatel%TYPE;
+    v_admin   NUMBER;
+BEGIN
+    p_out_code := -4;
+
+    SELECT MIN(u.ID_Uzivatel)
+      INTO v_admin
+      FROM UZIVATEL u
+      JOIN APP_ROLE r ON r.ID_Role = u.ID_Role
+     WHERE UPPER(r.nazev) = 'ADMIN';
+
+    SELECT typ_objednavka, ID_Status, ID_Uzivatel
+      INTO v_typ, v_status, v_owner
+      FROM OBJEDNAVKA
+     WHERE ID_Objednavka = p_order_id
+     FOR UPDATE;
+
+    IF v_typ <> 'DODAVATEL' THEN
+        p_out_code := -1; RETURN;
+    END IF;
+    IF v_status <> 1 THEN
+        p_out_code := -2; RETURN;
+    END IF;
+    IF v_owner IS NULL OR v_owner <> v_admin THEN
+        p_out_code := -3; RETURN;
+    END IF;
+
+    UPDATE OBJEDNAVKA
+       SET ID_Uzivatel = p_user_id,
+           ID_Status = 2
+     WHERE ID_Objednavka = p_order_id;
+
+    p_out_code := 0;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        p_out_code := -4;
+END;
+/
+
+------------------------------------------------------------
+-- PROCEDURA: PROC_SUPPLIER_SET_STATUS
+-- Popis:
+--   Dodavatel mění stav objednávky (2→3→4→5 nebo 2/3/4→6).
+--   Při dokončení (5) doplní sklad a připíše výplatu dodavateli.
+-- Výstup: p_out_code 0=OK, -1 zakázaný přechod, -2 není owner/typ,
+--         -3 nenalezeno, -5 účet nenalezen
+------------------------------------------------------------
+CREATE OR REPLACE PROCEDURE proc_supplier_set_status(
+    p_order_id      IN NUMBER,
+    p_user_id       IN NUMBER,
+    p_new_status    IN NUMBER,
+    p_out_code      OUT NUMBER,
+    p_out_reward    OUT NUMBER,
+    p_out_balance   OUT NUMBER
+) AS
+    c_supplier_share CONSTANT NUMBER := 0.7;
+    v_typ       OBJEDNAVKA.typ_objednavka%TYPE;
+    v_status    OBJEDNAVKA.ID_Status%TYPE;
+    v_owner     OBJEDNAVKA.ID_Uzivatel%TYPE;
+    v_ucet_id   UCET.ID_UCET%TYPE;
+    v_reward    NUMBER := 0;
+BEGIN
+    p_out_code := -3;
+    p_out_reward := NULL;
+    p_out_balance := NULL;
+
+    SELECT typ_objednavka, ID_Status, ID_Uzivatel
+      INTO v_typ, v_status, v_owner
+      FROM OBJEDNAVKA
+     WHERE ID_Objednavka = p_order_id
+     FOR UPDATE;
+
+    IF v_typ <> 'DODAVATEL' OR v_owner <> p_user_id THEN
+        p_out_code := -2; RETURN;
+    END IF;
+
+    IF NOT (
+        (v_status = 2 AND p_new_status IN (3,6)) OR
+        (v_status = 3 AND p_new_status IN (4,6)) OR
+        (v_status = 4 AND p_new_status IN (5,6))
+    ) THEN
+        p_out_code := -1; RETURN;
+    END IF;
+
+    IF p_new_status = 5 THEN
+        FOR rec IN (
+            SELECT oz.ID_Zbozi, oz.pocet
+              FROM OBJEDNAVKA_ZBOZI oz
+             WHERE oz.ID_Objednavka = p_order_id
+        ) LOOP
+            UPDATE ZBOZI
+               SET mnozstvi = NVL(mnozstvi,0) + rec.pocet
+             WHERE ID_Zbozi = rec.ID_Zbozi;
+        END LOOP;
+
+        SELECT SUM(oz.pocet * NVL(z.cena,0) * c_supplier_share)
+          INTO v_reward
+          FROM OBJEDNAVKA_ZBOZI oz
+          JOIN ZBOZI z ON z.ID_Zbozi = oz.ID_Zbozi
+         WHERE oz.ID_Objednavka = p_order_id;
+
+        BEGIN
+            SELECT ID_UCET
+              INTO v_ucet_id
+              FROM UCET
+             WHERE ID_UZIVATEL = p_user_id
+             FOR UPDATE;
+        EXCEPTION
+            WHEN NO_DATA_FOUND THEN
+                INSERT INTO UCET (ID_UZIVATEL, ZUSTATEK)
+                VALUES (p_user_id, 0)
+                RETURNING ID_UCET INTO v_ucet_id;
+        END;
+
+        INSERT INTO POHYB_UCTU (ID_POHYB, ID_UCET, SMER, METODA, CASTKA, POZNAMKA, DATUM_VYTVORENI, ID_OBJEDNAVKA)
+        VALUES (SEQ_POHYB_UCTU_ID.NEXTVAL, v_ucet_id, 'P', 'OBJEDNAVKA', v_reward,
+                'Vyplaceno za objednavku ' || p_order_id, SYSDATE, p_order_id);
+
+        UPDATE UCET
+           SET ZUSTATEK = NVL(ZUSTATEK,0) + v_reward
+         WHERE ID_UCET = v_ucet_id
+         RETURNING ZUSTATEK INTO p_out_balance;
+
+        p_out_reward := v_reward;
+    END IF;
+
+    UPDATE OBJEDNAVKA
+       SET ID_Status = p_new_status
+     WHERE ID_Objednavka = p_order_id;
+
+    p_out_code := 0;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        p_out_code := -3;
+    WHEN DUP_VAL_ON_INDEX THEN
+        p_out_code := -1;
+    WHEN OTHERS THEN
+        RAISE;
 END;
 /
 --------------------------------------------------------------------
@@ -198,6 +363,124 @@ SELECT * FROM KARTA WHERE ID_platba = 30011;
 DELETE FROM HOTOVOST WHERE ID_platba = 30010;
 DELETE FROM PLATBA WHERE ID_platba = 30010;
 DELETE FROM OBJEDNAVKA WHERE ID_Objednavka = 20001;
+
+
+------------------------------------------------------------
+-- PROCEDURA: PROC_CREATE_RESTOCK_ORDER
+-- Popis:
+--   Pokud zásoba spadne pod minimum, vytvoří “volnou” objednávku
+--   pro dodavatele (typ DODAVATEL) s vlastníkem = ADMIN uživatel.
+--   Novou objednávku vytváří jen pokud pro dané zboží a supermarket
+--   neexistuje otevřená objednávka (status 1–4).
+------------------------------------------------------------
+------------------------------------------------------------
+CREATE OR REPLACE PROCEDURE proc_create_restock_order(
+    p_zbozi_id   IN NUMBER,
+    p_sklad_id   IN NUMBER,
+    p_super_id   IN NUMBER,
+    p_min        IN NUMBER,
+    p_current    IN NUMBER,
+    p_price      IN NUMBER
+) AS
+    c_supplier_share CONSTANT NUMBER := 0.7;
+    v_super         SKLAD.ID_Supermarket%TYPE;
+    v_min           NUMBER := NVL(p_min, 0);
+    v_current       NUMBER := NVL(p_current, 0);
+    v_price         NUMBER := NVL(p_price, 0);
+    v_amount        NUMBER;
+    v_order_id      NUMBER;
+    v_open          NUMBER;
+    v_admin_user    NUMBER;
+    v_reward        NUMBER := 0;
+    v_note          CLOB;
+BEGIN
+    -- systémový vlastník = libovolný ADMIN (deterministicky nejmenší ID)
+    SELECT MIN(u.ID_Uzivatel)
+      INTO v_admin_user
+      FROM UZIVATEL u
+      JOIN APP_ROLE r ON r.ID_Role = u.ID_Role
+     WHERE UPPER(r.nazev) = 'ADMIN';
+
+    IF v_admin_user IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20110, 'Chybí uživatel s rolí ADMIN pro auto objednávky.');
+    END IF;
+
+    -- supermarket pro daný sklad (pokud nebyl dodán)
+    IF p_super_id IS NOT NULL THEN
+        v_super := p_super_id;
+    ELSE
+        SELECT ID_Supermarket
+          INTO v_super
+          FROM SKLAD
+         WHERE ID_Sklad = p_sklad_id;
+    END IF;
+
+    -- otevřená objednávka pro stejné zboží a supermarket už existuje?
+    SELECT COUNT(*)
+      INTO v_open
+      FROM OBJEDNAVKA o
+      JOIN OBJEDNAVKA_ZBOZI oz ON oz.ID_Objednavka = o.ID_Objednavka
+     WHERE oz.ID_Zbozi = p_zbozi_id
+       AND o.ID_Supermarket = v_super
+       AND o.ID_Status IN (1,2,3,4); -- otevřené stavy
+
+    IF v_open > 0 THEN
+        RETURN;
+    END IF;
+
+    -- množství k doobjednání (jednoduché pravidlo)
+    v_amount := GREATEST(v_min * 3, v_min - v_current + v_min);
+
+    -- odměna pro dodavatele (definovaná procentuální část)
+    v_reward := ROUND(v_amount * v_price * c_supplier_share, 2);
+
+    v_note := 'Automatická objednávka doplnění zásob';
+
+    -- vytvoř objednávku (vlastník = ADMIN, typ DODAVATEL, status=1 Vytvorena)
+    INSERT INTO OBJEDNAVKA (ID_Objednavka, datum, ID_Status, typ_objednavka, poznamka, ID_Uzivatel, ID_Supermarket)
+    VALUES (SEQ_OBJEDNAVKA_ID.NEXTVAL, SYSDATE, 1, 'DODAVATEL', v_note, v_admin_user, v_super)
+    RETURNING ID_Objednavka INTO v_order_id;
+
+    -- položka
+    INSERT INTO OBJEDNAVKA_ZBOZI (pocet, ID_Objednavka, ID_Zbozi)
+    VALUES (v_amount, v_order_id, p_zbozi_id);
+
+    -- log záznam pro adminy
+    INSERT INTO LOG (
+        ID_Log, tabulkaNazev, operace, datumZmeny, idRekord, popis, ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'ZBOZI',
+        'I',
+        SYSDATE,
+        v_order_id,
+        'Automaticky vytvořena objednávka kvůli nízkému množství zásob.',
+        1
+    );
+END;
+/
+
+------------------------------------------------------------
+-- TRIGGER: TRG_ZBOZI_RESTOCK
+-- Popis:
+--   Při poklesu množství pod minimum volá proceduru, která
+--   založí volnou objednávku pro dodavatele.
+------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_ZBOZI_RESTOCK
+AFTER UPDATE ON ZBOZI
+FOR EACH ROW
+WHEN (NEW.mnozstvi < NEW.minMnozstvi)
+BEGIN
+    proc_create_restock_order(
+        :NEW.ID_Zbozi,
+        :NEW.SKLAD_ID_SKLAD,
+        NULL,
+        :NEW.MINMNOZSTVI,
+        :NEW.MNOZSTVI,
+        :NEW.CENA
+    );
+END;
+/
 DELETE FROM KARTA WHERE ID_platba = 30011;
 DELETE FROM PLATBA WHERE ID_platba = 30011;
 DELETE FROM OBJEDNAVKA WHERE ID_Objednavka = 20002;
@@ -265,121 +548,6 @@ DELETE FROM UZIVATEL WHERE ID_Uzivatel = 9004;
 
 
 ------------------------------------------------------------
--- TRIGGER: TRG_ZBOZI_MIN
--- Popis:
---   Automaticky vytváří objednávku na doplnění zboží,
---   pokud množství klesne pod minimální limit.
-------------------------------------------------------------
-CREATE OR REPLACE TRIGGER TRG_ZBOZI_MIN
-BEFORE UPDATE ON ZBOZI
-FOR EACH ROW
-DECLARE
-    v_dodavatel NUMBER;
-    v_supermarket NUMBER;
-    v_new_order_id NUMBER;
-    v_amount NUMBER;
-BEGIN
-    --------------------------------------------------------------------
-    -- Kontrola minimálního množství
-    --------------------------------------------------------------------
-    IF :NEW.mnozstvi < :NEW.minMnozstvi THEN
-        
-        ----------------------------------------------------------------
-        -- Najdeme dodavatele pro toto zboží
-        ----------------------------------------------------------------
-        SELECT ID_uzivatelu
-        INTO v_dodavatel
-        FROM ZBOZI_DODAVATEL
-        WHERE ID_Zbozi = :NEW.ID_Zbozi
-        FETCH FIRST 1 ROWS ONLY;
-        
-        ----------------------------------------------------------------
-        -- Najdeme supermarket podle skladu
-        ----------------------------------------------------------------
-        SELECT ID_Supermarket
-        INTO v_supermarket
-        FROM SKLAD
-        WHERE ID_Sklad = :NEW.SKLAD_ID_Sklad;
-        
-        ----------------------------------------------------------------
-        -- Určíme množství k objednání
-        ----------------------------------------------------------------
-        v_amount := GREATEST(:NEW.minMnozstvi * 5, :NEW.minMnozstvi + 1);
-
-        
-        ----------------------------------------------------------------
-        -- Vytvoříme novou objednávku typu DODAVATEL
-        ----------------------------------------------------------------
-        INSERT INTO OBJEDNAVKA (
-            ID_Objednavka,
-            datum,
-            ID_Status,
-            typ_objednavka,
-            poznamka,
-            ID_Uzivatel,
-            ID_Supermarket
-        ) VALUES (
-            SEQ_OBJEDNAVKA_ID.NEXTVAL,
-            SYSDATE,
-            1,                     -- Status = Vytvorena
-            'DODAVATEL',
-            'Automatická objednávka doplnění zásob',
-            v_dodavatel,
-            v_supermarket
-        )
-        RETURNING ID_Objednavka INTO v_new_order_id;
-        
-        ----------------------------------------------------------------
-        -- Přidáme položku do objednávky
-        ----------------------------------------------------------------
-        INSERT INTO OBJEDNAVKA_ZBOZI (
-            pocet,
-            ID_Objednavka,
-            ID_Zbozi
-        ) VALUES (
-            v_amount,
-            v_new_order_id,
-            :NEW.ID_Zbozi
-        );
-        
-        ----------------------------------------------------------------
-        -- Informace pro administrátora přes LOG nebo zprávu
-        ----------------------------------------------------------------
-        INSERT INTO LOG (
-            ID_Log, tabulkaNazev, operace, datumZmeny, idRekord, popis, ID_Archiv
-        ) VALUES (
-            SEQ_LOG_ID.NEXTVAL,
-            'ZBOZI',
-            'I',
-            SYSDATE,
-            v_new_order_id,
-            'Automaticky vytvořena objednávka kvůli nízkému množství zásob.',
-            1
-        );
-        
-    END IF;
-END;
-/
---------------------------------------------------------------------
--- TEST
---------------------------------------------------------------------
--- PŘÍPRAVA ZBOŽÍ + DODAVATEL + SKLAD
-INSERT INTO SKLAD (ID_Sklad, nazev, kapacita, telefonniCislo, ID_Supermarket) VALUES (5001, 'Test Sklad', 100, '123', 1);
-INSERT INTO ZBOZI (ID_Zbozi, nazev, cena, mnozstvi, minMnozstvi, SKLAD_ID_Sklad, id_kategorie) VALUES (7001, 'Kava', 150, 20, 10, 5001, 1);
-INSERT INTO ZBOZI_DODAVATEL (ID_Zbozi, ID_uzivatelu) VALUES (7001, 19);
--- UPDATE → pokles množství
-UPDATE ZBOZI SET mnozstvi = 5 WHERE ID_Zbozi = 7001;
--- Ověření: automaticky vytvořená objednávka
-SELECT * FROM OBJEDNAVKA WHERE typ_objednavka = 'DODAVATEL' ORDER BY datum DESC;
-SELECT * FROM OBJEDNAVKA_ZBOZI WHERE ID_Zbozi = 7001;
-
-DELETE FROM OBJEDNAVKA_ZBOZI WHERE ID_Zbozi = 7001;
-DELETE FROM OBJEDNAVKA WHERE ID_Objednavka = 61;
-DELETE FROM ZBOZI_DODAVATEL WHERE ID_Zbozi = 7001;
-DELETE FROM ZBOZI WHERE ID_Zbozi = 7001;
-DELETE FROM SKLAD WHERE ID_Sklad = 5001;
-
-
 --------------------------------------------------------------------------------
 -- TRIGGER: TRG_SUPERMARKET_ARCHIV_CREATE
 -- Popis:
@@ -454,4 +622,3 @@ BEGIN
 
 END;
 /
-
