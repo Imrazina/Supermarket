@@ -17,7 +17,7 @@ export default class CustomerOrdersView {
         if (!this.tbody) return;
         const orders = Array.isArray(this.state.data.customerOrders) ? this.state.data.customerOrders : [];
         if (!orders.length) {
-            this.tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;"> Žádné objednávky.</td></tr>';
+            this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;"> Žádné objednávky.</td></tr>';
             return;
         }
         this.tbody.innerHTML = orders.map(order => `
@@ -97,4 +97,3 @@ export default class CustomerOrdersView {
         }
     }
 }
-

@@ -7,13 +7,13 @@ import org.springframework.jdbc.core.CallableStatementCreator;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.math.BigDecimal;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.List;
+import java.math.BigDecimal;
 
 @Repository
 @RequiredArgsConstructor
@@ -290,6 +290,39 @@ public class MarketProcedureDao {
             cs.execute();
             return null;
         });
+    }
+
+    // --- CUSTOMER CATALOG ---
+    public List<CustomerCatalogRow> listZboziBySupermarket(Long supermarketId, String q, Long categoryId) {
+        if (supermarketId == null) {
+            return List.of();
+        }
+        return jdbcTemplate.execute(
+                call("{ call list_zbozi_by_supermarket(?, ?, ?, ?) }", cs -> {
+                    cs.setLong(1, supermarketId);
+                    if (q == null || q.isBlank()) {
+                        cs.setNull(2, Types.VARCHAR);
+                    } else {
+                        cs.setString(2, q);
+                    }
+                    if (categoryId == null) {
+                        cs.setNull(3, Types.NUMERIC);
+                    } else {
+                        cs.setLong(3, categoryId);
+                    }
+                    cs.registerOutParameter(4, OracleTypes.CURSOR);
+                }),
+                (CallableStatementCallback<List<CustomerCatalogRow>>) cs -> {
+                    cs.execute();
+                    List<CustomerCatalogRow> list = new ArrayList<>();
+                    try (ResultSet rs = (ResultSet) cs.getObject(4)) {
+                        while (rs.next()) {
+                            list.add(mapCustomerCatalog(rs));
+                        }
+                    }
+                    return list;
+                }
+        );
     }
 
     // --- ZBOZI_DODAVATEL ---
@@ -642,4 +675,62 @@ public class MarketProcedureDao {
     public record ZboziDodRow(Long zboziId, Long dodavatelId, String dodavatelFirma) {}
     public record SupermarketDeleteInfo(String nazev, Long skladCount, Long zboziCount, Long dodavatelCount) {}
     public record SkladDeleteInfo(String nazev, Long zboziCount, Long dodavatelCount) {}
+
+    public record CustomerCatalogRow(
+            Long id,
+            String nazev,
+            String popis,
+            BigDecimal cena,
+            Integer mnozstvi,
+            Integer minMnozstvi,
+            Long kategorieId,
+            String kategorieNazev,
+            Long skladId,
+            String skladNazev,
+            Long supermarketId,
+            String supermarketNazev
+    ) {}
+
+    private CustomerCatalogRow mapCustomerCatalog(ResultSet rs) throws java.sql.SQLException {
+        String priceCol = findColumn(rs, "cena", "price");
+        BigDecimal cena = priceCol != null ? rs.getBigDecimal(priceCol) : BigDecimal.ZERO;
+        return new CustomerCatalogRow(
+                getNullableLong(rs, findColumn(rs, "id", "zbozi_id", "id_zbozi")),
+                getNullableString(rs, findColumn(rs, "nazev", "name")),
+                getNullableString(rs, findColumn(rs, "popis", "description")),
+                cena != null ? cena : BigDecimal.ZERO,
+                getNullableInt(rs, findColumn(rs, "mnozstvi", "qty_available")),
+                getNullableInt(rs, findColumn(rs, "min_mnozstvi", "qty_min")),
+                getNullableLong(rs, findColumn(rs, "kategorie_id", "category_id")),
+                getNullableString(rs, findColumn(rs, "kategorie_nazev", "category")),
+                getNullableLong(rs, findColumn(rs, "sklad_id", "skladid", "warehouse_id")),
+                getNullableString(rs, findColumn(rs, "sklad_nazev", "skladname", "warehouse_name")),
+                getNullableLong(rs, findColumn(rs, "supermarket_id", "store_id")),
+                getNullableString(rs, findColumn(rs, "supermarket_nazev", "store_name"))
+        );
+    }
+
+    private String findColumn(ResultSet rs, String... candidates) throws java.sql.SQLException {
+        for (String c : candidates) {
+            if (c != null && hasColumn(rs, c)) {
+                return c;
+            }
+        }
+        return null;
+    }
+
+    private Integer getNullableInt(ResultSet rs, String columnLabel) throws java.sql.SQLException {
+        if (columnLabel == null) {
+            return null;
+        }
+        Object obj = rs.getObject(columnLabel);
+        return obj == null ? null : ((Number) obj).intValue();
+    }
+
+    private String getNullableString(ResultSet rs, String columnLabel) throws java.sql.SQLException {
+        if (columnLabel == null) {
+            return null;
+        }
+        return rs.getString(columnLabel);
+    }
 }

@@ -812,12 +812,14 @@ const state = {
     paymentFilter: 'all',
     selectedOrderId: null,
     selectedFolder: null,
-    customerCategoryFilter: 'all',
-    customerSearchTerm: '',
-    customerCart: [],
-    customerCartLoaded: false,
-    supplierOrders: { free: [], mine: [], history: [], loading: false, error: null },
-    clientOrders: { items: [], queue: [], mine: [], history: [], loading: false, error: null },
+        customerCategoryFilter: 'all',
+        customerSearchTerm: '',
+        customerCart: [],
+        customerCartLoaded: false,
+        customerStores: [],
+        selectedCustomerStoreId: null,
+        supplierOrders: { free: [], mine: [], history: [], loading: false, error: null },
+        clientOrders: { items: [], queue: [], mine: [], history: [], loading: false, error: null },
     customerHistory: { items: [], loading: false, error: null },
     data: createEmptyData(),
     permissionsCatalog: [],
@@ -4142,6 +4144,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.categoryContainer = document.getElementById('customer-category-chips');
             this.searchInput = document.getElementById('customer-search');
             this.grid = document.getElementById('customer-product-grid');
+            this.storeSelect = document.getElementById('customer-store-select');
             this.cartEls = Array.from(document.querySelectorAll('[data-customer-cart]'));
             this.cartCountEl = document.getElementById('customer-cart-count');
             this.suggestionsEl = document.getElementById('customer-suggestions');
@@ -4166,6 +4169,13 @@ function resolveAllowedViews(role, permissions = []) {
                 this.searchInput.addEventListener('input', () => {
                     this.state.customerSearchTerm = this.searchInput.value.trim();
                     this.render();
+                });
+            }
+            if (this.storeSelect) {
+                this.storeSelect.addEventListener('change', () => {
+                    const val = this.storeSelect.value;
+                    this.state.selectedCustomerStoreId = val ? Number(val) : null;
+                    this.loadProductsForStore(this.state.selectedCustomerStoreId);
                 });
             }
             this.grid?.addEventListener('click', event => {
@@ -4199,6 +4209,7 @@ function resolveAllowedViews(role, permissions = []) {
                     }
                 });
             });
+            this.loadStoresAndProducts();
         }
 
         addToCart(sku, fallback = {}) {
@@ -4236,6 +4247,66 @@ function resolveAllowedViews(role, permissions = []) {
             this.renderSuggestions();
         }
 
+        async loadStoresAndProducts() {
+            const token = localStorage.getItem('token') || '';
+            try {
+                const resp = await fetch(apiUrl('/api/market/supermarkets'), {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resp.ok) {
+                    const stores = await resp.json();
+                    this.state.customerStores = Array.isArray(stores) ? stores.map(normalizeStore) : [];
+                }
+            } catch (e) {
+                console.warn('Failed to load stores', e);
+                this.state.customerStores = [];
+            }
+            this.populateStoreSelect();
+            const initialStoreId = this.state.selectedCustomerStoreId
+                || (this.state.customerStores.length ? this.state.customerStores[0].id : null);
+            if (initialStoreId) {
+                this.state.selectedCustomerStoreId = initialStoreId;
+                this.storeSelect && (this.storeSelect.value = String(initialStoreId));
+                await this.loadProductsForStore(initialStoreId);
+            } else {
+                this.state.data.customerProducts = [];
+                this.render();
+            }
+        }
+
+        populateStoreSelect() {
+            if (!this.storeSelect) return;
+            const options = ['<option value="">Vyber prodejnu</option>']
+                .concat(this.state.customerStores.map(store => `<option value="${store.id}">${store.name}</option>`));
+            this.storeSelect.innerHTML = options.join('');
+            if (this.state.selectedCustomerStoreId) {
+                this.storeSelect.value = String(this.state.selectedCustomerStoreId);
+            }
+        }
+
+        async loadProductsForStore(storeId) {
+            if (!storeId) {
+                this.state.data.customerProducts = [];
+                this.render();
+                return;
+            }
+            const token = localStorage.getItem('token') || '';
+            try {
+                const resp = await fetch(apiUrl(`/api/customer/catalog/products?supermarketId=${storeId}`), {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (resp.ok) {
+                    this.state.data.customerProducts = await resp.json();
+                } else {
+                    this.state.data.customerProducts = [];
+                }
+            } catch (e) {
+                console.warn('Failed to load customer products', e);
+                this.state.data.customerProducts = [];
+            }
+            this.render();
+        }
+
         renderChips() {
             if (!this.categoryContainer) return;
             const categories = ['all', ...new Set(this.state.data.customerProducts.map(prod => prod.category || 'Bez kategorie'))];
@@ -4250,6 +4321,28 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.grid) return;
             const filter = this.state.customerCategoryFilter;
             const term = (this.state.customerSearchTerm || '').toLowerCase();
+            const emojiByKeyword = [
+                { key: 'pivo', emoji: '🍺' },
+                { key: 'cokolad', emoji: '🍫' },
+                { key: 'baget', emoji: '🥖' },
+                { key: 'chleb', emoji: '🍞' },
+                { key: 'mleko', emoji: '🥛' },
+                { key: 'jogurt', emoji: '🍶' },
+                { key: 'bonbon', emoji: '🍬' },
+                { key: 'ovoce', emoji: '🍎' },
+                { key: 'zelenin', emoji: '🥬' },
+                { key: 'maso', emoji: '🥩' },
+                { key: 'ryb', emoji: '🐟' },
+                { key: 'table', emoji: '💊' }, // tablety
+                { key: 'droger', emoji: '🧴' },
+                { key: 'napoj', emoji: '🥤' },
+                { key: 'kava', emoji: '☕' }
+            ];
+            const pickEmoji = prod => {
+                const text = `${prod.name || ''} ${prod.category || ''} ${prod.description || ''}`.toLowerCase();
+                const match = emojiByKeyword.find(entry => text.includes(entry.key));
+                return match ? match.emoji : '🛒';
+            };
             const products = this.state.data.customerProducts
                 .filter(prod => filter === 'all' || (prod.category || 'Bez kategorie') === filter)
                 .filter(prod => {
@@ -4260,12 +4353,15 @@ function resolveAllowedViews(role, permissions = []) {
                     return name.includes(term) || sku.includes(term) || description.includes(term);
                 });
             if (!products.length) {
-                this.grid.innerHTML = '<p>Zadne produkty pro zadany filtr.</p>';
+                const msg = this.state.selectedCustomerStoreId
+                    ? 'Zadne produkty pro zadany filtr.'
+                    : 'Vyberte prodejnu pro nacteni produktu.';
+                this.grid.innerHTML = `<p>${msg}</p>`;
                 return;
             }
             this.grid.innerHTML = products.map(prod => `
                 <article class="product-card">
-                    <div class="product-icon">${prod.image || '??'}</div>
+                    <div class="product-icon">${pickEmoji(prod)}</div>
                     <div>
                         <strong>${prod.name}</strong>
                         <p>${prod.description}</p>
@@ -4357,6 +4453,14 @@ function resolveAllowedViews(role, permissions = []) {
                 console.warn('Failed to save cart', e);
             }
         }
+    }
+
+    function normalizeStore(store) {
+        return {
+            id: store.id ?? store.idSupermarket ?? store.id_supermarket ?? null,
+            name: store.nazev ?? store.name ?? 'Supermarket',
+            city: store.adresaMesto ?? store.mesto ?? ''
+        };
     }
 
 class GlobalSearch {
