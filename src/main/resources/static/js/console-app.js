@@ -2238,18 +2238,6 @@ function resolveAllowedViews(role, permissions = []) {
 
         render() {
             if (!this.tableBody) return;
-            const orders = Array.isArray(this.state.data.orders) ? this.state.data.orders : [];
-            this.tableBody.innerHTML = orders.map(order => `
-                <tr data-order-id="${order.id}">
-                    <td>${order.type}</td>
-                    <td>${order.store}</td>
-                    <td>${order.employee}</td>
-                    <td>${order.supplier}</td>
-                    <td><span class="status-badge info">${order.status}</span></td>
-                    <td>${new Date(order.date).toLocaleString('cs-CZ')}</td>
-                    <td>${currencyFormatter.format(order.amount)}</td>
-                </tr>
-            `).join('');
             const orders = this.getOrders();
             if (!orders.length) {
                 this.tableBody.innerHTML = '<tr><td colspan="7" class="table-placeholder">Žádné objednávky</td></tr>';
@@ -4960,6 +4948,10 @@ class GlobalSearch {
             this.cashChange.textContent = currencyFormatter.format(change);
         }
 
+        formatCurrency(amount) {
+            return currencyFormatter.format(amount || 0);
+        }
+
         async handleSubmit(event) {
             event.preventDefault();
             const method = new FormData(this.form).get('paymentType');
@@ -5077,12 +5069,6 @@ class GlobalSearch {
             w.focus();
             w.print();
         }
-    }
-
-
-
-
-
 
         showCashbackModal(amount, balance, turnover) {
             const overlay = document.createElement('div');
