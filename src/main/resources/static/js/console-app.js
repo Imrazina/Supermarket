@@ -4544,14 +4544,19 @@ class GlobalSearch {
             this.historyToggle?.addEventListener('click', () => this.toggleHistory());
             [this.queueContainer, this.mineContainer].forEach(container => {
                 container?.addEventListener('click', event => {
-                    const btn = event.target.closest('[data-change-status]');
-                    if (btn) {
-                        this.changeStatus(btn.dataset.changeStatus, btn);
-                        return;
-                    }
                     const claim = event.target.closest('[data-claim-order]');
                     if (claim) {
                         this.claimOrder(claim.dataset.claimOrder, claim.dataset.currentStatus, claim);
+                        return;
+                    }
+                    const next = event.target.closest('[data-next-status]');
+                    if (next) {
+                        this.advanceStatus(next.dataset.nextStatus, next.dataset.currentStatus, next);
+                        return;
+                    }
+                    const cancel = event.target.closest('[data-cancel-order]');
+                    if (cancel) {
+                        this.changeStatus(cancel.dataset.cancelOrder, cancel, 6);
                     }
                 });
             });
@@ -4628,7 +4633,6 @@ class GlobalSearch {
         renderCard(order, mode) {
             const isMine = mode === 'mine';
             const isQueue = mode === 'queue';
-            const statusOptions = isMine ? this.buildStatusOptions(order?.statusId) : '';
             const itemsArray = Array.isArray(order?.items) ? order.items : [];
             const itemsList = this.renderItems(itemsArray);
             const amount = this.formatAmount(order?.total ?? this.computeTotal(itemsArray));
@@ -4638,14 +4642,19 @@ class GlobalSearch {
             const customerLine = [order?.customerEmail, order?.handlerEmail].filter(Boolean).map(escapeHtml).join(' · ');
             const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${escapeHtml(order.note)}</p>` : '';
             const actions = isMine ? `
-                <div class="pill-select">
-                    <select data-status-select="${order?.id ?? ''}">
-                        ${statusOptions}
-                    </select>
-                </div>
-                <button type="button" class="ghost-btn ghost-strong" data-change-status="${order?.id ?? ''}">Změnit stav</button>
+                <button type="button" class="ghost-btn ghost-strong" data-next-status="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">
+                    <span class="material-symbols-rounded" aria-hidden="true">trending_flat</span>
+                    Další stav
+                </button>
+                <button type="button" class="ghost-btn ghost-danger" data-cancel-order="${order?.id ?? ''}">
+                    <span class="material-symbols-rounded" aria-hidden="true">cancel</span>
+                    Zrušit
+                </button>
             ` : isQueue ? `
-                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">Převzít</button>
+                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">
+                    <span class="material-symbols-rounded" aria-hidden="true">play_circle</span>
+                    Převzít
+                </button>
             ` : '';
             const itemsSummary = this.formatItemsSummary(itemsArray);
             return `
@@ -4741,13 +4750,17 @@ class GlobalSearch {
             const historyList = [];
             list.forEach(order => {
                 const statusId = Number(order?.statusId);
+                const handler = (order?.handlerEmail || '').toLowerCase();
+                const isMine = handler && email && handler === email;
+
                 if (history.has(statusId)) {
-                    historyList.push(order);
+                    if (isMine) {
+                        historyList.push(order);
+                    }
                     return;
                 }
                 if (active.has(statusId)) {
-                    const handler = (order?.handlerEmail || '').toLowerCase();
-                    if (handler && email && handler === email) {
+                    if (isMine) {
                         mine.push(order);
                     } else {
                         queue.push(order);
@@ -4810,12 +4823,7 @@ class GlobalSearch {
                 alert('Chybí ID objednávky.');
                 return;
             }
-            const select = document.querySelector(`[data-status-select="${orderId}"]`);
-            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number(select?.value);
-            if (Number.isNaN(statusId)) {
-                alert('Vyberte platný stav.');
-                return;
-            }
+            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number.NaN;
             const token = localStorage.getItem('token');
             if (!token) {
                 alert('Nejste přihlášen.');
@@ -4853,10 +4861,18 @@ class GlobalSearch {
         }
 
         async claimOrder(orderId, statusId, triggerBtn) {
-            // Převzetí: pošleme bezpečný stav (výchozí 2 = potvrzena) a tím se objednávka naváže na obsluhu
-            const current = Number(statusId);
-            const desired = Number.isNaN(current) || current < 2 ? 2 : current;
+            // Převzetí: posuň na další povolený stav podle matice 1→2→3→4→5 (nebo nech aktuální)
+            const desired = this.resolveNextStatusForClaim(statusId);
             await this.changeStatus(orderId, triggerBtn, desired);
+        }
+
+        resolveNextStatusForClaim(statusId) {
+            const current = Number(statusId);
+            if (Number.isNaN(current) || current <= 1) return 2; // Vytvorena -> Potvrzena
+            if (current === 2) return 3; // Potvrzena -> Pripravuje se
+            if (current === 3) return 4; // Pripravuje se -> Odeslana
+            if (current === 4) return 5; // Odeslana -> Dokoncena
+            return current; // 5/6 necháme beze změny
         }
     }
 

@@ -3497,7 +3497,10 @@ label[data-role-section] {
     border: 1px solid rgba(67, 97, 238, 0.18);
     background: linear-gradient(180deg, rgba(67,97,238,0.06) 0%, #ffffff 16%, #ffffff 100%);
     position: relative;
-    overflow: hidden;
+    overflow: visible;
+    padding: 24px;
+    border-radius: 22px;
+    box-shadow: 0 14px 34px rgba(15, 23, 42, 0.08);
 }
 
 .client-order-card::before {
@@ -3540,10 +3543,10 @@ label[data-role-section] {
 .client-card-meta {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 10px;
     font-size: 13px;
     color: var(--muted);
-    margin: 8px 0;
+    margin: 12px 0;
 }
 
 .client-card-meta .meta-row {
@@ -3556,8 +3559,8 @@ label[data-role-section] {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    padding: 6px 10px;
-    margin: 4px 8px 4px 0;
+    padding: 8px 12px;
+    margin: 6px 10px 6px 0;
     background: #f8fafc;
     border-radius: 12px;
     border: 1px dashed var(--border);
@@ -3567,7 +3570,7 @@ label[data-role-section] {
     display: flex;
     gap: 10px;
     flex-wrap: wrap;
-    margin-top: 10px;
+    margin-top: 14px;
 }
 
 .empty-state .material-symbols-rounded {

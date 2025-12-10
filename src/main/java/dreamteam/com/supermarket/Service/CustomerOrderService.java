@@ -2,15 +2,11 @@ package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.controller.dto.CustomerOrderResponse;
 import lombok.RequiredArgsConstructor;
-import oracle.jdbc.OracleTypes;
-import org.springframework.jdbc.core.CallableStatementCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
-import java.sql.CallableStatement;
-import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
@@ -36,49 +32,63 @@ public class CustomerOrderService {
     }
 
     public List<CustomerOrderResponse> listAllForStaff() {
-        List<OrderRow> orders = jdbcTemplate.execute(
-                (Connection con) -> {
-                    CallableStatement cs = con.prepareCall("{ call pkg_objednavka.list_client_orders(?) }");
-                    cs.registerOutParameter(1, OracleTypes.CURSOR);
-                    return cs;
-                },
-                (CallableStatementCallback<List<OrderRow>>) cs -> {
-                    cs.execute();
-                    try (ResultSet rs = (ResultSet) cs.getObject(1)) {
-                        return mapOrders(rs);
-                    }
-                }
-        );
+        String sql = """
+                SELECT o.ID_Objednavka,
+                       o.ID_Status,
+                       s.NAZEV AS status_nazev,
+                       o.ID_Supermarket,
+                       sp.NAZEV AS super_nazev,
+                       o.ID_Uzivatel AS owner_id,
+                       u.EMAIL AS owner_email,
+                       ou.EMAIL AS handler_email,
+                       o.DATUM,
+                       o.POZNAMKA
+                  FROM OBJEDNAVKA o
+                  JOIN STATUS s ON s.ID_STATUS = o.ID_STATUS
+                  LEFT JOIN SUPERMARKET sp ON sp.ID_Supermarket = o.ID_Supermarket
+                  LEFT JOIN UZIVATEL u ON u.ID_Uzivatel = o.ID_Uzivatel
+                  LEFT JOIN UZIVATEL ou ON ou.ID_Uzivatel = o.ID_Obsluha
+                 WHERE UPPER(o.TYP_OBJEDNAVKA) = 'ZAKAZNIK'
+                 ORDER BY o.DATUM DESC, o.ID_Objednavka DESC
+                """;
+        List<OrderRow> orders = jdbcTemplate.query(sql, new OrderRowMapper());
         return enrichWithItems(orders);
     }
 
     public List<CustomerOrderResponse> listByCustomer(Long userId) {
-        List<OrderRow> orders = jdbcTemplate.execute(
-                (Connection con) -> {
-                    CallableStatement cs = con.prepareCall("{ call pkg_objednavka.list_customer_history(?, ?) }");
-                    cs.setLong(1, userId);
-                    cs.registerOutParameter(2, OracleTypes.CURSOR);
-                    return cs;
-                },
-                (CallableStatementCallback<List<OrderRow>>) cs -> {
-                    cs.execute();
-                    try (ResultSet rs = (ResultSet) cs.getObject(2)) {
-                        return mapOrders(rs);
-                    }
-                }
-        );
+        String sql = """
+                SELECT o.ID_Objednavka,
+                       o.ID_Status,
+                       s.NAZEV AS status_nazev,
+                       o.ID_Supermarket,
+                       sp.NAZEV AS super_nazev,
+                       o.ID_Uzivatel AS owner_id,
+                       u.EMAIL AS owner_email,
+                       ou.EMAIL AS handler_email,
+                       o.DATUM,
+                       o.POZNAMKA
+                  FROM OBJEDNAVKA o
+                  JOIN STATUS s ON s.ID_STATUS = o.ID_STATUS
+                  LEFT JOIN SUPERMARKET sp ON sp.ID_Supermarket = o.ID_Supermarket
+                  LEFT JOIN UZIVATEL u ON u.ID_Uzivatel = o.ID_Uzivatel
+                  LEFT JOIN UZIVATEL ou ON ou.ID_Uzivatel = o.ID_Obsluha
+                 WHERE UPPER(o.TYP_OBJEDNAVKA) = 'ZAKAZNIK'
+                   AND o.ID_Uzivatel = ?
+                 ORDER BY o.DATUM DESC, o.ID_Objednavka DESC
+                """;
+        List<OrderRow> orders = jdbcTemplate.query(sql, new OrderRowMapper(), userId);
         return enrichWithItems(orders);
     }
 
     public int changeStatus(Long orderId, Long userId, Integer newStatus) {
         return jdbcTemplate.execute(
                 (org.springframework.jdbc.core.CallableStatementCreator) con -> {
-                    var cs = con.prepareCall("{ call pkg_objednavka.set_customer_status(?, ?, ?, ?, ?) }");
+                    var cs = con.prepareCall("{ call proc_customer_set_status(?, ?, ?, ?, ?) }");
                     cs.setLong(1, orderId);
                     if (userId != null) cs.setLong(2, userId); else cs.setNull(2, java.sql.Types.NUMERIC);
                     cs.setInt(3, newStatus);
                     cs.registerOutParameter(4, java.sql.Types.NUMERIC); // code
-                    cs.registerOutParameter(5, java.sql.Types.NUMERIC); // current status
+                    cs.registerOutParameter(5, java.sql.Types.NUMERIC); // previous status
                     return cs;
                 },
                 (org.springframework.jdbc.core.CallableStatementCallback<Integer>) cs -> {
