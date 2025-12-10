@@ -1,6 +1,7 @@
 package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.Service.AdminUserService;
+import dreamteam.com.supermarket.Service.PermissionService;
 import dreamteam.com.supermarket.controller.dto.AdminUserResponse;
 import dreamteam.com.supermarket.controller.dto.AdminUserUpdateRequest;
 import dreamteam.com.supermarket.controller.dto.ImpersonationResponse;
@@ -20,15 +21,17 @@ import java.util.List;
 public class AdminUserController {
 
     private final AdminUserService adminUserService;
+    private final PermissionService permissionService;
 
-    public AdminUserController(AdminUserService adminUserService) {
+    public AdminUserController(AdminUserService adminUserService, PermissionService permissionService) {
         this.adminUserService = adminUserService;
+        this.permissionService = permissionService;
     }
 
     @GetMapping
     public ResponseEntity<List<AdminUserResponse>> listUsers(@RequestParam(value = "role", required = false) String role,
                                                              Authentication authentication) {
-        if (!isAdmin(authentication)) {
+        if (!hasAccess(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(adminUserService.listUsers(role));
@@ -36,7 +39,7 @@ public class AdminUserController {
 
     @GetMapping("/{id}/role-deps")
     public ResponseEntity<?> roleDependencies(@PathVariable Long id, Authentication authentication) {
-        if (!isAdmin(authentication)) {
+        if (!hasAccess(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         try {
@@ -49,7 +52,7 @@ public class AdminUserController {
 
     @GetMapping("/loyalty-next")
     public ResponseEntity<?> nextLoyalty(Authentication authentication) {
-        if (!isAdmin(authentication)) {
+        if (!hasAccess(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         return ResponseEntity.ok(adminUserService.nextLoyaltyCard());
@@ -59,7 +62,7 @@ public class AdminUserController {
     public ResponseEntity<?> updateUser(@PathVariable Long id,
                                         @Valid @RequestBody AdminUserUpdateRequest request,
                                         Authentication authentication) {
-        if (!isAdmin(authentication)) {
+        if (!hasAccess(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         try {
@@ -72,7 +75,7 @@ public class AdminUserController {
 
     @PostMapping("/{id}/impersonate")
     public ResponseEntity<?> impersonate(@PathVariable Long id, Authentication authentication) {
-        if (!isAdmin(authentication)) {
+        if (!hasAccess(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         try {
@@ -85,7 +88,7 @@ public class AdminUserController {
 
     @PostMapping("/hash-passwords")
     public ResponseEntity<?> hashPlainPasswords(Authentication authentication) {
-        if (!isAdmin(authentication)) {
+        if (!hasAccess(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         int updated = adminUserService.encodePlainPasswords();
@@ -96,7 +99,7 @@ public class AdminUserController {
     public ResponseEntity<?> deleteUser(@PathVariable Long id,
                                         @RequestParam(value = "force", defaultValue = "0") int force,
                                         Authentication authentication) {
-        if (!isAdmin(authentication)) {
+        if (!hasAccess(authentication)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         try {
@@ -107,11 +110,14 @@ public class AdminUserController {
         }
     }
 
-    private boolean isAdmin(Authentication authentication) {
+    private boolean hasAccess(Authentication authentication) {
         if (authentication == null || !authentication.isAuthenticated()) {
             return false;
         }
-        return hasAdminAuthority(authentication.getAuthorities());
+        if (hasAdminAuthority(authentication.getAuthorities())) {
+            return true;
+        }
+        return permissionService.hasPermission(authentication, "MANAGE_USERS");
     }
 
     private boolean hasAdminAuthority(Collection<? extends GrantedAuthority> authorities) {

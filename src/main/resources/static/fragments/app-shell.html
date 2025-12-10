@@ -42,6 +42,14 @@
                 <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
                 <span>Zákaznická zóna</span>
             </a>
+            <a class="nav-link" data-view="client-orders" data-url="client-orders.html" href="client-orders.html">
+                <span class="material-symbols-rounded" aria-hidden="true">assured_workload</span>
+                <span>Zakaznické objednávky</span>
+            </a>
+            <a class="nav-link" data-view="customer-history" data-url="customer-history.html" href="customer-history.html">
+                <span class="material-symbols-rounded" aria-hidden="true">history</span>
+                <span>Historie zákazníka</span>
+            </a>
             <a class="nav-link" data-view="supplier" data-url="supplier.html" href="supplier.html">
                 <span class="material-symbols-rounded" aria-hidden="true">local_shipping</span>
                 <span>Dodavatel</span>
@@ -816,6 +824,113 @@
                 </article>
             </section>
 
+            <section class="view" data-view="client-orders">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <h2>Zákaznické objednávky</h2>
+                            <p>Správa fronty zákaznických objednávek, vlastních případů a historie.</p>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <span class="badge" id="client-orders-count">0</span>
+                            <button class="ghost-btn" type="button" id="client-orders-refresh">Obnovit</button>
+                        </div>
+                    </div>
+                    <div id="client-orders-alert" class="profile-muted" style="margin-top:4px;"></div>
+                    <div class="supplier-layout" style="margin-top:16px;">
+                        <section class="supplier-section">
+                            <div class="supplier-section-head">
+                                <div>
+                                    <p class="eyebrow" style="margin:0;">Fronta</p>
+                                    <h3 style="margin:4px 0 6px;">Volné objednávky</h3>
+                                    <p class="profile-muted" style="margin:0;">Bez přiřazeného obsluhujícího.</p>
+                                </div>
+                                <span class="badge" id="client-queue-count">0</span>
+                            </div>
+                            <div class="supplier-section-body">
+                                <div id="client-queue-container" class="supplier-orders-grid supplier-scroll"></div>
+                                <div id="client-queue-empty" class="empty-state" style="display:none;text-align:center;padding:32px;">
+                                    <span class="material-symbols-rounded" style="font-size:44px;color:var(--muted-fg);">hourglass_empty</span>
+                                    <h3 style="margin-top:12px;font-size:1.1rem;">Žádné volné objednávky</h3>
+                                    <p class="profile-muted">Jakmile se objeví nová objednávka, uvidíte ji zde.</p>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="supplier-section">
+                            <div class="supplier-section-head">
+                                <div>
+                                    <p class="eyebrow" style="margin:0;">Sledované</p>
+                                    <h3 style="margin:4px 0 6px;">Moje případy</h3>
+                                    <p class="profile-muted" style="margin:0;">Objednávky, které obsluhujete.</p>
+                                </div>
+                                <span class="badge" id="client-mine-count">0</span>
+                            </div>
+                            <div class="supplier-section-body">
+                                <div id="client-mine-container" class="supplier-mine-list supplier-scroll"></div>
+                                <div id="client-mine-empty" class="empty-state" style="display:none;text-align:center;padding:32px;">
+                                    <span class="material-symbols-rounded" style="font-size:44px;color:var(--muted-fg);">assignment_turned_in</span>
+                                    <h3 style="margin-top:12px;font-size:1.1rem;">Nic nesledujete</h3>
+                                    <p class="profile-muted">Převezměte objednávku z fronty a zobrazí se zde.</p>
+                                </div>
+                            </div>
+                        </section>
+                        <section class="supplier-section">
+                            <div class="supplier-section-head">
+                                <div>
+                                    <p class="eyebrow" style="margin:0;">Chronologie</p>
+                                    <h3 style="margin:4px 0 6px;">Historie</h3>
+                                    <p class="profile-muted" style="margin:0;">Dokončené nebo zrušené zákaznické objednávky.</p>
+                                </div>
+                                <div class="supplier-history-actions">
+                                    <span class="badge" id="client-history-count">0</span>
+                                    <button type="button" class="ghost-btn ghost-muted" id="client-history-toggle" aria-expanded="false" aria-controls="client-history-section">Zobrazit historii</button>
+                                </div>
+                            </div>
+                            <div class="supplier-section-body" id="client-history-section" hidden>
+                                <div id="client-history-container" class="supplier-mine-list supplier-scroll"></div>
+                                <div id="client-history-empty" class="empty-state" style="display:none;text-align:center;padding:32px;">
+                                    <span class="material-symbols-rounded" style="font-size:44px;color:var(--muted-fg);">history</span>
+                                    <h3 style="margin-top:12px;font-size:1.1rem;">Žádné položky</h3>
+                                    <p class="profile-muted">Po dokončení nebo zrušení se objednávky objeví zde.</p>
+                                </div>
+                            </div>
+                        </section>
+                    </div>
+                </article>
+            </section>
+
+            <section class="view" data-view="customer-history">
+                <article class="panel">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
+                        <div>
+                            <h2>Historie zákazníka</h2>
+                            <p>Vaše uzavřené objednávky včetně položek.</p>
+                        </div>
+                        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                            <span class="badge" id="customer-history-count">0</span>
+                            <button class="ghost-btn" type="button" id="customer-history-refresh">Obnovit</button>
+                        </div>
+                    </div>
+                    <div id="customer-history-alert" class="profile-muted" style="margin-top:4px;"></div>
+                    <div class="table-wrapper" style="margin-top:12px;">
+                        <table class="data-table">
+                            <thead>
+                            <tr>
+                                <th>Prodejna</th>
+                                <th>Status</th>
+                                <th>Datum</th>
+                                <th>Částka</th>
+                                <th>Položky</th>
+                            </tr>
+                            </thead>
+                            <tbody id="customer-history-body">
+                            <tr><td colspan="5" style="text-align:center;" class="profile-muted">Načítám…</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </article>
+            </section>
+
             <section class="view" data-view="supplier">
                 <article class="panel">
                     <div class="supplier-hero">
@@ -951,6 +1066,3 @@
         </div>
     </div>
 </div>
-
-
-

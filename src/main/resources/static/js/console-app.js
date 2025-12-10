@@ -135,6 +135,18 @@ function mapOracleError(text, info) {
     return null;
 }
 
+function escapeHtml(text) {
+    if (text === null || text === undefined) {
+        return '';
+    }
+    return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+}
+
 function showDbError(message, detail) {
     const modal = document.getElementById('db-error-modal');
     if (!modal) {
@@ -805,6 +817,8 @@ const state = {
     customerCart: [],
     customerCartLoaded: false,
     supplierOrders: { free: [], mine: [], history: [], loading: false, error: null },
+    clientOrders: { items: [], queue: [], mine: [], history: [], loading: false, error: null },
+    customerHistory: { items: [], loading: false, error: null },
     data: createEmptyData(),
     permissionsCatalog: [],
     profileMeta: { roles: [], cities: [], positions: [] },
@@ -1124,6 +1138,8 @@ const viewMeta = {
     records: { label: 'Archiv', title: 'Soubory, logy, zpravy' },
     dbobjects: { label: 'DB objekty', title: 'Systemovy katalog' },
     customer: { label: 'Zakaznicka zona', title: 'Self-service objednavky' },
+    'client-orders': { label: 'Zakaznicke objednavky', title: 'Sprava klientskych objednavek' },
+    'customer-history': { label: 'Historie zakaznika', title: 'Prehled vlastnich objednavek' },
     'customer-orders': { label: 'Moje objednavky', title: 'Objednavky zakaznika' },
     'customer-payment': { label: 'Platba', title: 'Zaplatte objednavku' },
     chat: { label: 'Komunikace', title: 'Chat & push centrum' }
@@ -1131,11 +1147,12 @@ const viewMeta = {
 
 const fragmentUrl = document.body.dataset.fragment || 'fragments/app-shell.html';
 state.activeView = document.body.dataset.initialView || state.activeView;
+state.requestedView = state.activeView;
 
 const allViews = [
     'dashboard', 'profile', 'inventory', 'orders', 'people', 'finance', 'records',
     'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-orders', 'customer-payment', 'chat',
-    'supplier'
+    'supplier', 'client-orders', 'customer-history'
 ];
 
 function resolveAllowedViews(role, permissions = []) {
@@ -1161,6 +1178,14 @@ function resolveAllowedViews(role, permissions = []) {
     if (normalizedRole === 'DODAVATEL') {
         add('supplier');
         return allowed;
+    }
+
+    if (permSet.has('CLIENT_ORDER_MANAGE')) {
+        add('client-orders');
+    }
+
+    if (permSet.has('CUSTOMER_HISTORY')) {
+        add('customer-history');
     }
 
     if (normalizedRole.startsWith('DORUCOVATEL') || normalizedRole === 'COURIER' || normalizedRole === 'DORUCOVATEL' || normalizedRole === 'DORUČOVATEL') {
@@ -4386,9 +4411,485 @@ class GlobalSearch {
         }
     }
 
+    class ClientOrdersModule {
+        constructor(state, opts) {
+            this.state = state;
+            this.apiUrl = opts.apiUrl;
+            this.alert = document.getElementById('client-orders-alert');
+            this.refreshBtn = document.getElementById('client-orders-refresh');
+            this.totalBadge = document.getElementById('client-orders-count');
+
+            this.queueContainer = document.getElementById('client-queue-container');
+            this.queueEmpty = document.getElementById('client-queue-empty');
+            this.queueCount = document.getElementById('client-queue-count');
+
+            this.mineContainer = document.getElementById('client-mine-container');
+            this.mineEmpty = document.getElementById('client-mine-empty');
+            this.mineCount = document.getElementById('client-mine-count');
+
+            this.historyContainer = document.getElementById('client-history-container');
+            this.historyEmpty = document.getElementById('client-history-empty');
+            this.historyCount = document.getElementById('client-history-count');
+            this.historySection = document.getElementById('client-history-section');
+            this.historyToggle = document.getElementById('client-history-toggle');
+        }
+
+        init() {
+            if (!this.alert) return;
+            this.refreshBtn?.addEventListener('click', () => this.load());
+            this.historyToggle?.addEventListener('click', () => this.toggleHistory());
+            [this.queueContainer, this.mineContainer].forEach(container => {
+                container?.addEventListener('click', event => {
+                    const btn = event.target.closest('[data-change-status]');
+                    if (btn) {
+                        this.changeStatus(btn.dataset.changeStatus, btn);
+                        return;
+                    }
+                    const claim = event.target.closest('[data-claim-order]');
+                    if (claim) {
+                        this.claimOrder(claim.dataset.claimOrder, claim.dataset.currentStatus, claim);
+                    }
+                });
+            });
+            this.render();
+            this.load();
+        }
+
+        setAlert(text) {
+            if (!this.alert) return;
+            if (text) {
+                this.alert.textContent = text;
+                this.alert.style.display = 'block';
+            } else {
+                this.alert.textContent = '';
+                this.alert.style.display = 'none';
+            }
+        }
+
+        updateCount(el, count) {
+            if (el) {
+                el.textContent = count;
+            }
+        }
+
+        toggleHistory() {
+            if (!this.historySection || !this.historyToggle) return;
+            const hidden = this.historySection.hasAttribute('hidden');
+            if (hidden) {
+                this.historySection.removeAttribute('hidden');
+                this.historySection.style.display = 'flex';
+                this.historyToggle.setAttribute('aria-expanded', 'true');
+                this.historyToggle.textContent = 'Skrýt historii';
+            } else {
+                this.historySection.setAttribute('hidden', 'hidden');
+                this.historySection.style.display = 'none';
+                this.historyToggle.setAttribute('aria-expanded', 'false');
+                this.historyToggle.textContent = 'Zobrazit historii';
+            }
+        }
+
+        render() {
+            const { queue = [], mine = [], history = [], loading, error } = this.state.clientOrders || {};
+            this.setAlert(error);
+            this.updateCount(this.totalBadge, queue.length + mine.length + history.length);
+            this.renderList(queue, this.queueContainer, this.queueEmpty, this.queueCount, 'queue');
+            this.renderList(mine, this.mineContainer, this.mineEmpty, this.mineCount, 'mine');
+            this.renderList(history, this.historyContainer, this.historyEmpty, this.historyCount, 'history');
+
+            if (loading) {
+                this.showLoading(this.queueContainer, this.queueEmpty);
+                this.showLoading(this.mineContainer, this.mineEmpty);
+                this.showLoading(this.historyContainer, this.historyEmpty);
+            }
+        }
+
+        showLoading(container, emptyEl) {
+            if (container) container.innerHTML = '<p class="profile-muted" style="text-align:center;width:100%;">Načítám…</p>';
+            if (emptyEl) emptyEl.style.display = 'none';
+        }
+
+        renderList(list, container, emptyEl, countBadge, mode) {
+            const items = Array.isArray(list) ? list : [];
+            this.updateCount(countBadge, items.length);
+            if (!container) return;
+            if (!items.length) {
+                container.innerHTML = '';
+                if (emptyEl) emptyEl.style.display = 'block';
+                return;
+            }
+            if (emptyEl) emptyEl.style.display = 'none';
+            container.innerHTML = items.map(order => this.renderCard(order, mode)).join('');
+        }
+
+        renderCard(order, mode) {
+            const isMine = mode === 'mine';
+            const isQueue = mode === 'queue';
+            const statusOptions = isMine ? this.buildStatusOptions(order?.statusId) : '';
+            const itemsArray = Array.isArray(order?.items) ? order.items : [];
+            const itemsList = this.renderItems(itemsArray);
+            const amount = this.formatAmount(order?.total ?? this.computeTotal(itemsArray));
+            const statusLabel = escapeHtml(order?.status || '');
+            const date = escapeHtml(order?.createdAt || '');
+            const store = escapeHtml(order?.supermarket || '');
+            const customerLine = [order?.customerEmail, order?.handlerEmail].filter(Boolean).map(escapeHtml).join(' · ');
+            const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${escapeHtml(order.note)}</p>` : '';
+            const actions = isMine ? `
+                <div class="pill-select">
+                    <select data-status-select="${order?.id ?? ''}">
+                        ${statusOptions}
+                    </select>
+                </div>
+                <button type="button" class="ghost-btn ghost-strong" data-change-status="${order?.id ?? ''}">Změnit stav</button>
+            ` : isQueue ? `
+                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">Převzít</button>
+            ` : '';
+            const itemsSummary = this.formatItemsSummary(itemsArray);
+            return `
+                <div class="supplier-order-card client-order-card" data-order-id="${order?.id ?? ''}">
+                    <div class="client-card-top">
+                        <div>
+                            <p class="eyebrow" style="margin:0;">${store || 'Prodejna'}</p>
+                            <div class="client-chip-row">
+                                <span class="status-badge">${statusLabel || 'Stav neznámý'}</span>
+                                <span class="client-chip">${date || '—'}</span>
+                            </div>
+                        </div>
+                        <div class="client-amount">
+                            <small class="profile-muted">Částka</small>
+                            <strong>${amount}</strong>
+                        </div>
+                    </div>
+                    <div class="client-card-meta">
+                        <div class="meta-row">
+                            <span class="material-symbols-rounded" aria-hidden="true">person</span>
+                            <span>${customerLine || 'Bez kontaktu'}</span>
+                        </div>
+                        <div class="meta-row">
+                            <span class="material-symbols-rounded" aria-hidden="true">shopping_bag</span>
+                            <span>${itemsSummary}</span>
+                        </div>
+                    </div>
+                    ${itemsList}
+                    ${note}
+                    ${actions ? `<div class="client-card-actions">${actions}</div>` : ''}
+                </div>
+            `;
+        }
+
+        renderItems(items) {
+            const list = Array.isArray(items) ? items : [];
+            if (!list.length) {
+                return '<p class="profile-muted" style="margin:6px 0;">Bez položek</p>';
+            }
+            return `<ul class="profile-muted" style="padding-left:16px;margin:6px 0;">${list.map(item => `
+                <li class="client-item-chip">${escapeHtml(item.name || '')} · ${item.qty ?? 0} × ${this.formatAmount(item.price)}</li>
+            `).join('')}</ul>`;
+        }
+
+        formatItemsSummary(items) {
+            const list = Array.isArray(items) ? items : [];
+            if (!list.length) return 'Bez položek';
+            const totalQty = list.reduce((sum, it) => sum + (Number(it.qty) || 0), 0);
+            return `${list.length} položky • ${totalQty} ks`;
+        }
+
+        computeTotal(items) {
+            const list = Array.isArray(items) ? items : [];
+            return list.reduce((sum, it) => {
+                const price = Number(it.price ?? 0);
+                const qty = Number(it.qty ?? 0);
+                if (Number.isNaN(price) || Number.isNaN(qty)) return sum;
+                return sum + price * qty;
+            }, 0);
+        }
+
+        buildStatusOptions(selected) {
+            const statuses = Array.isArray(this.state.data.statuses) ? this.state.data.statuses : [];
+            const current = selected != null ? String(selected) : '';
+            if (!statuses.length) {
+                return `<option value="${current}">${current || '—'}</option>`;
+            }
+            return statuses.map(stat => {
+                const value = stat.code ?? stat.id ?? '';
+                const label = stat.label ?? stat.name ?? value;
+                const isSelected = current && String(value) === current;
+                return `<option value="${escapeHtml(value)}" ${isSelected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+            }).join('');
+        }
+
+        formatAmount(value) {
+            if (value === null || value === undefined) {
+                return '—';
+            }
+            const num = typeof value === 'number' ? value : Number(value);
+            if (Number.isNaN(num)) {
+                return escapeHtml(String(value));
+            }
+            return currencyFormatter.format(num);
+        }
+
+        partitionOrders(list) {
+            const email = (this.state.data?.profile?.email || '').toLowerCase();
+            const active = new Set([1, 2, 3, 4]);
+            const history = new Set([5, 6]);
+            const queue = [];
+            const mine = [];
+            const historyList = [];
+            list.forEach(order => {
+                const statusId = Number(order?.statusId);
+                if (history.has(statusId)) {
+                    historyList.push(order);
+                    return;
+                }
+                if (active.has(statusId)) {
+                    const handler = (order?.handlerEmail || '').toLowerCase();
+                    if (handler && email && handler === email) {
+                        mine.push(order);
+                    } else {
+                        queue.push(order);
+                    }
+                    return;
+                }
+                queue.push(order);
+            });
+            this.state.clientOrders.queue = queue;
+            this.state.clientOrders.mine = mine;
+            this.state.clientOrders.history = historyList;
+        }
+
+        async load() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                this.setAlert('Nejste přihlášen.');
+                return;
+            }
+            this.state.clientOrders.loading = true;
+            this.state.clientOrders.error = null;
+            this.render();
+            try {
+                const response = await fetch(this.apiUrl('/api/client/orders'), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (response.status === 401) {
+                    localStorage.clear();
+                    window.location.href = 'landing.html';
+                    return;
+                }
+                if (response.status === 403) {
+                    this.state.clientOrders.queue = [];
+                    this.state.clientOrders.mine = [];
+                    this.state.clientOrders.history = [];
+                    this.state.clientOrders.error = 'Nemáte oprávnění k obsluze zákaznických objednávek.';
+                    return;
+                }
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Objednávky se nepodařilo načíst.');
+                }
+                const data = await response.json();
+                const list = Array.isArray(data) ? data : [];
+                this.state.clientOrders.items = list;
+                this.partitionOrders(list);
+            } catch (err) {
+                this.state.clientOrders.error = err.message || 'Objednávky se nepodařilo načíst.';
+            } finally {
+                this.state.clientOrders.loading = false;
+                this.render();
+            }
+        }
+
+        async changeStatus(orderId, triggerBtn, forcedStatusId = null) {
+            if (!orderId) {
+                alert('Chybí ID objednávky.');
+                return;
+            }
+            const select = document.querySelector(`[data-status-select="${orderId}"]`);
+            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number(select?.value);
+            if (Number.isNaN(statusId)) {
+                alert('Vyberte platný stav.');
+                return;
+            }
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Nejste přihlášen.');
+                return;
+            }
+            if (triggerBtn) {
+                triggerBtn.disabled = true;
+            }
+            try {
+                const response = await fetch(this.apiUrl(`/api/client/orders/${orderId}/status`), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ statusId })
+                });
+                if (response.status === 401) {
+                    localStorage.clear();
+                    window.location.href = 'landing.html';
+                    return;
+                }
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Změnu stavu se nepodařilo uložit.');
+                }
+                await this.load();
+            } catch (err) {
+                alert(err.message || 'Změnu stavu se nepodařilo uložit.');
+            } finally {
+                if (triggerBtn) {
+                    triggerBtn.disabled = false;
+                }
+            }
+        }
+
+        async claimOrder(orderId, statusId, triggerBtn) {
+            // Převzetí: pošleme bezpečný stav (výchozí 2 = potvrzena) a tím se objednávka naváže na obsluhu
+            const current = Number(statusId);
+            const desired = Number.isNaN(current) || current < 2 ? 2 : current;
+            await this.changeStatus(orderId, triggerBtn, desired);
+        }
+    }
+
+    class CustomerHistoryModule {
+        constructor(state, opts) {
+            this.state = state;
+            this.apiUrl = opts.apiUrl;
+            this.tbody = document.getElementById('customer-history-body');
+            this.badge = document.getElementById('customer-history-count');
+            this.alert = document.getElementById('customer-history-alert');
+            this.refreshBtn = document.getElementById('customer-history-refresh');
+        }
+
+        init() {
+            if (!this.tbody) return;
+            this.refreshBtn?.addEventListener('click', () => this.load());
+            this.render();
+            this.load();
+        }
+
+        setAlert(text) {
+            if (!this.alert) return;
+            if (text) {
+                this.alert.textContent = text;
+                this.alert.style.display = 'block';
+            } else {
+                this.alert.textContent = '';
+                this.alert.style.display = 'none';
+            }
+        }
+
+        updateBadge(count) {
+            if (this.badge) {
+                this.badge.textContent = count;
+            }
+        }
+
+        render() {
+            if (!this.tbody) return;
+            const { items = [], loading, error } = this.state.customerHistory || {};
+            this.setAlert(error);
+            if (loading) {
+                this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="profile-muted">Načítám…</td></tr>';
+                return;
+            }
+            if (!items.length) {
+                this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="profile-muted">Zatím žádné objednávky.</td></tr>';
+                this.updateBadge(0);
+                return;
+            }
+            this.tbody.innerHTML = items.map(order => this.renderRow(order)).join('');
+            this.updateBadge(items.length);
+        }
+
+        renderRow(order) {
+            const amount = this.formatAmount(order?.total);
+            const status = escapeHtml(order?.status || '');
+            const store = escapeHtml(order?.supermarket || '');
+            const date = escapeHtml(order?.createdAt || '');
+            const items = this.renderItems(order?.items);
+            return `
+                <tr>
+                    <td>${store}</td>
+                    <td><span class="badge">${status || '—'}</span></td>
+                    <td>${date || '—'}</td>
+                    <td>${amount}</td>
+                    <td>${items}</td>
+                </tr>
+            `;
+        }
+
+        renderItems(items) {
+            const list = Array.isArray(items) ? items : [];
+            if (!list.length) {
+                return '<span class="profile-muted">Bez položek</span>';
+            }
+            return `<ul class="profile-muted" style="padding-left:16px;margin:0;">${list.map(item => `
+                <li>${escapeHtml(item.name || '')} · ${item.qty ?? 0} × ${this.formatAmount(item.price)}</li>
+            `).join('')}</ul>`;
+        }
+
+        formatAmount(value) {
+            if (value === null || value === undefined) {
+                return '—';
+            }
+            const num = typeof value === 'number' ? value : Number(value);
+            if (Number.isNaN(num)) {
+                return escapeHtml(String(value));
+            }
+            return currencyFormatter.format(num);
+        }
+
+        async load() {
+            const token = localStorage.getItem('token');
+            if (!token) {
+                this.setAlert('Nejste přihlášen.');
+                return;
+            }
+            this.state.customerHistory.loading = true;
+            this.state.customerHistory.error = null;
+            this.render();
+            try {
+                const response = await fetch(this.apiUrl('/api/client/orders/history'), {
+                    headers: {
+                        'Authorization': `Bearer ${token}`,
+                        'Accept': 'application/json'
+                    }
+                });
+                if (response.status === 401) {
+                    localStorage.clear();
+                    window.location.href = 'landing.html';
+                    return;
+                }
+                if (response.status === 403) {
+                    this.state.customerHistory.items = [];
+                    this.state.customerHistory.error = 'Nemáte oprávnění vidět historii objednávek.';
+                    return;
+                }
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Historii se nepodařilo načíst.');
+                }
+                const data = await response.json();
+                this.state.customerHistory.items = Array.isArray(data) ? data : [];
+            } catch (err) {
+                this.state.customerHistory.error = err.message || 'Historii se nepodařilo načíst.';
+            } finally {
+                this.state.customerHistory.loading = false;
+                this.render();
+            }
+        }
+    }
+
     class BDASConsole {
         constructor(state, meta) {
             this.state = state;
+            this.requestedView = state.requestedView;
             this.messagePoller = null;
             const allowedViews = resolveAllowedViews(localStorage.getItem('role') || this.state.data.profile?.role, this.state.data.profile?.permissions);
             this.authGuard = new AuthGuard(state);
@@ -4429,6 +4930,8 @@ class GlobalSearch {
         });
         this.customer = new CustomerModule(state);
         this.customerOrders = new CustomerOrdersView(state, currencyFormatter, { apiUrl, refreshWalletChip: () => this.updateWalletChip() });
+        this.clientOrders = new ClientOrdersModule(state, { apiUrl });
+        this.customerHistory = new CustomerHistoryModule(state, { apiUrl });
         this.search = new GlobalSearch(state);
         this.supplier = new SupplierModule(state, { apiUrl });
         }
@@ -4449,6 +4952,8 @@ class GlobalSearch {
             this.chat.init();
             this.customer.init();
             this.customerOrders.render();
+            this.clientOrders.init();
+            this.customerHistory.init();
             this.search.init();
             this.supplier.init();
             this.registerUtilityButtons();
@@ -4831,6 +5336,16 @@ class GlobalSearch {
             this.state.profileMeta = profileMeta || this.state.profileMeta;
             this.state.adminPermissions = Array.isArray(adminPermissions) ? adminPermissions : this.state.adminPermissions;
             this.state.rolePermissions = Array.isArray(rolePermissions) ? rolePermissions : this.state.rolePermissions;
+            const allowedViews = resolveAllowedViews(this.state.data.profile?.role || localStorage.getItem('role'), this.state.data.profile?.permissions);
+            if (this.navigation) {
+                this.navigation.allowedViews = allowedViews;
+                this.navigation.refreshNavVisibility();
+                const desired = this.requestedView || this.state.activeView;
+                const target = desired && this.navigation.isAllowed(desired)
+                    ? desired
+                    : (this.state.activeView && this.navigation.isAllowed(this.state.activeView) ? this.state.activeView : this.navigation.defaultView);
+                this.navigation.setActive(target);
+            }
             updateMessageSidebar(this.state.data);
             this.renderAll();
             return true;
@@ -4872,6 +5387,8 @@ class GlobalSearch {
             this.chat.render();
             this.customer.render();
             this.customerOrders.render();
+            this.clientOrders.render();
+            this.customerHistory.render();
             this.permissionsModule.render();
             this.supplier.render();
         }

@@ -3444,6 +3444,84 @@ label[data-role-section] {
     background: var(--primary-dark);
 }
 
+/* Client Orders (shares supplier layout) */
+.client-order-card {
+    border: 1px solid rgba(67, 97, 238, 0.18);
+    background: linear-gradient(180deg, rgba(67,97,238,0.06) 0%, #ffffff 16%, #ffffff 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.client-order-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(140% 140% at 0% 0%, rgba(67,97,238,0.07), transparent 46%);
+    pointer-events: none;
+}
+
+.client-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.client-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.client-chip {
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+.client-amount {
+    text-align: right;
+    min-width: 140px;
+}
+
+.client-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin: 8px 0;
+}
+
+.client-card-meta .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.client-item-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin: 4px 8px 4px 0;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px dashed var(--border);
+}
+
+.client-card-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
 .empty-state .material-symbols-rounded {
     font-size: 48px;
     color: var(--muted);

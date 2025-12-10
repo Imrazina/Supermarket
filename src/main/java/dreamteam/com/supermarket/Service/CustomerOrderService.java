@@ -93,7 +93,10 @@ public class CustomerOrderService {
         java.util.ArrayList<OrderRow> list = new java.util.ArrayList<>();
         int rowNum = 0;
         while (rs.next()) {
-            list.add(mapper.mapRow(rs, rowNum++));
+            OrderRow row = mapper.mapRow(rs, rowNum++);
+            if (row != null && row.id != null) {
+                list.add(row);
+            }
         }
         return list;
     }
@@ -161,17 +164,65 @@ public class CustomerOrderService {
         @Override
         public OrderRow mapRow(ResultSet rs, int rowNum) throws SQLException {
             OrderRow row = new OrderRow();
-            row.id = rs.getLong("ID_Objednavka");
-            row.statusId = rs.getInt("ID_Status");
-            row.statusName = rs.getString("status_nazev");
-            row.superId = rs.getLong("ID_Supermarket");
-            row.superName = rs.getString("super_nazev");
-            row.ownerEmail = rs.getString("owner_email");
-            row.handlerEmail = rs.getString("handler_email");
-            Timestamp ts = rs.getTimestamp("DATUM");
+            row.id = getLong(rs, "ID_OBJEDNAVKA", "ID", "OBJEDNAVKA_ID");
+            row.statusId = getInt(rs, "ID_STATUS", "STATUS_ID");
+            row.statusName = getString(rs, "STATUS_NAZEV", "STATUS", "STATUS_LABEL");
+            row.superId = getLong(rs, "ID_SUPERMARKET", "SUPERMARKET_ID");
+            row.superName = getString(rs, "SUPER_NAZEV", "SUPERMARKET", "SUPERMARKET_NAZEV");
+            row.ownerEmail = getString(rs, "OWNER_EMAIL", "UZIVATEL_EMAIL", "CUSTOMER_EMAIL", "EMAIL");
+            row.handlerEmail = getString(rs, "HANDLER_EMAIL", "OPERATOR_EMAIL", "ZAMESTNANEC_EMAIL");
+            Timestamp ts = getTimestamp(rs, "DATUM", "CREATED_AT", "CREATED");
             row.createdAt = ts != null ? FORMATTER.format(ts.toInstant()) : "";
-            row.note = rs.getString("POZNAMKA");
+            row.note = getString(rs, "POZNAMKA", "NOTE");
             return row;
+        }
+
+        private String getString(ResultSet rs, String... names) throws SQLException {
+            for (String name : names) {
+                try {
+                    String value = rs.getString(name);
+                    if (value != null) return value;
+                } catch (SQLException ignored) {
+                    // try next
+                }
+            }
+            return null;
+        }
+
+        private Long getLong(ResultSet rs, String... names) throws SQLException {
+            for (String name : names) {
+                try {
+                    long value = rs.getLong(name);
+                    if (!rs.wasNull()) return value;
+                } catch (SQLException ignored) {
+                    // try next
+                }
+            }
+            return null;
+        }
+
+        private Integer getInt(ResultSet rs, String... names) throws SQLException {
+            for (String name : names) {
+                try {
+                    int value = rs.getInt(name);
+                    if (!rs.wasNull()) return value;
+                } catch (SQLException ignored) {
+                    // try next
+                }
+            }
+            return null;
+        }
+
+        private Timestamp getTimestamp(ResultSet rs, String... names) throws SQLException {
+            for (String name : names) {
+                try {
+                    Timestamp ts = rs.getTimestamp(name);
+                    if (ts != null) return ts;
+                } catch (SQLException ignored) {
+                    // try next
+                }
+            }
+            return null;
         }
     }
 }
