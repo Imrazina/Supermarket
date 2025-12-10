@@ -9825,6 +9825,13 @@ BEGIN
         SELECT odesilatel_ID, datumZasilani, zprava
         FROM ZPRAVA
         WHERE prijimac_ID = p_user
+          AND odesilatel_ID <> p_user
+          AND datumZasilani > NVL((
+                SELECT MAX(resp.datumZasilani)
+                FROM ZPRAVA resp
+                WHERE resp.odesilatel_ID = p_user
+                  AND resp.prijimac_ID = ZPRAVA.odesilatel_ID
+            ), DATE '1970-01-01')
         ORDER BY datumZasilani DESC
     ) z
     LEFT JOIN UZIVATEL u ON u.ID_Uzivatel = z.odesilatel_ID
@@ -9992,28 +9999,43 @@ END;
 --------------------------------------------------------
 
   CREATE OR REPLACE EDITIONABLE FUNCTION "UNREAD_MESSAGES" (
-    p_user INTEGER
+    p_user INTEGER,
+    p_from_user INTEGER DEFAULT NULL
 ) RETURN NUMBER
 IS
     v_last_sent DATE := DATE '1970-01-01';
     v_unread NUMBER := 0;
 BEGIN
     --------------------------------------------------------------------
-    -- Kdy uživatel naposledy sám psal (bereme to jako hranici přečtení)
+    -- Pokud je zadán konkrétní odesílatel, počítáme unread pro danou dvojici.
+    -- Jinak počítáme součet nepřečtených po poslední odpovědi pro každého odesílatele.
     --------------------------------------------------------------------
-    SELECT NVL(MAX(datumZasilani), DATE '1970-01-01')
-    INTO v_last_sent
-    FROM ZPRAVA
-    WHERE odesilatel_ID = p_user;
+    IF p_from_user IS NOT NULL THEN
+        SELECT NVL(MAX(datumZasilani), DATE '1970-01-01')
+        INTO v_last_sent
+        FROM ZPRAVA
+        WHERE odesilatel_ID = p_user
+          AND prijimac_ID = p_from_user;
 
-    --------------------------------------------------------------------
-    -- Příchozí zprávy po této hranici
-    --------------------------------------------------------------------
-    SELECT COUNT(*)
-    INTO v_unread
-    FROM ZPRAVA
-    WHERE prijimac_ID = p_user
-      AND datumZasilani > v_last_sent;
+        SELECT COUNT(*)
+        INTO v_unread
+        FROM ZPRAVA
+        WHERE prijimac_ID = p_user
+          AND odesilatel_ID = p_from_user
+          AND datumZasilani > v_last_sent;
+    ELSE
+        SELECT COUNT(*)
+        INTO v_unread
+        FROM ZPRAVA z
+        WHERE z.prijimac_ID = p_user
+          AND z.odesilatel_ID <> p_user
+          AND z.datumZasilani > NVL((
+                SELECT MAX(resp.datumZasilani)
+                FROM ZPRAVA resp
+                WHERE resp.odesilatel_ID = p_user
+                  AND resp.prijimac_ID = z.odesilatel_ID
+            ), DATE '1970-01-01');
+    END IF;
 
     RETURN v_unread;
 END;

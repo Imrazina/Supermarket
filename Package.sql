@@ -98,8 +98,20 @@ END pkg_zbozi;
   CREATE OR REPLACE EDITIONABLE PACKAGE "ST72855"."PKG_SUPERMARKET" AS
   PROCEDURE list_supermarket(p_cursor OUT SYS_REFCURSOR);
   PROCEDURE get_supermarket(p_id IN NUMBER, p_cursor OUT SYS_REFCURSOR);
-  PROCEDURE save_supermarket(p_id IN NUMBER, p_nazev IN VARCHAR2, p_telefon IN VARCHAR2, p_email IN VARCHAR2, p_id_adresa IN NUMBER, p_out_id OUT NUMBER);
+  PROCEDURE save_supermarket(
+    p_id            IN NUMBER,
+    p_nazev         IN VARCHAR2,
+    p_telefon       IN VARCHAR2,
+    p_email         IN VARCHAR2,
+    p_id_adresa     IN NUMBER,
+    p_ulice         IN VARCHAR2,
+    p_cpop          IN VARCHAR2,
+    p_corient       IN VARCHAR2,
+    p_psc           IN VARCHAR2,
+    p_out_id        OUT NUMBER
+  );
   PROCEDURE delete_supermarket(p_id IN NUMBER);
+  PROCEDURE delete_info(p_id IN NUMBER, p_cursor OUT SYS_REFCURSOR);
 END pkg_supermarket;
 
 /
@@ -288,6 +300,7 @@ END pkg_archive;
     p_out_id        OUT NUMBER
   );
   PROCEDURE delete_sklad(p_id IN NUMBER);
+  PROCEDURE delete_info(p_id IN NUMBER, p_cursor OUT SYS_REFCURSOR);
 END pkg_sklad;
 
 /
@@ -298,8 +311,6 @@ END pkg_sklad;
   CREATE OR REPLACE EDITIONABLE PACKAGE "ST72855"."PKG_KATEGORIE" AS
   PROCEDURE list_kategorie(p_cursor OUT SYS_REFCURSOR);
   PROCEDURE get_kategorie(p_id IN NUMBER, p_cursor OUT SYS_REFCURSOR);
-  PROCEDURE save_kategorie(p_id IN NUMBER, p_nazev IN VARCHAR2, p_popis IN VARCHAR2, p_out_id OUT NUMBER);
-  PROCEDURE delete_kategorie(p_id IN NUMBER);
 END pkg_kategorie;
 
 /

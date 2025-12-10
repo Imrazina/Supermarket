@@ -97,6 +97,16 @@ public class WalletJdbcService {
         });
     }
 
+    public boolean hasRefundForOrder(Long objednavkaId) {
+        if (objednavkaId == null) return false;
+        Integer count = jdbcTemplate.query(
+                "select count(*) from POHYB_UCTU where ID_OBJEDNAVKA = ? and upper(SMER) = 'P'",
+                ps -> ps.setLong(1, objednavkaId),
+                rs -> rs.next() ? rs.getInt(1) : 0
+        );
+        return count != null && count > 0;
+    }
+
     public BigDecimal findBalance(Long ucetId) {
         if (ucetId == null) return null;
         return jdbcTemplate.query(

@@ -41,21 +41,6 @@ CREATE OR REPLACE PACKAGE pkg_archive AS
   );
 
   PROCEDURE delete_file(p_file_id IN NUMBER);
-
-  PROCEDURE get_logs(
-    p_archive_id IN NUMBER,
-    p_table      IN VARCHAR2,
-    p_op         IN VARCHAR2,
-    p_size       IN NUMBER,
-    p_cursor     OUT SYS_REFCURSOR
-  );
-
-  PROCEDURE update_log_descr(
-    p_log_id IN NUMBER,
-    p_descr  IN VARCHAR2
-  );
-
-  PROCEDURE delete_log(p_log_id IN NUMBER);
 END pkg_archive;
 /
 
@@ -278,75 +263,6 @@ CREATE OR REPLACE PACKAGE BODY pkg_archive AS
     DELETE FROM SOUBOR WHERE ID_SOUBOR = p_file_id;
     IF SQL%ROWCOUNT = 0 THEN
       RAISE_APPLICATION_ERROR(-20055, 'Soubor not found');
-    END IF;
-  END;
-
-  --------------------------------------------------------------------
-  -- Výpis logů
-  --------------------------------------------------------------------
-  PROCEDURE get_logs(
-    p_archive_id IN NUMBER,
-    p_table      IN VARCHAR2,
-    p_op         IN VARCHAR2,
-    p_size       IN NUMBER,
-    p_cursor     OUT SYS_REFCURSOR
-  ) IS
-    v_size NUMBER := normalize_limit(p_size);
-  BEGIN
-    OPEN p_cursor FOR
-      SELECT *
-        FROM (
-              SELECT l.ID_LOG                      AS id,
-                     l.TABULKANAZEV                AS table_name,
-                     l.OPERACE                     AS op,
-                     l.DATUMZMENY                  AS timestamp,
-                     CAST(l.POPIS AS VARCHAR2(4000))    AS descr,
-                     COALESCE(h.cesta, a.NAZEV)    AS archive_path,
-                     l.IDREKORD                    AS record_id,
-                     CAST(l.NOVADATA AS VARCHAR2(4000)) AS new_data,
-                     CAST(l.STARADATA AS VARCHAR2(4000)) AS old_data
-                FROM LOG l
-                JOIN ARCHIV a ON a.ID_ARCHIV = l.ID_ARCHIV
-           LEFT JOIN (
-                      SELECT ID_ARCHIV, SYS_CONNECT_BY_PATH(NAZEV, '/') AS cesta
-                        FROM ARCHIV
-                       START WITH PARENT_ID IS NULL
-                     CONNECT BY PRIOR ID_ARCHIV = PARENT_ID
-                     ) h ON h.ID_ARCHIV = l.ID_ARCHIV
-               WHERE (p_archive_id IS NULL OR l.ID_ARCHIV = p_archive_id)
-                 AND (p_table IS NULL OR l.TABULKANAZEV = p_table)
-                 AND (p_op IS NULL OR l.OPERACE = p_op)
-               ORDER BY l.DATUMZMENY DESC
-             ) t
-       WHERE ROWNUM <= v_size;
-  END;
-
-  --------------------------------------------------------------------
-  -- Update popisu logu
-  --------------------------------------------------------------------
-  PROCEDURE update_log_descr(
-    p_log_id IN NUMBER,
-    p_descr  IN VARCHAR2
-  ) IS
-  BEGIN
-    UPDATE LOG
-       SET POPIS = p_descr,
-           DATUMZMENY = SYSDATE
-     WHERE ID_LOG = p_log_id;
-
-    IF SQL%ROWCOUNT = 0 THEN
-      RAISE_APPLICATION_ERROR(-20056, 'Log not found');
-    END IF;
-  END;
-
-  --------------------------------------------------------------------
-  -- Delete logu
-  --------------------------------------------------------------------
-  PROCEDURE delete_log(p_log_id IN NUMBER) IS
-  BEGIN
-    DELETE FROM LOG WHERE ID_LOG = p_log_id;
-    IF SQL%ROWCOUNT = 0 THEN
-      RAISE_APPLICATION_ERROR(-20057, 'Log not found');
     END IF;
   END;
 

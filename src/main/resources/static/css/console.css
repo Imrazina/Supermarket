@@ -1333,6 +1333,80 @@ label[data-role-section] {
             min-height: 0;
         }
 
+        .market-grid {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .market-panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .market-panel .market-status {
+            min-height: 24px;
+            margin: 0 0 8px;
+        }
+
+        .market-scroll {
+            max-height: 340px;
+        }
+
+        .market-scroll.tall {
+            max-height: 420px;
+        }
+
+        .market-panel-wide {
+            width: 100%;
+        }
+
+        .table-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .market-modal {
+            width: min(640px, 95vw);
+        }
+
+        .market-form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .market-form-grid label {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            font-size: 13px;
+            color: var(--muted);
+        }
+
+        .market-form-grid input,
+        .market-form-grid select,
+        .market-form-grid textarea {
+            width: 100%;
+            padding: 10px 14px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            font-size: 15px;
+            color: var(--text);
+            background: #fff;
+        }
+
+        .market-form-grid textarea {
+            resize: vertical;
+            min-height: 90px;
+        }
+
         table.fixed {
             table-layout: fixed;
         }
@@ -3165,21 +3239,141 @@ label[data-role-section] {
     justify-content: flex-end;
 }
 
+/* Supplier Layout */
+.supplier-hero {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 2px 16px;
+    margin: 0 0 18px;
+    border-bottom: 1px solid var(--border);
+}
+
+.supplier-layout {
+    display: flex;
+    flex-direction: column;
+    gap: 32px;
+    margin-top: 14px;
+    margin-bottom: 12px;
+    align-items: stretch;
+    width: 100%;
+}
+
+.supplier-section {
+    padding: 26px 26px 28px;
+    border-radius: 22px;
+    background: linear-gradient(180deg, #ffffff 0%, #f7f9ff 100%);
+    border: 1px solid var(--border);
+    box-shadow: 0 22px 46px rgba(15, 23, 42, 0.08);
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.supplier-section-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.supplier-section-body {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.supplier-history-actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.supplier-scroll {
+    max-height: 560px;
+    overflow: auto;
+    padding: 4px 8px 4px 0;
+}
+
+.supplier-section-body[hidden] {
+    display: none !important;
+}
+
+#supplier-history-section .supplier-scroll {
+    max-height: 380px;
+}
+
+.supplier-mine-list {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
 /* Supplier Order Cards */
 .supplier-orders-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
-    gap: 20px;
+    gap: 24px;
+}
+
+.supplier-mine-card,
+.supplier-history-card {
+    background: #ffffff;
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px 20px 20px;
+    box-shadow: 0 12px 32px rgba(15, 23, 42, 0.08);
+    position: relative;
+}
+
+.supplier-mine-card:not(:last-child)::after,
+.supplier-history-card:not(:last-child)::after {
+    content: "";
+    position: absolute;
+    left: 16px;
+    right: 16px;
+    bottom: -12px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(67, 97, 238, 0.25), transparent);
+}
+
+.supplier-card-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.supplier-card-meta {
+    display: grid;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--muted);
+}
+
+.supplier-card-meta .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.supplier-mine-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
 }
 
 .supplier-order-card {
     background: #ffffff;
     border: 1px solid var(--border);
     border-radius: 18px;
-    padding: 20px;
+    padding: 22px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
     box-shadow: 0 12px 30px rgba(15, 23, 42, 0.07);
     transition: transform 0.2s ease, box-shadow 0.2s ease;
     opacity: 0;
@@ -3248,6 +3442,84 @@ label[data-role-section] {
 
 .take-order-btn:hover {
     background: var(--primary-dark);
+}
+
+/* Client Orders (shares supplier layout) */
+.client-order-card {
+    border: 1px solid rgba(67, 97, 238, 0.18);
+    background: linear-gradient(180deg, rgba(67,97,238,0.06) 0%, #ffffff 16%, #ffffff 100%);
+    position: relative;
+    overflow: hidden;
+}
+
+.client-order-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(140% 140% at 0% 0%, rgba(67,97,238,0.07), transparent 46%);
+    pointer-events: none;
+}
+
+.client-card-top {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+
+.client-chip-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.client-chip {
+    padding: 4px 10px;
+    background: #f1f5f9;
+    border-radius: 12px;
+    font-size: 12px;
+    color: var(--muted);
+    border: 1px solid var(--border);
+}
+
+.client-amount {
+    text-align: right;
+    min-width: 140px;
+}
+
+.client-card-meta {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--muted);
+    margin: 8px 0;
+}
+
+.client-card-meta .meta-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.client-item-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    margin: 4px 8px 4px 0;
+    background: #f8fafc;
+    border-radius: 12px;
+    border: 1px dashed var(--border);
+}
+
+.client-card-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
 }
 
 .empty-state .material-symbols-rounded {

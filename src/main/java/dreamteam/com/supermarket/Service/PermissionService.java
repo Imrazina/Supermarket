@@ -4,16 +4,16 @@ import dreamteam.com.supermarket.controller.dto.PravoRequest;
 import dreamteam.com.supermarket.controller.dto.PravoResponse;
 import dreamteam.com.supermarket.controller.dto.RolePermissionsRequest;
 import dreamteam.com.supermarket.controller.dto.RolePermissionsResponse;
-import dreamteam.com.supermarket.model.user.Pravo;
-import dreamteam.com.supermarket.model.user.Role;
-import dreamteam.com.supermarket.Service.PravoJdbcService;
-import dreamteam.com.supermarket.Service.RoleJdbcService;
 import dreamteam.com.supermarket.repository.PermissionProcedureDao;
+import dreamteam.com.supermarket.repository.RoleProcedureDao;
 import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
@@ -21,68 +21,97 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class PermissionService {
 
-    private final PravoJdbcService pravoJdbcService;
-    private final RoleJdbcService roleJdbcService;
-    private final RolePravoJdbcService rolePravoJdbcService;
     private final PermissionProcedureDao permissionDao;
+    private final UserJdbcService userJdbcService;
+    private final RolePravoJdbcService rolePravoJdbcService;
+    private final RoleProcedureDao roleProcedureDao;
 
-    @Transactional(readOnly = true)
     public List<PravoResponse> getAll() {
         return permissionDao.listPermissions().stream()
-                .map(p -> new PravoResponse(p.id(), p.code(), p.name(), p.descr()))
+                .sorted(Comparator.comparing(PermissionProcedureDao.Permission::code, String.CASE_INSENSITIVE_ORDER))
+                .map(this::mapToResponse)
                 .toList();
     }
 
-    @Transactional(readOnly = true)
-    public List<RolePermissionsResponse> getRolePermissions() {
-        Map<Long, RoleHolder> grouped = permissionDao.listRolePermissions().stream()
-                .collect(Collectors.toMap(
-                        PermissionProcedureDao.RolePermissionRow::roleId,
-                        row -> {
-                            List<String> perms = new java.util.ArrayList<>();
-                            if (row.permissionCode() != null && !row.permissionCode().isBlank()) {
-                                perms.add(row.permissionCode());
-                            }
-                            return new RoleHolder(row.roleId(), row.roleName(), perms);
-                        },
-                        (existing, incoming) -> {
-                            if (incoming.permissions != null) {
-                                existing.permissions.addAll(incoming.permissions);
-                            }
-                            return existing;
-                        }
-                ));
-        return grouped.values().stream()
-                .map(r -> new RolePermissionsResponse(r.roleId, r.roleName, List.copyOf(r.permissions)))
-                .toList();
-    }
-
-    @Transactional
     public PravoResponse create(PravoRequest request) {
-        Long id = permissionDao.savePermission(null, request.getName().trim(), request.getCode().trim(), request.getDescription());
-        return new PravoResponse(id, request.getCode().trim(), request.getName().trim(), request.getDescription());
+        String code = normalizeCode(request.getCode());
+        Long id = permissionDao.savePermission(
+                null,
+                request.getName(),
+                code,
+                request.getDescription()
+        );
+        return new PravoResponse(id, code, request.getName(), request.getDescription());
     }
 
-    @Transactional
     public PravoResponse update(Long id, PravoRequest request) {
-        Long savedId = permissionDao.savePermission(id, request.getName().trim(), request.getCode().trim(), request.getDescription());
-        return new PravoResponse(savedId, request.getCode().trim(), request.getName().trim(), request.getDescription());
+        if (id == null) {
+            throw new IllegalArgumentException("ID nesmí být prázdné");
+        }
+        String code = normalizeCode(request.getCode());
+        permissionDao.savePermission(id, request.getName(), code, request.getDescription());
+        return new PravoResponse(id, code, request.getName(), request.getDescription());
     }
 
-    @Transactional
     public void delete(Long id) {
         permissionDao.deletePermission(id);
     }
 
-    @Transactional
+    public List<RolePermissionsResponse> getRolePermissions() {
+        List<PermissionProcedureDao.RolePermissionRow> rows = permissionDao.listRolePermissions();
+        Map<Long, List<String>> grouped = rows.stream()
+                .collect(Collectors.groupingBy(
+                        PermissionProcedureDao.RolePermissionRow::roleId,
+                        Collectors.mapping(PermissionProcedureDao.RolePermissionRow::permissionCode, Collectors.toCollection(ArrayList::new))
+                ));
+        var roles = roleProcedureDao.list();
+        return roles.stream()
+                .map(role -> new RolePermissionsResponse(
+                        role.id(),
+                        role.name(),
+                        grouped.getOrDefault(role.id(), List.of()).stream()
+                                .filter(code -> code != null && !code.isBlank())
+                                .sorted(String.CASE_INSENSITIVE_ORDER)
+                                .toList()
+                ))
+                .sorted(Comparator.comparing(RolePermissionsResponse::roleName, String.CASE_INSENSITIVE_ORDER))
+                .toList();
+    }
+
     public void updateRolePermissions(Long roleId, RolePermissionsRequest request) {
-        permissionDao.updateRolePermissions(roleId, request.getPermissionCodes());
+        if (roleId == null) {
+            throw new IllegalArgumentException("roleId nesmí být prázdné");
+        }
+        permissionDao.updateRolePermissions(roleId, request != null ? request.getPermissionCodes() : null);
     }
 
-    @Transactional(readOnly = true)
-    public boolean userHasPermission(String email, String code) {
-        return permissionDao.userHasPermission(email, code);
+    public boolean userHasPermission(String email, String permissionCode) {
+        if (email == null || permissionCode == null) {
+            return false;
+        }
+        return permissionDao.userHasPermission(
+                email.trim().toLowerCase(Locale.ROOT),
+                permissionCode.trim().toUpperCase(Locale.ROOT)
+        );
     }
 
-    private record RoleHolder(Long roleId, String roleName, List<String> permissions) {}
+    public boolean hasPermission(Authentication authentication, String permissionCode) {
+        if (authentication == null || !authentication.isAuthenticated() || permissionCode == null) {
+            return false;
+        }
+        return userHasPermission(authentication.getName(), permissionCode);
+    }
+
+    private PravoResponse mapToResponse(PermissionProcedureDao.Permission permission) {
+        return new PravoResponse(
+                permission.id(),
+                permission.code(),
+                permission.name(),
+                permission.descr()
+        );
+    }
+
+    private String normalizeCode(String code) {
+        return code == null ? null : code.trim().toUpperCase(Locale.ROOT);
+    }
 }

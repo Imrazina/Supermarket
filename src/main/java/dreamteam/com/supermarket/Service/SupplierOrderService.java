@@ -22,6 +22,8 @@ public class SupplierOrderService {
 
     private final JdbcTemplate jdbcTemplate;
     private final UserJdbcService userJdbcService;
+    private final WalletJdbcService walletJdbcService;
+    private static final BigDecimal SUPPLIER_SHARE = BigDecimal.valueOf(0.7);
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
             .withLocale(Locale.forLanguageTag("cs-CZ"))
@@ -88,6 +90,9 @@ public class SupplierOrderService {
     }
 
     public StatusChangeResult changeStatus(Long orderId, Long userId, Integer newStatus) {
+        if (newStatus != null && newStatus == 5) {
+            walletJdbcService.ensureAccountForUser(userId);
+        }
         return jdbcTemplate.execute(
                 (org.springframework.jdbc.core.CallableStatementCreator) con -> {
                     var cs = con.prepareCall("{ call proc_supplier_set_status(?, ?, ?, ?, ?, ?) }");
@@ -154,7 +159,7 @@ public class SupplierOrderService {
         BigDecimal total = items.stream()
                 .map(it -> it.price().multiply(BigDecimal.valueOf(it.qty())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-        return total.multiply(BigDecimal.valueOf(0.8));
+        return total.multiply(SUPPLIER_SHARE);
     }
 
     private static class OrderRow {

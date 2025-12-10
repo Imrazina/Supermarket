@@ -40,6 +40,86 @@ public class MarketProcedureDao {
         );
     }
 
+    public Long saveSklad(Long id, String nazev, Integer kapacita, String telefon, Long supermarketId) {
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_sklad.save_sklad(?, ?, ?, ?, ?, ?) }");
+            if (id == null) {
+                cs.setNull(1, Types.NUMERIC);
+            } else {
+                cs.setLong(1, id);
+            }
+            cs.setString(2, nazev);
+            setNullableInteger(cs, 3, kapacita);
+            cs.setString(4, telefon);
+            setNullableLong(cs, 5, supermarketId);
+            cs.registerOutParameter(6, Types.NUMERIC);
+            return cs;
+        }, (CallableStatementCallback<Long>) cs -> {
+            cs.execute();
+            long value = cs.getLong(6);
+            return cs.wasNull() ? null : value;
+        });
+    }
+
+    public void deleteSklad(Long id) {
+        if (id == null) return;
+        jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_sklad.delete_sklad(?) }");
+            cs.setLong(1, id);
+            return cs;
+        }, (CallableStatementCallback<Void>) cs -> {
+            cs.execute();
+            return null;
+        });
+    }
+
+    public SupermarketDeleteInfo getSupermarketDeleteInfo(Long id) {
+        if (id == null) return null;
+        return jdbcTemplate.execute(
+                call("{ call pkg_supermarket.delete_info(?, ?) }", cs -> {
+                    cs.setLong(1, id);
+                    cs.registerOutParameter(2, OracleTypes.CURSOR);
+                }),
+                (CallableStatementCallback<SupermarketDeleteInfo>) cs -> {
+                    cs.execute();
+                    try (ResultSet rs = (ResultSet) cs.getObject(2)) {
+                        if (rs.next()) {
+                            return new SupermarketDeleteInfo(
+                                    rs.getString("nazev"),
+                                    getNullableLong(rs, "sklad_cnt"),
+                                    getNullableLong(rs, "zbozi_cnt"),
+                                    getNullableLong(rs, "dodavatel_cnt")
+                            );
+                        }
+                    }
+                    return null;
+                }
+        );
+    }
+
+    public SkladDeleteInfo getSkladDeleteInfo(Long id) {
+        if (id == null) return null;
+        return jdbcTemplate.execute(
+                call("{ call pkg_sklad.delete_info(?, ?) }", cs -> {
+                    cs.setLong(1, id);
+                    cs.registerOutParameter(2, OracleTypes.CURSOR);
+                }),
+                (CallableStatementCallback<SkladDeleteInfo>) cs -> {
+                    cs.execute();
+                    try (ResultSet rs = (ResultSet) cs.getObject(2)) {
+                        if (rs.next()) {
+                            return new SkladDeleteInfo(
+                                    rs.getString("nazev"),
+                                    getNullableLong(rs, "zbozi_cnt"),
+                                    getNullableLong(rs, "dodavatel_cnt")
+                            );
+                        }
+                    }
+                    return null;
+                }
+        );
+    }
+
     // --- SUPERMARKET ---
     public List<SupermarketRow> listSupermarket() {
         return jdbcTemplate.execute(
@@ -57,6 +137,53 @@ public class MarketProcedureDao {
                 }),
                 extractSingleSupermarket(2)
         );
+    }
+
+    public Long saveSupermarket(
+            Long id,
+            String nazev,
+            String telefon,
+            String email,
+            Long adresaId,
+            String ulice,
+            String cisloPopisne,
+            String cisloOrientacni,
+            String psc
+    ) {
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_supermarket.save_supermarket(?, ?, ?, ?, ?, ?, ?, ?, ?, ?) }");
+            if (id == null) {
+                cs.setNull(1, Types.NUMERIC);
+            } else {
+                cs.setLong(1, id);
+            }
+            cs.setString(2, nazev);
+            cs.setString(3, telefon);
+            cs.setString(4, email);
+            setNullableLong(cs, 5, adresaId);
+            cs.setString(6, ulice);
+            cs.setString(7, cisloPopisne);
+            cs.setString(8, cisloOrientacni);
+            cs.setString(9, psc);
+            cs.registerOutParameter(10, Types.NUMERIC);
+            return cs;
+        }, (CallableStatementCallback<Long>) cs -> {
+            cs.execute();
+            long value = cs.getLong(10);
+            return cs.wasNull() ? null : value;
+        });
+    }
+
+    public void deleteSupermarket(Long id) {
+        if (id == null) return;
+        jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_supermarket.delete_supermarket(?) }");
+            cs.setLong(1, id);
+            return cs;
+        }, (CallableStatementCallback<Void>) cs -> {
+            cs.execute();
+            return null;
+        });
     }
 
     // --- KATEGORIE ---
@@ -114,6 +241,55 @@ public class MarketProcedureDao {
                 }),
                 extractSingleZbozi(2)
         );
+    }
+
+    public Long saveZbozi(
+            Long id,
+            String nazev,
+            String popis,
+            BigDecimal cena,
+            Integer mnozstvi,
+            Integer minMnozstvi,
+            Long kategorieId,
+            Long skladId
+    ) {
+        return jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_zbozi.save_zbozi(?, ?, ?, ?, ?, ?, ?, ?, ?) }");
+            if (id == null) {
+                cs.setNull(1, Types.NUMERIC);
+            } else {
+                cs.setLong(1, id);
+            }
+            cs.setString(2, nazev);
+            cs.setString(3, popis);
+            if (cena == null) {
+                cs.setNull(4, Types.NUMERIC);
+            } else {
+                cs.setBigDecimal(4, cena);
+            }
+            setNullableInteger(cs, 5, mnozstvi);
+            setNullableInteger(cs, 6, minMnozstvi);
+            setNullableLong(cs, 7, kategorieId);
+            setNullableLong(cs, 8, skladId);
+            cs.registerOutParameter(9, Types.NUMERIC);
+            return cs;
+        }, (CallableStatementCallback<Long>) cs -> {
+            cs.execute();
+            long value = cs.getLong(9);
+            return cs.wasNull() ? null : value;
+        });
+    }
+
+    public void deleteZbozi(Long id) {
+        if (id == null) return;
+        jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call pkg_zbozi.delete_zbozi(?) }");
+            cs.setLong(1, id);
+            return cs;
+        }, (CallableStatementCallback<Void>) cs -> {
+            cs.execute();
+            return null;
+        });
     }
 
     // --- ZBOZI_DODAVATEL ---
@@ -225,12 +401,15 @@ public class MarketProcedureDao {
     }
 
     private SkladRow mapSklad(ResultSet rs) throws java.sql.SQLException {
+        Integer kapacita = rs.getObject("kapacita") != null ? rs.getInt("kapacita") : null;
+        Long supermarketId = rs.getObject("supermarket_id") != null ? rs.getLong("supermarket_id") : null;
         return new SkladRow(
                 rs.getLong("id"),
                 rs.getString("nazev"),
-                rs.getInt("kapacita"),
+                kapacita,
                 rs.getString("telefon"),
-                rs.getLong("supermarket_id")
+                supermarketId,
+                rs.getString("supermarket_nazev")
         );
     }
 
@@ -260,12 +439,25 @@ public class MarketProcedureDao {
     }
 
     private SupermarketRow mapSupermarket(ResultSet rs) throws java.sql.SQLException {
+        Long adresaId = rs.getObject("adresa_id") != null ? rs.getLong("adresa_id") : null;
+        String adresaText = hasColumn(rs, "adresa_text") ? rs.getString("adresa_text") : null;
+        String adresaUlice = hasColumn(rs, "adresa_ulice") ? rs.getString("adresa_ulice") : null;
+        String adresaCpop = hasColumn(rs, "adresa_cpop") ? rs.getString("adresa_cpop") : null;
+        String adresaCorient = hasColumn(rs, "adresa_corient") ? rs.getString("adresa_corient") : null;
+        String adresaPsc = hasColumn(rs, "adresa_psc") ? rs.getString("adresa_psc") : null;
+        String adresaMesto = hasColumn(rs, "adresa_mesto") ? rs.getString("adresa_mesto") : null;
         return new SupermarketRow(
                 rs.getLong("id"),
                 rs.getString("nazev"),
                 rs.getString("telefon"),
                 rs.getString("email"),
-                rs.getLong("adresa_id")
+                adresaId,
+                adresaText,
+                adresaUlice,
+                adresaCpop,
+                adresaCorient,
+                adresaPsc,
+                adresaMesto
         );
     }
 
@@ -383,8 +575,52 @@ public class MarketProcedureDao {
         void accept(CallableStatement cs) throws java.sql.SQLException;
     }
 
-    public record SkladRow(Long id, String nazev, Integer kapacita, String telefon, Long supermarketId) {}
-    public record SupermarketRow(Long id, String nazev, String telefon, String email, Long adresaId) {}
+    private void setNullableLong(CallableStatement cs, int index, Long value) throws java.sql.SQLException {
+        if (value == null) {
+            cs.setNull(index, Types.NUMERIC);
+        } else {
+            cs.setLong(index, value);
+        }
+    }
+
+    private void setNullableInteger(CallableStatement cs, int index, Integer value) throws java.sql.SQLException {
+        if (value == null) {
+            cs.setNull(index, Types.NUMERIC);
+        } else {
+            cs.setInt(index, value);
+        }
+    }
+
+    private Long getNullableLong(ResultSet rs, String columnLabel) throws java.sql.SQLException {
+        Object obj = rs.getObject(columnLabel);
+        return obj == null ? null : ((Number) obj).longValue();
+    }
+
+    private boolean hasColumn(ResultSet rs, String columnLabel) throws java.sql.SQLException {
+        var meta = rs.getMetaData();
+        int columnCount = meta.getColumnCount();
+        for (int i = 1; i <= columnCount; i++) {
+            if (columnLabel.equalsIgnoreCase(meta.getColumnLabel(i))) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    public record SkladRow(Long id, String nazev, Integer kapacita, String telefon, Long supermarketId, String supermarketNazev) {}
+    public record SupermarketRow(
+            Long id,
+            String nazev,
+            String telefon,
+            String email,
+            Long adresaId,
+            String adresaText,
+            String adresaUlice,
+            String adresaCpop,
+            String adresaCorient,
+            String adresaPsc,
+            String adresaMesto
+    ) {}
     public record KategorieRow(Long id, String nazev, String popis) {}
     public record ZboziRow(
             Long id,
@@ -404,4 +640,6 @@ public class MarketProcedureDao {
     ) {}
     public record StatusRow(Long id, String nazev) {}
     public record ZboziDodRow(Long zboziId, Long dodavatelId, String dodavatelFirma) {}
+    public record SupermarketDeleteInfo(String nazev, Long skladCount, Long zboziCount, Long dodavatelCount) {}
+    public record SkladDeleteInfo(String nazev, Long zboziCount, Long dodavatelCount) {}
 }

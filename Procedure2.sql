@@ -205,3 +205,14 @@ EXCEPTION
         );
 END;
 /
+
+select sys_context('USERENV','SESSION_USER') as whoami from dual;
+select argument_name, position
+from user_arguments
+where object_name = 'PROC_CHANGE_USER_ROLE'
+order by position;
+
+select text
+from user_source
+where name='PROC_CHANGE_USER_ROLE'
+order by line;

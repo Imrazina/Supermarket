@@ -9,6 +9,7 @@ public record DashboardResponse(
         List<CategoryStat> categories,
         List<WarehouseInfo> warehouses,
         List<OrderInfo> orders,
+        List<OrderInfo> customerOrders,
         List<OrderLine> orderItems,
         List<StatusInfo> statuses,
         List<EmployeeInfo> employees,

@@ -79,7 +79,7 @@ public class DashboardService {
         List<Uzivatel> allUsers = userJdbcService.findAll();
         Map<Long, Uzivatel> userMap = allUsers.stream()
                 .collect(Collectors.toMap(Uzivatel::getIdUzivatel, Function.identity(), (a, b) -> a));
-        List<Objednavka> orders = objednavkaJdbcService.findAll().stream()
+        List<Objednavka> allOrders = objednavkaJdbcService.findAll().stream()
                 .map(row -> {
                     Objednavka o = new Objednavka();
                     o.setIdObjednavka(row.id());
@@ -109,12 +109,10 @@ public class DashboardService {
                     return o;
                 })
                 .toList();
-        if (currentCustomer != null) {
-            orders = orders.stream()
-                    .filter(o -> o.getUzivatel() != null && Objects.equals(o.getUzivatel().getIdUzivatel(), user.getIdUzivatel()))
-                    .toList();
-        }
-        List<ObjednavkaZbozi> orderLines = orders.stream()
+        List<Objednavka> customerOrders = allOrders.stream()
+                .filter(o -> o.getUzivatel() != null && Objects.equals(o.getUzivatel().getIdUzivatel(), user.getIdUzivatel()))
+                .toList();
+        List<ObjednavkaZbozi> orderLines = allOrders.stream()
                 .flatMap(o -> objednavkaZboziJdbcService.findByObjednavka(o.getIdObjednavka()).stream())
                 .toList();
         List<Zamestnanec> employees = zamestnanecJdbcService.findAll();
@@ -137,6 +135,9 @@ public class DashboardService {
 
         Map<Long, List<DodavatelZbozi>> suppliersByZbozi = supplierRelations.stream()
                 .collect(Collectors.groupingBy(rel -> rel.getId().getZboziId()));
+        Map<Long, Dodavatel> suppliersByUserId = suppliers.stream()
+                .filter(s -> s.getUzivatel() != null)
+                .collect(Collectors.toMap(s -> s.getUzivatel().getIdUzivatel(), Function.identity(), (a, b) -> a));
 
         Map<Long, Double> orderAmounts = paymentRows.stream()
                 .collect(Collectors.groupingBy(
@@ -168,7 +169,7 @@ public class DashboardService {
                 .filter(u -> u.getRole() != null)
                 .collect(Collectors.groupingBy(u -> u.getRole().getIdRole(), Collectors.counting()));
 
-        Map<Long, Long> statusCounts = orders.stream()
+        Map<Long, Long> statusCounts = allOrders.stream()
                 .filter(order -> order.getStatus() != null)
                 .collect(Collectors.groupingBy(o -> o.getStatus().getIdStatus(), Collectors.counting()));
 
@@ -234,13 +235,39 @@ public class DashboardService {
                 })
                 .toList();
 
-        List<DashboardResponse.OrderInfo> orderInfos = orders.stream()
+        List<DashboardResponse.OrderInfo> orderInfos = allOrders.stream()
                 .sorted(Comparator.comparing(Objednavka::getDatum).reversed())
                 .map(order -> {
                     String employeeName = order.getUzivatel() != null
                             ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
                             : "Neuvedeno";
                     String supplierName = order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno";
+                    String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
+                    String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
+                    double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
+                    String priority = amount > 100000 ? "high" : amount > 10000 ? "medium" : "low";
+                    return new DashboardResponse.OrderInfo(
+                            "PO-" + order.getIdObjednavka(),
+                            order.getTypObjednavka(),
+                            order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno",
+                            employeeName,
+                            supplierName,
+                            statusLabel,
+                            statusCode,
+                            order.getDatum() != null ? order.getDatum().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : "",
+                            amount,
+                            priority,
+                            order.getPoznamka()
+                    );
+                })
+                .toList();
+        List<DashboardResponse.OrderInfo> customerOrderInfos = customerOrders.stream()
+                .sorted(Comparator.comparing(Objednavka::getDatum).reversed())
+                .map(order -> {
+                    String employeeName = order.getUzivatel() != null
+                            ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
+                            : "Neuvedeno";
+                    String supplierName = resolveOrderSupplier(order, suppliersByUserId);
                     String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
                     double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
@@ -324,7 +351,7 @@ public class DashboardService {
         List<DashboardResponse.RoleInfo> roleInfos = roles.stream()
                 .map(role -> new DashboardResponse.RoleInfo(
                         role.getNazev(),
-                        "UЕѕivatelГ© s rolГ­ " + role.getNazev(),
+                        "Uživatelé s rolí " + role.getNazev(),
                         roleCounts.getOrDefault(role.getIdRole(), 0L)
                 ))
                 .toList();
@@ -341,11 +368,11 @@ public class DashboardService {
                     return new DashboardResponse.PaymentInfo(
                             "PMT-" + payment.id(),
                             "PO-" + payment.objednavkaId(),
-                            typ, // kГіd H/K/U pro filtr
+                            typ, // kód H/K/U pro filtr
                             resolveMethod(typ, payment),
                             payment.castka() != null ? payment.castka().doubleValue() : 0d,
                             payment.datum() != null ? payment.datum().format(DATE_FORMAT) : "",
-                            "ZpracovГЎno",
+                            "Zpracováno",
                             true
                     );
                 })
@@ -393,7 +420,7 @@ public class DashboardService {
                             store.getAdresa() != null ? store.getAdresa().getUlice() + " " + store.getAdresa().getCisloPopisne() : "",
                             warehouseName,
                             "Neuvedeno",
-                            "OtevЕ™eno"
+                            "Otevřeno"
                     );
                 })
                 .toList();
@@ -450,7 +477,7 @@ public class DashboardService {
                 .map(item -> "Doplnit " + item.getNazev() + " (zbyva " + item.getMnozstvi() + " ks)")
                 .toList();
 
-        DashboardResponse.Profile profile = buildProfile(currentUser, now, storeInfos.size(), orders.size(), logs.size());
+        DashboardResponse.Profile profile = buildProfile(currentUser, now, storeInfos.size(), allOrders.size(), logs.size());
 
         List<DashboardResponse.ArchiveNode> archiveNodes = archiveTree.stream()
                 .map(node -> new DashboardResponse.ArchiveNode(
@@ -466,11 +493,12 @@ public class DashboardService {
         String lastMessageSummary = messageJdbcService.lastMessageSummary(user.getIdUzivatel());
         return new DashboardResponse(
                 now.format(DATE_TIME_FORMAT),
-                buildWeeklyDemand(orders),
+                buildWeeklyDemand(allOrders),
                 inventory,
                 categoryStats,
                 warehouseInfos,
                 orderInfos,
+                customerOrderInfos,
                 orderLineDtos,
                 statusInfos,
                 employeeInfos,
@@ -555,10 +583,10 @@ public class DashboardService {
 
         Map<DayOfWeek, String> labels = Map.of(
                 DayOfWeek.MONDAY, "Po",
-                DayOfWeek.TUESDAY, "Гљt",
+                DayOfWeek.TUESDAY, "Út",
                 DayOfWeek.WEDNESDAY, "St",
-                DayOfWeek.THURSDAY, "ДЊt",
-                DayOfWeek.FRIDAY, "PГЎ",
+                DayOfWeek.THURSDAY, "Čt",
+                DayOfWeek.FRIDAY, "Pá",
                 DayOfWeek.SATURDAY, "So",
                 DayOfWeek.SUNDAY, "Ne"
         );
@@ -616,7 +644,7 @@ public class DashboardService {
         Zamestnanec employee = zamestnanecJdbcService.findById(currentUser.getIdUzivatel());
         Zakaznik customer = zakaznikJdbcService.findById(currentUser.getIdUzivatel());
         Dodavatel supplier = dodavatelJdbcService.findById(currentUser.getIdUzivatel());
-        String roleName = currentUser.getRole() != null ? currentUser.getRole().getNazev() : "UЕѕivatel";
+        String roleName = currentUser.getRole() != null ? currentUser.getRole().getNazev() : "Uživatel";
         String position = employee != null ? employee.getPozice() : roleName;
         DashboardResponse.Profile.EmploymentDetails employmentDetails = employee == null ? null :
                 new DashboardResponse.Profile.EmploymentDetails(
@@ -662,8 +690,8 @@ public class DashboardService {
                 Math.max(1, automations / 4),
                 Math.max(1, automations / 6),
                 permissions,
-                new DashboardResponse.Profile.Preferences("ДЊeЕЎtina", "SvД›tlГ©", "Push + e-mail", true),
-                new DashboardResponse.Profile.Security("MFA aktivnГ­", "Web konzole", "127.0.0.1"),
+                new DashboardResponse.Profile.Preferences("Čeština", "Světlé", "Push + e-mail", true),
+                new DashboardResponse.Profile.Security("MFA aktivní", "Web konzole", "127.0.0.1"),
                 activity,
                 addressDetails,
                 employmentDetails,
@@ -692,19 +720,44 @@ public class DashboardService {
         return "UZIVATEL";
     }
 
+    private String resolveOrderSupplier(Objednavka order, Map<Long, Dodavatel> suppliersByUserId) {
+        if (order == null) {
+            return "—";
+        }
+        String typ = Optional.ofNullable(order.getTypObjednavka()).orElse("");
+        if ("DODAVATEL".equalsIgnoreCase(typ)) {
+            if (order.getUzivatel() != null && order.getUzivatel().getIdUzivatel() != null) {
+                Dodavatel dod = suppliersByUserId.get(order.getUzivatel().getIdUzivatel());
+                if (dod != null && dod.getFirma() != null) {
+                    return dod.getFirma();
+                }
+                String fallback = (Optional.ofNullable(order.getUzivatel().getJmeno()).orElse("") + " "
+                        + Optional.ofNullable(order.getUzivatel().getPrijmeni()).orElse("")).trim();
+                if (!fallback.isBlank()) {
+                    return fallback;
+                }
+            }
+            return "Dodavatel";
+        }
+        if ("ZAKAZNIK".equalsIgnoreCase(typ)) {
+            return "Zákaznická objednávka";
+        }
+        return "Interní proces";
+    }
+
     private String resolveMethod(String typ, PlatbaJdbcService.PlatbaDetail platba) {
         if ("K".equalsIgnoreCase(typ)) {
             String number = platba.cisloKarty();
             if (number != null && number.length() > 4) {
-                return "Karta вЂўвЂўвЂўвЂў " + number.substring(number.length() - 4);
+                return "Karta ••• • " + number.substring(number.length() - 4);
             }
-            return "PlatebnГ­ karta";
+            return "Platební karta";
         }
         if ("H".equalsIgnoreCase(typ)) {
-            return "HotovД›";
+            return "Hotově";
         }
         if ("U".equalsIgnoreCase(typ)) {
-            return "ГљДЌet";
+            return "Účet";
         }
         return "Pokladna #" + platba.id();
     }
@@ -717,6 +770,6 @@ public class DashboardService {
         if (text == null) {
             return "";
         }
-        return text.length() <= length ? text : text.substring(0, length) + "вЂ¦";
+        return text.length() <= length ? text : text.substring(0, length) + "…";
     }
 }
