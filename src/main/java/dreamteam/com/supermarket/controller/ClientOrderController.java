@@ -24,6 +24,7 @@ public class ClientOrderController {
     private static final String PERMISSION_HISTORY = "CUSTOMER_HISTORY";
 
     public record StatusChangeRequest(Integer statusId) {}
+    public record RefundDecisionRequest(Boolean approve) {}
 
     @GetMapping
     public ResponseEntity<List<CustomerOrderResponse>> list(Authentication authentication) {
@@ -59,14 +60,51 @@ public class ClientOrderController {
 
     @GetMapping("/history")
     public ResponseEntity<List<CustomerOrderResponse>> history(Authentication authentication) {
-        if (!hasPermission(authentication, PERMISSION_HISTORY)) {
+        Long userId = customerOrderService.resolveUserId(authentication.getName());
+        if (userId == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        return ResponseEntity.ok(customerOrderService.listByCustomer(userId));
+    }
+
+    @GetMapping("/refunds")
+    public ResponseEntity<List<CustomerOrderResponse>> refunds(Authentication authentication) {
+        if (!hasPermission(authentication, PERMISSION_MANAGE)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         Long userId = customerOrderService.resolveUserId(authentication.getName());
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(customerOrderService.listByCustomer(userId));
+        return ResponseEntity.ok(customerOrderService.listPendingRefunds(userId));
+    }
+
+    @PostMapping("/{id}/refund/approve")
+    public ResponseEntity<?> approveRefund(@PathVariable Long id, Authentication authentication) {
+        if (!hasPermission(authentication, PERMISSION_MANAGE)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        int code = customerOrderService.approveRefund(id);
+        return switch (code) {
+            case 0 -> ResponseEntity.noContent().build();
+            case -1 -> ResponseEntity.badRequest().body("Žádost již není aktivní.");
+            case -2 -> ResponseEntity.status(HttpStatus.CONFLICT).body("Objednávka už byla vrácena.");
+            case -5 -> ResponseEntity.badRequest().body("Nenalezena platba k vrácení.");
+            default -> ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        };
+    }
+
+    @PostMapping("/{id}/refund/reject")
+    public ResponseEntity<?> rejectRefund(@PathVariable Long id, Authentication authentication) {
+        if (!hasPermission(authentication, PERMISSION_MANAGE)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        int code = customerOrderService.rejectRefund(id);
+        return switch (code) {
+            case 0 -> ResponseEntity.noContent().build();
+            case -1 -> ResponseEntity.badRequest().body("Žádost již není aktivní.");
+            default -> ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        };
     }
 
     private boolean hasPermission(Authentication authentication, String code) {

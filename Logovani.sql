@@ -538,6 +538,211 @@ BEGIN
     );
 END;
 /
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_UCET_LOG
+-- POPIS:
+--   Loguje změny v tabulce UCET (INSERT / UPDATE / DELETE).
+--   Ukládá do <ROOT> / UCTY (globální, bez vazby na supermarket).
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_UCET_LOG
+AFTER INSERT OR UPDATE OR DELETE ON UCET
+FOR EACH ROW
+DECLARE
+    v_root_id          NUMBER;
+    v_archiv_ucty      NUMBER;
+
+    v_operace          CHAR(1);
+    v_nova             VARCHAR2(4000);
+    v_stara            VARCHAR2(4000);
+
+    v_id_rekord        VARCHAR2(4000);
+    v_user_jmeno       VARCHAR2(200);
+BEGIN
+    -- 1) Operace
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    -- 2) Uživatel (jen jméno; žádné ID)
+    IF INSERTING OR UPDATING THEN
+        SELECT jmeno || ' ' || prijmeni
+          INTO v_user_jmeno
+          FROM UZIVATEL
+         WHERE ID_Uzivatel = :NEW.ID_Uzivatel;
+    ELSE
+        SELECT jmeno || ' ' || prijmeni
+          INTO v_user_jmeno
+          FROM UZIVATEL
+         WHERE ID_Uzivatel = :OLD.ID_Uzivatel;
+    END IF;
+
+    -- 3) ROOT archiv
+    SELECT ID_Archiv INTO v_root_id FROM ARCHIV WHERE Parent_id IS NULL;
+
+    -- 4) Složka UCTY pod ROOT
+    BEGIN
+        SELECT ID_Archiv
+          INTO v_archiv_ucty
+          FROM ARCHIV
+         WHERE Parent_id = v_root_id
+           AND Nazev = 'UCTY';
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            v_archiv_ucty := v_root_id;
+    END;
+
+    -- 5) Data pro log (bez ID, bez supermarketu)
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'zustatek=' || TO_CHAR(:NEW.Zustatek)
+            || '; uzivatel=' || v_user_jmeno;
+    END IF;
+
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'zustatek=' || TO_CHAR(:OLD.Zustatek)
+            || '; uzivatel=' || v_user_jmeno;
+    END IF;
+
+    v_id_rekord := 'UCET ' || v_user_jmeno;
+
+    INSERT INTO LOG (
+        ID_Log,
+        tabulkaNazev,
+        operace,
+        datumZmeny,
+        idRekord,
+        novaData,
+        staraData,
+        popis,
+        ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'UCET',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změny účtu',
+        v_archiv_ucty
+    );
+END;
+/
+
+--------------------------------------------------------------------------------
+-- TRIGGER: TRG_POHYB_LOG
+-- POPIS:
+--   Loguje změny v tabulce POHYB_UCTU (INSERT / UPDATE / DELETE).
+--   Ukládá do <ROOT> / UCTY / Platby (nebo ROOT, pokud složka chybí).
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER TRG_POHYB_LOG
+AFTER INSERT OR UPDATE OR DELETE ON POHYB_UCTU
+FOR EACH ROW
+DECLARE
+    v_root_id          NUMBER;
+    v_archiv_ucty      NUMBER;
+    v_archiv_platby    NUMBER;
+
+    v_operace          CHAR(1);
+    v_nova             VARCHAR2(4000);
+    v_stara            VARCHAR2(4000);
+
+    v_id_rekord        VARCHAR2(4000);
+    v_user_jmeno       VARCHAR2(200);
+BEGIN
+    -- Operace
+    IF INSERTING THEN
+        v_operace := 'I';
+    ELSIF UPDATING THEN
+        v_operace := 'U';
+    ELSE
+        v_operace := 'D';
+    END IF;
+
+    -- ROOT + UCTY / Platby složka
+    SELECT ID_Archiv INTO v_root_id FROM ARCHIV WHERE Parent_id IS NULL;
+
+    BEGIN
+        SELECT ID_Archiv
+          INTO v_archiv_ucty
+          FROM ARCHIV
+         WHERE Parent_id = v_root_id
+           AND Nazev = 'UCTY';
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN v_archiv_ucty := v_root_id;
+    END;
+
+    BEGIN
+        SELECT ID_Archiv INTO v_archiv_platby FROM ARCHIV WHERE Parent_id = v_archiv_ucty AND Nazev = 'Platby';
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN v_archiv_platby := v_archiv_ucty;
+    END;
+
+    -- Uživatelská data
+    IF INSERTING OR UPDATING THEN
+        SELECT u.jmeno || ' ' || u.prijmeni
+          INTO v_user_jmeno
+          FROM UCET uc
+          JOIN UZIVATEL u ON u.ID_Uzivatel = uc.ID_Uzivatel
+         WHERE uc.ID_Ucet = :NEW.ID_Ucet;
+    ELSE
+        SELECT u.jmeno || ' ' || u.prijmeni
+          INTO v_user_jmeno
+          FROM UCET uc
+          JOIN UZIVATEL u ON u.ID_Uzivatel = uc.ID_Uzivatel
+         WHERE uc.ID_Ucet = :OLD.ID_Ucet;
+    END IF;
+
+    -- Data
+    IF INSERTING OR UPDATING THEN
+        v_nova :=
+              'smer=' || :NEW.smer
+            || '; metoda=' || :NEW.metoda
+            || '; castka=' || TO_CHAR(:NEW.castka)
+            || '; pozn=' || :NEW.poznamka
+            || '; objednavka=' || CASE WHEN :NEW.ID_Objednavka IS NULL THEN 'bez' ELSE 'ano' END;
+    END IF;
+
+    IF UPDATING OR DELETING THEN
+        v_stara :=
+              'smer=' || :OLD.smer
+            || '; metoda=' || :OLD.metoda
+            || '; castka=' || TO_CHAR(:OLD.castka)
+            || '; pozn=' || :OLD.poznamka
+            || '; objednavka=' || CASE WHEN :OLD.ID_Objednavka IS NULL THEN 'bez' ELSE 'ano' END;
+    END IF;
+
+    v_id_rekord := 'POHYB / ' || v_user_jmeno;
+
+    INSERT INTO LOG (
+        ID_Log,
+        tabulkaNazev,
+        operace,
+        datumZmeny,
+        idRekord,
+        novaData,
+        staraData,
+        popis,
+        ID_Archiv
+    ) VALUES (
+        SEQ_LOG_ID.NEXTVAL,
+        'POHYB_UCTU',
+        v_operace,
+        SYSDATE,
+        v_id_rekord,
+        v_nova,
+        v_stara,
+        'Log změny pohybu na účtu',
+        v_archiv_platby
+    );
+END;
+/
 --------------------------------------------------------------------------------
 -- TEST
 --------------------------------------------------------------------------------
@@ -1860,4 +2065,3 @@ BEGIN
     );
 END;
 /
-

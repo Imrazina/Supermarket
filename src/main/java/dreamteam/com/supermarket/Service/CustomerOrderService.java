@@ -2,9 +2,9 @@ package dreamteam.com.supermarket.Service;
 
 import dreamteam.com.supermarket.controller.dto.CustomerOrderResponse;
 import lombok.RequiredArgsConstructor;
-import oracle.jdbc.OracleTypes;
-import org.springframework.jdbc.core.CallableStatementCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.CallableStatementCallback;
+import org.springframework.jdbc.core.CallableStatementCreator;
 import org.springframework.jdbc.core.RowMapper;
 import org.springframework.stereotype.Service;
 
@@ -25,10 +25,13 @@ public class CustomerOrderService {
 
     private final JdbcTemplate jdbcTemplate;
     private final UserJdbcService userJdbcService;
+    private final WalletJdbcService walletJdbcService;
 
     private static final DateTimeFormatter FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
             .withLocale(Locale.forLanguageTag("cs-CZ"))
             .withZone(ZoneId.systemDefault());
+    private static final String REFUND_MARK = "[REFUND_PENDING]";
+    private static final int SQL_CURSOR = oracle.jdbc.OracleTypes.CURSOR;
 
     public Long resolveUserId(String email) {
         var u = userJdbcService.findByEmail(email);
@@ -36,69 +39,218 @@ public class CustomerOrderService {
     }
 
     public List<CustomerOrderResponse> listAllForStaff() {
-        List<OrderRow> orders = jdbcTemplate.execute(
-                (Connection con) -> {
-                    CallableStatement cs = con.prepareCall("{ call pkg_objednavka.list_client_orders(?) }");
-                    cs.registerOutParameter(1, OracleTypes.CURSOR);
-                    return cs;
-                },
-                (CallableStatementCallback<List<OrderRow>>) cs -> {
-                    cs.execute();
-                    try (ResultSet rs = (ResultSet) cs.getObject(1)) {
-                        return mapOrders(rs);
-                    }
-                }
+        List<OrderRow> orders = fetchOrdersFromCursor(
+                "{ call pkg_objednavka.list_client_orders(?) }",
+                cs -> cs.registerOutParameter(1, SQL_CURSOR),
+                1
         );
         return enrichWithItems(orders);
     }
 
     public List<CustomerOrderResponse> listByCustomer(Long userId) {
-        List<OrderRow> orders = jdbcTemplate.execute(
-                (Connection con) -> {
-                    CallableStatement cs = con.prepareCall("{ call pkg_objednavka.list_customer_history(?, ?) }");
-                    cs.setLong(1, userId);
-                    cs.registerOutParameter(2, OracleTypes.CURSOR);
-                    return cs;
-                },
-                (CallableStatementCallback<List<OrderRow>>) cs -> {
-                    cs.execute();
-                    try (ResultSet rs = (ResultSet) cs.getObject(2)) {
-                        return mapOrders(rs);
+        List<OrderRow> orders = fetchOrdersFromCursor(
+                "{ call pkg_objednavka.list_customer_history(?, ?) }",
+                cs -> {
+                    if (userId != null) {
+                        cs.setLong(1, userId);
+                    } else {
+                        cs.setNull(1, java.sql.Types.NUMERIC);
                     }
-                }
+                    cs.registerOutParameter(2, SQL_CURSOR);
+                },
+                2
         );
         return enrichWithItems(orders);
     }
 
     public int changeStatus(Long orderId, Long userId, Integer newStatus) {
-        return jdbcTemplate.execute(
+        int[] result = jdbcTemplate.execute(
                 (org.springframework.jdbc.core.CallableStatementCreator) con -> {
-                    var cs = con.prepareCall("{ call pkg_objednavka.set_customer_status(?, ?, ?, ?, ?) }");
+                    var cs = con.prepareCall("{ call proc_customer_set_status(?, ?, ?, ?, ?) }");
                     cs.setLong(1, orderId);
                     if (userId != null) cs.setLong(2, userId); else cs.setNull(2, java.sql.Types.NUMERIC);
                     cs.setInt(3, newStatus);
                     cs.registerOutParameter(4, java.sql.Types.NUMERIC); // code
-                    cs.registerOutParameter(5, java.sql.Types.NUMERIC); // current status
+                    cs.registerOutParameter(5, java.sql.Types.NUMERIC); // previous status
                     return cs;
                 },
-                (org.springframework.jdbc.core.CallableStatementCallback<Integer>) cs -> {
+                (org.springframework.jdbc.core.CallableStatementCallback<int[]>) cs -> {
                     cs.execute();
-                    return cs.getInt(4);
+                    return new int[]{cs.getInt(4), cs.getInt(5)};
+                }
+        );
+        int code = result != null ? result[0] : -99;
+        int prevStatus = result != null ? result[1] : -99;
+        if (code == 0 && newStatus != null && newStatus == 6 && prevStatus > 0 && prevStatus <= 4) {
+            restockItems(orderId);
+        }
+        if (code == 0 && newStatus != null && newStatus == 6) {
+            autoRefundIfNeeded(orderId);
+        }
+        return code;
+    }
+
+    public List<CustomerOrderResponse> listPendingRefunds(Long handlerId) {
+        if (handlerId == null) {
+            return List.of();
+        }
+        List<OrderRow> orders = fetchOrdersFromCursor(
+                "{ call pkg_customer_refund.list_pending(?, ?) }",
+                cs -> {
+                    cs.setLong(1, handlerId);
+                    cs.registerOutParameter(2, SQL_CURSOR);
+                },
+                2
+        );
+        return enrichWithItems(orders);
+    }
+
+    /**
+     * Zákazník požádá o refund – jen označí objednávku, bez vrácení peněz.
+     * @return 0 ok, -1 už čeká, -2 už refundováno, -3 nenalezeno/nepatří, -4 stav nedovoluje
+     */
+    public int requestRefund(Long orderId, String email, BigDecimal amount) {
+        if (orderId == null || email == null) return -3;
+        if (amount == null || amount.compareTo(BigDecimal.ZERO) <= 0) return -4;
+        if (walletJdbcService.hasRefundForOrder(orderId)) return -2;
+        return jdbcTemplate.execute(
+                call("{ call pkg_customer_refund.request_refund(?, ?, ?) }", cs -> {
+                    cs.setLong(1, orderId);
+                    cs.setString(2, email);
+                    cs.registerOutParameter(3, java.sql.Types.NUMERIC);
+                }),
+                (CallableStatementCallback<Integer>) cs -> {
+                    cs.execute();
+                    return cs.getInt(3);
                 }
         );
     }
 
-    private List<OrderRow> mapOrders(ResultSet rs) throws SQLException {
-        RowMapper<OrderRow> mapper = new OrderRowMapper();
-        java.util.ArrayList<OrderRow> list = new java.util.ArrayList<>();
-        int rowNum = 0;
-        while (rs.next()) {
-            OrderRow row = mapper.mapRow(rs, rowNum++);
-            if (row != null && row.id != null) {
-                list.add(row);
-            }
+    /**
+     * Manažer schválí refund – provede refund a odstraní příznak.
+     * @return 0 ok, -1 nic k refundu, -2 už vráceno, -3 nenalezeno, -5 chybí platba
+     */
+    public int approveRefund(Long orderId) {
+        if (orderId == null) return -3;
+        if (walletJdbcService.hasRefundForOrder(orderId)) return -2;
+        return jdbcTemplate.execute(
+                call("{ call pkg_customer_refund.approve_refund(?, ?) }", cs -> {
+                    cs.setLong(1, orderId);
+                    cs.registerOutParameter(2, java.sql.Types.NUMERIC);
+                }),
+                (CallableStatementCallback<Integer>) cs -> {
+                    cs.execute();
+                    return cs.getInt(2);
+                }
+        );
+    }
+
+    public int rejectRefund(Long orderId) {
+        if (orderId == null) return -3;
+        return jdbcTemplate.execute(
+                call("{ call pkg_customer_refund.reject_refund(?, ?) }", cs -> {
+                    cs.setLong(1, orderId);
+                    cs.registerOutParameter(2, java.sql.Types.NUMERIC);
+                }),
+                (CallableStatementCallback<Integer>) cs -> {
+                    cs.execute();
+                    return cs.getInt(2);
+                }
+        );
+    }
+
+    private void restockItems(Long orderId) {
+        if (orderId == null) {
+            return;
         }
-        return list;
+        jdbcTemplate.execute(
+                call("{ call proc_restock_customer_items(?) }", cs -> cs.setLong(1, orderId)),
+                (CallableStatementCallback<Void>) cs -> {
+                    cs.execute();
+                    return null;
+                }
+        );
+    }
+
+    private boolean isPendingRefund(String note) {
+        return note != null && note.contains(REFUND_MARK);
+    }
+
+    private String stripRefundMark(String note) {
+        if (note == null) return null;
+        return note.replace(REFUND_MARK, "").trim();
+    }
+
+    private void clearRefundMark(Long orderId, String note) {
+        String cleaned = stripRefundMark(note);
+        jdbcTemplate.update("UPDATE OBJEDNAVKA SET POZNAMKA = ? WHERE ID_Objednavka = ?", cleaned, orderId);
+    }
+
+    private void autoRefundIfNeeded(Long orderId) {
+        try {
+            if (orderId == null) return;
+            if (walletJdbcService.hasRefundForOrder(orderId)) return;
+            PaymentInfo payment = fetchPayment(orderId);
+            if (payment == null || payment.amount() == null || payment.ucetId() == null) return;
+            if (payment.amount().compareTo(BigDecimal.ZERO) <= 0) return;
+            walletJdbcService.refundOrder(payment.ucetId(), orderId, payment.amount());
+        } catch (Exception ignored) {
+            // Nechceme blokovat hlavní flow; případný refund lze řešit ručně.
+        }
+    }
+
+    private PaymentInfo fetchPayment(Long orderId) {
+        return jdbcTemplate.query(
+                """
+                SELECT p.ID_Platba AS id, p.CASTKA AS amount, uo.ID_Ucet AS ucet_id
+                  FROM PLATBA p
+                  JOIN OBJEDNAVKA o ON o.ID_Objednavka = p.ID_Objednavka
+                  JOIN UCET uo ON uo.ID_Uzivatel = o.ID_Uzivatel
+                 WHERE p.ID_Objednavka = ?
+                """,
+                ps -> ps.setLong(1, orderId),
+                rs -> rs.next() ? new PaymentInfo(rs.getLong("id"), rs.getBigDecimal("amount"), rs.getLong("ucet_id")) : null
+        );
+    }
+
+    private record PaymentInfo(Long id, BigDecimal amount, Long ucetId) {}
+
+    private List<OrderRow> fetchOrdersFromCursor(String sql, SqlConsumer configurer, int outIndex) {
+        return jdbcTemplate.execute(
+                call(sql, configurer),
+                (CallableStatementCallback<List<OrderRow>>) cs -> {
+                    cs.execute();
+                    List<OrderRow> list = new java.util.ArrayList<>();
+                    try (ResultSet rs = (ResultSet) cs.getObject(outIndex)) {
+                        int rowNum = 0;
+                        RowMapper<OrderRow> mapper = new OrderRowMapper();
+                        while (rs.next()) {
+                            OrderRow row = mapper.mapRow(rs, rowNum++);
+                            if (row != null && row.id != null) {
+                                list.add(row);
+                            }
+                        }
+                    }
+                    return list;
+                }
+        );
+    }
+
+    private CallableStatementCreator call(String sql, SqlConsumer configurer) {
+        return (Connection con) -> {
+            CallableStatement cs = con.prepareCall(sql);
+            try {
+                configurer.accept(cs);
+            } catch (SQLException e) {
+                throw new RuntimeException(e);
+            }
+            return cs;
+        };
+    }
+
+    @FunctionalInterface
+    private interface SqlConsumer {
+        void accept(CallableStatement cs) throws SQLException;
     }
 
     private List<CustomerOrderResponse> enrichWithItems(List<OrderRow> orders) {
@@ -133,11 +285,14 @@ public class CustomerOrderService {
                         row.superId,
                         row.ownerEmail,
                         row.handlerEmail,
+                        row.handlerName,
                         row.createdAt,
                         row.note,
                         row.items,
                         computeTotal(row.items),
                         row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null)
+                        row.refunded,
+                        row.pendingRefund
                 ))
                 .toList();
     }
@@ -156,9 +311,12 @@ public class CustomerOrderService {
         String superName;
         String ownerEmail;
         String handlerEmail;
+        String handlerName;
         String createdAt;
         String note;
         String cislo;
+        boolean refunded;
+        boolean pendingRefund;
         List<CustomerOrderResponse.Item> items = new java.util.ArrayList<>();
     }
 
@@ -172,11 +330,18 @@ public class CustomerOrderService {
             row.superId = getLong(rs, "ID_SUPERMARKET", "SUPERMARKET_ID");
             row.superName = getString(rs, "SUPER_NAZEV", "SUPERMARKET", "SUPERMARKET_NAZEV");
             row.ownerEmail = getString(rs, "OWNER_EMAIL", "UZIVATEL_EMAIL", "CUSTOMER_EMAIL", "EMAIL");
-            row.handlerEmail = getString(rs, "HANDLER_EMAIL", "OPERATOR_EMAIL", "ZAMESTNANEC_EMAIL");
+            row.handlerEmail = getString(rs, "HANDLER_EMAIL", "OPERATOR_EMAIL", "ZAMESTNANEC_EMAIL", "OBSLUHA_EMAIL");
+            String handlerFirst = getString(rs, "HANDLER_FIRSTNAME", "HANDLER_JMENO", "OBSLUHA_JMENO");
+            String handlerLast = getString(rs, "HANDLER_LASTNAME", "HANDLER_PRIJMENI", "OBSLUHA_PRIJMENI");
+            row.handlerName = buildName(handlerFirst, handlerLast);
             Timestamp ts = getTimestamp(rs, "DATUM", "CREATED_AT", "CREATED");
             row.createdAt = ts != null ? FORMATTER.format(ts.toInstant()) : "";
             row.note = getString(rs, "POZNAMKA", "NOTE");
             row.cislo = getString(rs, "CISLO");
+            String rawNote = getString(rs, "POZNAMKA", "NOTE");
+            row.pendingRefund = isPendingRefund(rawNote);
+            row.note = stripRefundMark(rawNote);
+            row.refunded = walletJdbcService.hasRefundForOrder(row.id);
             return row;
         }
 
@@ -227,5 +392,12 @@ public class CustomerOrderService {
             }
             return null;
         }
+    }
+
+    private String buildName(String first, String last) {
+        String f = first != null ? first.trim() : "";
+        String l = last != null ? last.trim() : "";
+        String joined = (f + " " + l).trim();
+        return joined.isEmpty() ? null : joined;
     }
 }

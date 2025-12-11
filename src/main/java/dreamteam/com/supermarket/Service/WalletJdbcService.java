@@ -11,6 +11,7 @@ import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Types;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -147,6 +148,47 @@ public class WalletJdbcService {
         );
     }
 
+    public List<PohybRow> history(Long ucetId, LocalDate from, LocalDate to) {
+        return jdbcTemplate.execute(
+                (Connection con) -> {
+                    CallableStatement cs = con.prepareCall("{ call pkg_ucet.account_history_range(?, ?, ?, ?) }");
+                    cs.setLong(1, ucetId);
+                    if (from != null) {
+                        cs.setDate(2, java.sql.Date.valueOf(from));
+                    } else {
+                        cs.setNull(2, Types.DATE);
+                    }
+                    if (to != null) {
+                        cs.setDate(3, java.sql.Date.valueOf(to));
+                    } else {
+                        cs.setNull(3, Types.DATE);
+                    }
+                    cs.registerOutParameter(4, OracleTypes.CURSOR);
+                    return cs;
+                },
+                (CallableStatementCallback<List<PohybRow>>) cs -> {
+                    cs.execute();
+                    List<PohybRow> list = new ArrayList<>();
+                    try (ResultSet rs = (ResultSet) cs.getObject(4)) {
+                        while (rs.next()) {
+                            var ts = rs.getTimestamp("DATUM_VYTVORENI");
+                            list.add(new PohybRow(
+                                    rs.getLong("ID_POHYB"),
+                                    rs.getString("SMER"),
+                                    rs.getString("METODA"),
+                                    rs.getBigDecimal("CASTKA"),
+                                    rs.getString("POZNAMKA"),
+                                    ts != null ? ts.toLocalDateTime() : null,
+                                    rs.getObject("ID_OBJEDNAVKA") != null ? rs.getLong("ID_OBJEDNAVKA") : null,
+                                    rs.getString("CISLOKARTY")
+                            ));
+                        }
+                    }
+                    return list;
+                }
+        );
+    }
+
     public record TopUpResult(Long pohybId) {}
 
     public record PayResult(Long pohybId, Long platbaId) {}
@@ -156,4 +198,24 @@ public class WalletJdbcService {
     public record PohybRow(Long id, String smer, String metoda, BigDecimal castka,
                            String poznamka, LocalDateTime datum,
                            Long objednavkaId, String cisloKarty) {}
+
+    public void generateAccountReports(Integer year, Integer month) {
+        jdbcTemplate.execute((Connection con) -> {
+            CallableStatement cs = con.prepareCall("{ call proc_monthly_account_reports(?, ?) }");
+            if (year != null) {
+                cs.setInt(1, year);
+            } else {
+                cs.setNull(1, Types.INTEGER);
+            }
+            if (month != null) {
+                cs.setInt(2, month);
+            } else {
+                cs.setNull(2, Types.INTEGER);
+            }
+            return cs;
+        }, (CallableStatementCallback<Void>) cs -> {
+            cs.execute();
+            return null;
+        });
+    }
 }
