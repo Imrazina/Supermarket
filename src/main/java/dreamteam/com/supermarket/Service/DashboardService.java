@@ -453,6 +453,27 @@ public class DashboardService {
                 ))
                 .toList();
 
+        List<DashboardResponse.WarehouseLoad> warehouseLoad = marketProcedureDao.listWarehouseLoad().stream()
+                .map(row -> new DashboardResponse.WarehouseLoad(
+                        row.id(),
+                        row.skladNazev(),
+                        row.supermarketNazev(),
+                        row.kapacita(),
+                        row.obsazeno(),
+                        row.procento()
+                ))
+                .toList();
+
+        List<DashboardResponse.RiskStock> riskStock = marketProcedureDao.listRiskStock().stream()
+                .map(row -> new DashboardResponse.RiskStock(
+                        row.nazev(),
+                        row.mnozstvi(),
+                        row.minMnozstvi(),
+                        row.skladNazev(),
+                        row.supermarketNazev()
+                ))
+                .toList();
+
         List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archiveTree);
 
         var weeklyByStoreRows = marketProcedureDao.listWeeklyDemandByStore();
@@ -576,6 +597,8 @@ public class DashboardService {
                 subscriberInfos,
                 storeInfos,
                 storeHealth,
+                warehouseLoad,
+                riskStock,
                 profile,
                 folderInfos,
                 customerProducts,
