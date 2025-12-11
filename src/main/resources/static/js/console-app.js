@@ -1161,40 +1161,43 @@ function resolveAllowedViews(role, permissions = []) {
     const permSet = new Set(Array.isArray(permissions) ? permissions.map(p => (p || '').toUpperCase()) : []);
     const allowed = new Set(['dashboard', 'profile', 'chat']);
     const add = (...views) => views.forEach(view => allowed.add(view));
+    const has = (code) => permSet.has(code);
 
     if (normalizedRole === 'ADMIN') {
         add(...allViews);
         return allowed;
     }
 
-    if (permSet.has('MANAGE_USERS')) {
-        allowed.add('people');
+    if (has('EDIT_PRODUCTS')) {
+        add('inventory');
     }
-
-    if (normalizedRole === 'ZAKAZNIK' || normalizedRole === 'CUSTOMER' || normalizedRole === 'NEW_USER') {
+    if (has('VIEW_ORDERS')) {
+        add('orders');
+    }
+    if (has('MANAGE_USERS')) {
+        add('people');
+    }
+    if (has('VIEW_FINANCE')) {
+        add('finance');
+    }
+    if (has('VIEW_ARCHIVE')) {
+        add('records');
+    }
+    if (has('VIEW_DB_OBJECTS')) {
+        add('dbobjects');
+    }
+    if (has('CREATE_ORDERS')) {
         add('customer', 'customer-cart', 'customer-payment', 'customer-history');
-        return allowed;
     }
-
-    if (normalizedRole === 'DODAVATEL') {
-        add('supplier');
-        return allowed;
-    }
-
-    if (permSet.has('CLIENT_ORDER_MANAGE')) {
+    if (has('CLIENT_ORDER_MANAGE')) {
         add('client-orders');
     }
-
-    if (permSet.has('CUSTOMER_HISTORY')) {
+    if (has('CUSTOMER_HISTORY')) {
         add('customer-history');
     }
-
-    if (normalizedRole.startsWith('DORUCOVATEL') || normalizedRole === 'COURIER' || normalizedRole === 'DORUCOVATEL' || normalizedRole === 'DORUČOVATEL') {
-        add('orders');
-        return allowed;
+    if (normalizedRole === 'DODAVATEL') {
+        add('supplier');
     }
-
-    add('inventory', 'orders', 'finance', 'records', 'customer', 'customer-cart', 'customer-orders', 'customer-payment');
     return allowed;
 }
 
@@ -1431,6 +1434,8 @@ function resolveAllowedViews(role, permissions = []) {
         constructor(state, deps = {}) {
             this.state = state;
             this.apiUrl = deps.apiUrl;
+            this.view = document.querySelector('[data-view="inventory"]');
+            this.navLink = document.querySelector('.nav-link[data-view="inventory"]');
             this.categories = [];
             this.cities = [];
             this.modal = document.getElementById('market-editor-modal');
@@ -1532,7 +1537,21 @@ function resolveAllowedViews(role, permissions = []) {
             };
         }
 
+        hasAccess() {
+            const permissions = this.state.data?.profile?.permissions;
+            return Array.isArray(permissions) && permissions.includes('EDIT_PRODUCTS');
+        }
+
+        hideView() {
+            this.view?.remove();
+            this.navLink?.remove();
+        }
+
         init() {
+            if (!this.hasAccess()) {
+                this.hideView();
+                return;
+            }
             if (!this.sections.goods.tableBody) {
                 return;
             }
@@ -2127,6 +2146,8 @@ function resolveAllowedViews(role, permissions = []) {
             this.state = state;
             this.apiUrl = deps.apiUrl;
             this.refreshApp = typeof deps.refreshApp === 'function' ? deps.refreshApp : async () => true;
+            this.view = document.querySelector('[data-view="orders"]');
+            this.navLink = document.querySelector('.nav-link[data-view="orders"]');
             this.tableBody = document.getElementById('orders-table-body');
             this.statusBoard = document.getElementById('order-status-board');
             this.orderLines = document.getElementById('order-lines');
@@ -2152,7 +2173,21 @@ function resolveAllowedViews(role, permissions = []) {
             this.options = { statuses: [], stores: [], employees: [], types: [] };
         }
 
+        hasAccess() {
+            const permissions = this.state.data?.profile?.permissions;
+            return Array.isArray(permissions) && permissions.includes('VIEW_ORDERS');
+        }
+
+        hideView() {
+            this.view?.remove();
+            this.navLink?.remove();
+        }
+
         init() {
+            if (!this.hasAccess()) {
+                this.hideView();
+                return;
+            }
             this.tableBody?.addEventListener('click', event => {
                 const row = event.target.closest('tr[data-order-id]');
                 if (!row) return;
@@ -2556,7 +2591,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (!Array.isArray(permissions)) {
                 return false;
             }
-            return permissions.includes('MANAGE_USERS') || permissions.includes('MANAGE_SUPPLIERS');
+            return permissions.includes('MANAGE_USERS');
         }
 
         hideView() {
@@ -2595,6 +2630,8 @@ function resolveAllowedViews(role, permissions = []) {
         constructor(state, deps = {}) {
             this.state = state;
             this.apiUrl = deps.apiUrl;
+            this.view = document.querySelector('[data-view="finance"]');
+            this.navLink = document.querySelector('.nav-link[data-view="finance"]');
             this.tableBody = document.getElementById('payments-table-body');
             this.statsEl = document.getElementById('payment-stats');
             this.receiptList = document.getElementById('receipt-list');
@@ -2602,7 +2639,21 @@ function resolveAllowedViews(role, permissions = []) {
             this.allPayments = [];
         }
 
+        hasAccess() {
+            const permissions = this.state.data?.profile?.permissions;
+            return Array.isArray(permissions) && permissions.includes('VIEW_FINANCE');
+        }
+
+        hideView() {
+            this.view?.remove();
+            this.navLink?.remove();
+        }
+
         init() {
+            if (!this.hasAccess()) {
+                this.hideView();
+                return;
+            }
             this.filterButtons.forEach(btn => {
                 btn.addEventListener('click', () => {
                     this.filterButtons.forEach(b => b.classList.remove('active'));
@@ -4143,6 +4194,8 @@ function resolveAllowedViews(role, permissions = []) {
     class CustomerModule {
         constructor(state) {
             this.state = state;
+            this.view = document.querySelector('[data-view="customer"]');
+            this.navLink = document.querySelector('.nav-link[data-view="customer"]');
             this.categoryContainer = document.getElementById('customer-category-chips');
             this.searchInput = document.getElementById('customer-search');
             this.grid = document.getElementById('customer-product-grid');
@@ -4152,7 +4205,21 @@ function resolveAllowedViews(role, permissions = []) {
             this.suggestionsEl = document.getElementById('customer-suggestions');
         }
 
+        hasAccess() {
+            const permissions = this.state.data?.profile?.permissions;
+            return Array.isArray(permissions) && permissions.includes('CREATE_ORDERS');
+        }
+
+        hideView() {
+            this.view?.remove();
+            this.navLink?.remove();
+        }
+
         init() {
+            if (!this.hasAccess()) {
+                this.hideView();
+                return;
+            }
             if (!this.state.customerCartLoaded) {
                 this.state.customerCart = this.loadCart();
                 this.state.customerCartLoaded = true;
