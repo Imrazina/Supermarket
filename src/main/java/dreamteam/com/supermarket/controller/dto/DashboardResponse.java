@@ -5,6 +5,7 @@ import java.util.List;
 public record DashboardResponse(
         String syncUpdatedAt,
         List<WeeklyDemandPoint> weeklyDemand,
+        List<WeeklyDemandSeries> weeklyDemandByStore,
         List<InventoryItem> inventory,
         List<CategoryStat> categories,
         List<WarehouseInfo> warehouses,
@@ -24,6 +25,7 @@ public record DashboardResponse(
         String lastMessageSummary,
         List<SubscriberInfo> subscribers,
         List<StoreInfo> stores,
+        List<SupermarketHealth> storeHealth,
         Profile profile,
         List<FolderInfo> folders,
         List<CustomerProduct> customerProducts,
@@ -32,6 +34,12 @@ public record DashboardResponse(
 ) {
 
     public record WeeklyDemandPoint(String label, long value) {}
+
+    public record WeeklyDemandSeries(
+            Long storeId,
+            String storeName,
+            List<WeeklyDemandPoint> points
+    ) {}
 
     public record InventoryItem(
             String sku,
@@ -105,6 +113,16 @@ public record DashboardResponse(
     public record SubscriberInfo(String endpoint, String auth, String updated) {}
 
     public record StoreInfo(String name, String city, String address, String warehouse, String manager, String status) {}
+
+    public record SupermarketHealth(
+            Long id,
+            String name,
+            String city,
+            long activeOrders,
+            double avgCloseHours,
+            long criticalSku,
+            double tydenniObrat
+    ) {}
 
     public record FolderInfo(String name, String color, List<FileInfo> files) {}
 
