@@ -11,10 +11,13 @@ public record CustomerOrderResponse(
         Long supermarketId,
         String customerEmail,
         String handlerEmail,
+        String handlerName,
         String createdAt,
         String note,
         List<Item> items,
-        BigDecimal total
+        BigDecimal total,
+        boolean refunded,
+        boolean pendingRefund
 ) {
     public record Item(Long id, String name, Integer qty, BigDecimal price) {}
 }

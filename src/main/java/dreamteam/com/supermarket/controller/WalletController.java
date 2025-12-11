@@ -3,6 +3,7 @@ package dreamteam.com.supermarket.controller;
 import dreamteam.com.supermarket.Service.UserJdbcService;
 import dreamteam.com.supermarket.Service.WalletJdbcService;
 import dreamteam.com.supermarket.Service.ObjednavkaStatusJdbcService;
+import dreamteam.com.supermarket.Service.PermissionService;
 import dreamteam.com.supermarket.controller.dto.WalletBalanceResponse;
 import dreamteam.com.supermarket.controller.dto.WalletMovementResponse;
 import dreamteam.com.supermarket.controller.dto.WalletTopUpRequest;
@@ -31,6 +32,23 @@ public class WalletController {
     private final UserJdbcService userJdbcService;
     private final OrderProcedureDao orderProcedureDao;
     private final ObjednavkaStatusJdbcService statusService;
+    private final dreamteam.com.supermarket.Service.CustomerOrderService customerOrderService;
+    private final PermissionService permissionService;
+
+    private static final String PERMISSION_MANAGE = "CLIENT_ORDER_MANAGE";
+
+    @PostMapping("/reports")
+    public ResponseEntity<?> generateReports(
+            @RequestParam(value = "year", required = false) Integer year,
+            @RequestParam(value = "month", required = false) Integer month,
+            Authentication authentication
+    ) {
+        if (!hasPermission(authentication, PERMISSION_MANAGE)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Nedostatek prav.");
+        }
+        walletService.generateAccountReports(year, month);
+        return ResponseEntity.ok("Reporty vygenerovány.");
+    }
 
     @GetMapping
     public ResponseEntity<WalletBalanceResponse> balance(Authentication authentication) {
@@ -74,6 +92,9 @@ public class WalletController {
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        if (!hasPermission(authentication, PERMISSION_MANAGE)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).body("Refund může provést jen manažer.");
+        }
         if (request == null || request.orderId() == null) {
             return ResponseEntity.badRequest().body("Chybi ID objednavky.");
         }
@@ -97,14 +118,45 @@ public class WalletController {
         return ResponseEntity.ok(new WalletRefundResponse(res.pohybId(), ucetId, zustatek));
     }
 
+    @PostMapping("/refund-request")
+    public ResponseEntity<?> refundRequest(@RequestBody WalletRefundRequest request, Authentication authentication) {
+        Uzivatel user = resolveUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        if (request == null || request.orderId() == null) {
+            return ResponseEntity.badRequest().body("Chybi ID objednavky.");
+        }
+        if (request.amount() == null || request.amount().compareTo(BigDecimal.ZERO) <= 0) {
+            return ResponseEntity.badRequest().body("Castka musi byt vetsi nez 0.");
+        }
+        Long orderId = parseOrderId(request.orderId());
+        if (orderId == null) {
+            return ResponseEntity.badRequest().body("Neplatne ID objednavky.");
+        }
+        int code = customerOrderService.requestRefund(orderId, user.getEmail(), request.amount());
+        return switch (code) {
+            case 0 -> ResponseEntity.accepted().body("Žádost o refund byla odeslána manažerovi.");
+            case -1 -> ResponseEntity.status(HttpStatus.CONFLICT).body("Refund už čeká na schválení.");
+            case -2 -> ResponseEntity.status(HttpStatus.CONFLICT).body("Objednávka už byla vrácena.");
+            case -4 -> ResponseEntity.badRequest().body("Refund lze požádat jen pro dokončené objednávky.");
+            default -> ResponseEntity.status(HttpStatus.NOT_FOUND).body("Objednávka nebyla nalezena.");
+        };
+    }
+
     @GetMapping("/history")
-    public ResponseEntity<List<WalletMovementResponse>> history(Authentication authentication) {
+    public ResponseEntity<List<WalletMovementResponse>> history(
+            @RequestParam(value = "from", required = false) String fromStr,
+            @RequestParam(value = "to", required = false) String toStr,
+            Authentication authentication) {
         Uzivatel user = resolveUser(authentication);
         if (user == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
         Long ucetId = walletService.ensureAccountForUser(user.getIdUzivatel());
-        List<WalletMovementResponse> list = walletService.history(ucetId).stream()
+        java.time.LocalDate from = parseDate(fromStr);
+        java.time.LocalDate to = parseDate(toStr);
+        List<WalletMovementResponse> list = walletService.history(ucetId, from, to).stream()
                 .map(p -> new WalletMovementResponse(
                         p.id(),
                         p.smer(),
@@ -117,6 +169,22 @@ public class WalletController {
                 ))
                 .toList();
         return ResponseEntity.ok(list);
+    }
+
+    private java.time.LocalDate parseDate(String value) {
+        if (value == null || value.isBlank()) return null;
+        try {
+            return java.time.LocalDate.parse(value);
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private boolean hasPermission(Authentication authentication, String code) {
+        if (authentication == null || !authentication.isAuthenticated()) {
+            return false;
+        }
+        return permissionService.userHasPermission(authentication.getName(), code);
     }
 
     private Uzivatel resolveUser(Authentication authentication) {

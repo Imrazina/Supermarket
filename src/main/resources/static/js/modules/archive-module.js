@@ -10,6 +10,10 @@ export default class ArchiveModule {
         this.uploadInput = document.getElementById('file-upload-input');
         this.uploadBtn = document.getElementById('file-upload-btn');
         this.uploadHint = document.getElementById('upload-hint');
+        this.reportBtn = document.getElementById('report-generate-btn');
+        this.reportMonthSelect = document.getElementById('report-month-select');
+        this.reportControls = document.querySelector('.report-trigger');
+        this.reportNodeId = '53';
         this.previewModal = document.getElementById('file-preview-modal');
         this.previewFrame = document.getElementById('file-preview-frame');
         this.previewImage = document.getElementById('file-preview-image');
@@ -69,6 +73,18 @@ export default class ArchiveModule {
             this.uploadBtn.addEventListener('click', () => this.uploadInput.click());
             this.uploadInput.addEventListener('change', () => this.handleUpload());
         }
+        if (this.reportBtn) {
+            this.reportBtn.addEventListener('click', () => this.handleGenerateReports());
+            if (!this.canGenerateReports()) {
+                this.reportBtn.style.display = 'none';
+                if (this.reportMonthSelect) this.reportMonthSelect.style.display = 'none';
+                if (this.reportControls) this.reportControls.style.display = 'none';
+            } else {
+                this.populateReportMonths();
+                const defaultNode = this.findNode(this.pickDefaultNodeId());
+                this.toggleReportControls(this.isReportNode(defaultNode));
+            }
+        }
         if (this.previewClose) {
             this.previewClose.addEventListener('click', () => this.closePreview());
         }
@@ -103,6 +119,31 @@ export default class ArchiveModule {
         return Array.isArray(permissions) && permissions.includes('VIEW_ARCHIVE');
     }
 
+    canGenerateReports() {
+        const permissions = this.state.data?.profile?.permissions;
+        return Array.isArray(permissions) && permissions.includes('CLIENT_ORDER_MANAGE');
+    }
+
+    populateReportMonths() {
+        if (!this.reportMonthSelect) return;
+        const sel = this.reportMonthSelect;
+        sel.innerHTML = '';
+        const optAuto = document.createElement('option');
+        optAuto.value = '';
+        optAuto.textContent = 'Minulý měsíc';
+        sel.appendChild(optAuto);
+        const now = new Date();
+        for (let i = 0; i < 12; i++) {
+            const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, '0');
+            const opt = document.createElement('option');
+            opt.value = `${yyyy}-${mm}`;
+            opt.textContent = `${yyyy}-${mm}`;
+            sel.appendChild(opt);
+        }
+    }
+
     hideView() {
         this.view?.remove();
         this.navLink?.remove();
@@ -120,7 +161,16 @@ export default class ArchiveModule {
     isLogLabel(name) {
         if (!name) return false;
         const lower = String(name).toLowerCase();
-        return /\blog\b/i.test(lower) || lower.includes('zpravy') || lower.includes('zpráva') || lower.includes('uzivatele') || lower.includes('uživatele');
+        return (
+            /\blog\b/i.test(lower)
+            || lower.includes('zpravy')
+            || lower.includes('zpráva')
+            || lower.includes('uzivatele')
+            || lower.includes('uživatele')
+            || lower.includes('ucty')
+            || lower.includes('účty')
+            || lower.includes('platby')
+        );
     }
 
     isLogPath(path) {
@@ -138,13 +188,15 @@ export default class ArchiveModule {
         };
     }
 
-    async fetchTree() {
+    async fetchTree(selectId = null) {
         try {
             const res = await fetch(`${this.apiBaseUrl}/api/archive/tree`, { headers: this.authHeaders() });
             if (!res.ok) return;
             this.state.data.archiveTree = await res.json();
+            const targetId = selectId || this.pickDefaultNodeId();
+            this.selectedNodeId = targetId;
             this.renderTree();
-            this.loadForNode(this.pickDefaultNodeId());
+            await this.loadForNode(targetId);
         } catch (err) {
             console.error('Archive tree load failed', err);
         }
@@ -166,6 +218,7 @@ export default class ArchiveModule {
             this.renderPlaceholder(null);
             this.renderLogDetail(true);
             this.toggleUpload(false);
+            this.toggleReportControls(false);
             return;
         }
         if (isLog && hasChildren) {
@@ -177,6 +230,7 @@ export default class ArchiveModule {
             this.renderPlaceholder(node);
             this.renderLogDetail(true);
             this.toggleUpload(false);
+            this.toggleReportControls(false);
         } else if (isLog) {
             this.mode = 'logs';
             this.setTableModeClasses();
@@ -185,6 +239,7 @@ export default class ArchiveModule {
             this.renderHead();
             await this.fetchLogs(nodeId);
             this.toggleUpload(false);
+            this.toggleReportControls(false);
         } else if (isUserAudit) {
             this.mode = 'logs';
             this.setTableModeClasses();
@@ -193,7 +248,9 @@ export default class ArchiveModule {
             this.renderHead();
             await this.fetchLogs(null, ['UZIVATEL', 'ZAKAZNIK', 'ZAMESTNANEC', 'DODAVATEL']);
             this.toggleUpload(false);
-        } else if (isRoot || isSupermarket) {
+            this.toggleReportControls(false);
+        // Supermarket-like top-level folders should only block listing when they act as parents.
+        } else if (isRoot || (isSupermarket && hasChildren)) {
             this.mode = 'placeholder';
             this.setTableModeClasses();
             this.state.data.files = [];
@@ -202,6 +259,7 @@ export default class ArchiveModule {
             this.renderPlaceholder(node);
             this.renderLogDetail(true);
             this.toggleUpload(false);
+            this.toggleReportControls(false);
         } else {
             this.mode = 'files';
             this.setTableModeClasses();
@@ -212,11 +270,14 @@ export default class ArchiveModule {
             await this.fetchFiles(nodeId);
             this.toggleUpload(this.isUploadAllowed(node));
         }
+        this.toggleReportControls(this.canGenerateReports() && this.isReportNode(node));
     }
 
     pickDefaultNodeId() {
         const nodes = this.state.data.archiveTree || [];
         if (!nodes.length) return null;
+        const report = this.findReportNode();
+        if (report) return String(report.id);
         const root = nodes.find(n => n.parentId === null);
         return root ? String(root.id) : String(nodes[0].id);
     }
@@ -243,9 +304,24 @@ export default class ArchiveModule {
 
     isLogNode(node) {
         if (!node) return false;
+        if (String(node.id) === String(this.reportNodeId)) return false;
         if (this.isLogLabel(node.name) || this.isLogPath(node.path)) return true;
         const parent = this.findNode(node.parentId);
         return parent ? this.isLogNode(parent) : false;
+    }
+
+    isReportNode(node) {
+        if (!node) return false;
+        if (String(node.id) === String(this.reportNodeId)) return true;
+        const name = String(node.name || '').toLowerCase();
+        if (name.includes('reporty uctu') || name === 'reports' || name.includes('reporty')) return true;
+        const path = String(node.path || '').toLowerCase();
+        return path.includes('reporty uctu') || path.includes('/reports');
+    }
+
+    findReportNode() {
+        const nodes = this.state.data.archiveTree || [];
+        return nodes.find(n => this.isReportNode(n)) || null;
     }
 
     isUploadAllowed(node) {
@@ -596,6 +672,60 @@ export default class ArchiveModule {
 
         this.setTableModeClasses();
         this.renderLogDetail(this.mode !== 'logs');
+    }
+
+    toggleReportControls(show) {
+        if (!this.reportControls) return;
+        this.reportControls.style.display = show ? 'flex' : 'none';
+    }
+
+    async handleGenerateReports() {
+        if (!this.canGenerateReports()) return;
+        const token = localStorage.getItem('token') || '';
+        const headers = {
+            'Authorization': `Bearer ${token}`
+        };
+        let year = null;
+        let month = null;
+        const val = this.reportMonthSelect?.value || '';
+        if (val) {
+            const parts = val.split('-');
+            if (parts.length === 2) {
+                year = parseInt(parts[0], 10);
+                month = parseInt(parts[1], 10);
+            }
+        }
+        const params = [];
+        if (year) params.push(`year=${year}`);
+        if (month) params.push(`month=${month}`);
+        const url = `${this.apiBaseUrl}/api/wallet/reports${params.length ? '?' + params.join('&') : ''}`;
+        try {
+            if (this.uploadHint) {
+                this.uploadHint.textContent = 'Generuji reporty...';
+            }
+            const res = await fetch(url, { method: 'POST', headers });
+            if (!res.ok) {
+                const txt = await res.text();
+                throw new Error(txt || 'Nelze vygenerovat reporty.');
+            }
+            if (this.uploadHint) {
+                this.uploadHint.textContent = 'Reporty vytvořeny v archivu.';
+            }
+            // po vygenerování zkus načíst reportovou složku
+            const reportNode = this.findReportNode() || this.findNode(this.selectedNodeId) || this.findNode(this.pickDefaultNodeId());
+            if (reportNode) {
+                this.selectedNodeId = String(reportNode.id);
+                await this.fetchTree(this.selectedNodeId);
+                await this.fetchFiles(this.selectedNodeId);
+            } else {
+                await this.fetchTree();
+            }
+        } catch (err) {
+            console.error('Generate reports failed', err);
+            if (this.uploadHint) {
+                this.uploadHint.textContent = err.message || 'Chyba generování reportů.';
+            }
+        }
     }
 
     render() {
