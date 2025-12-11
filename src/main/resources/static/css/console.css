@@ -818,6 +818,85 @@
             font-size: 15px;
         }
 
+        .warehouse-load-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 12px;
+        }
+
+        .warehouse-load-list.compact {
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+
+        .warehouse-load-item {
+            padding: 14px;
+            border: 1px solid var(--border-strong);
+            border-radius: 14px;
+            background: linear-gradient(145deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+            box-shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+            display: grid;
+            gap: 6px;
+        }
+
+        .warehouse-load-item.compact {
+            padding: 10px 12px;
+            gap: 4px;
+        }
+
+        .warehouse-load-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 8px;
+            font-weight: 600;
+        }
+
+        .warehouse-load-meta {
+            font-size: 13px;
+            color: var(--muted);
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+        .warehouse-inline {
+            margin-top: 12px;
+            padding-top: 10px;
+            border-top: 1px solid var(--border);
+            display: grid;
+            gap: 10px;
+        }
+
+        .risk-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .risk-panel ul {
+            margin: 0;
+            padding-left: 18px;
+        }
+
+        .risk-panel .warehouse-inline {
+            margin-top: auto;
+        }
+
+        .warehouse-progress {
+            height: 8px;
+            border-radius: 999px;
+            background: rgba(67, 97, 238, 0.12);
+            overflow: hidden;
+        }
+
+        .warehouse-progress span {
+            display: block;
+            height: 100%;
+            border-radius: inherit;
+            background: linear-gradient(120deg, #4361ee, #6c63ff);
+        }
+
         .profile-layout {
             display: grid;
             grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);

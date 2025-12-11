@@ -755,6 +755,8 @@ function createEmptyData() {
         subscribers: [],
         stores: [],
         storeHealth: [],
+        warehouseLoad: [],
+        riskStock: [],
         folders: [],
         archiveTree: [],
         customerProducts: [],
@@ -1484,6 +1486,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.storeTable = document.getElementById('stores-table');
             this.storeTableBody = document.getElementById('stores-table-body');
             this.healthGrid = document.getElementById('store-health-grid');
+            this.warehouseLoadList = document.getElementById('warehouse-load-list');
         }
 
         render() {
@@ -1501,8 +1504,15 @@ function resolveAllowedViews(role, permissions = []) {
 
             this.renderWeeklyDemandByStore();
 
-            this.lowStockList.innerHTML = critical.length
-                ? critical.map(item => `<li>${item.sku} · ${item.name} — zbyva ${item.stock}, minimum ${item.minStock}</li>`).join('')
+            const riskItems = Array.isArray(this.state.data.riskStock) && this.state.data.riskStock.length
+                ? this.state.data.riskStock.map(item => ({
+                    name: item.name || '',
+                    stock: item.stock ?? 0,
+                    minStock: item.minStock ?? 0
+                }))
+                : critical;
+            this.lowStockList.innerHTML = riskItems.length
+                ? riskItems.map(item => `<li>${escapeHtml(item.name)} — zbyva ${item.stock}, minimum ${item.minStock}</li>`).join('')
                 : '<p>Vsechny polozky jsou nad minimem.</p>';
 
             this.statusBoard.innerHTML = this.state.data.statuses.map(stat => `
@@ -1521,8 +1531,6 @@ function resolveAllowedViews(role, permissions = []) {
                         <td>${escapeHtml(store.city || '')}</td>
                         <td>${escapeHtml(store.address || '')}</td>
                         <td>${escapeHtml(store.warehouse || '')}</td>
-                        <td>${escapeHtml(store.manager || 'Neuvedeno')}</td>
-                        <td><span class="status-badge ${store.status === 'Otevreno' ? 'success' : 'warning'}">${escapeHtml(store.status || '')}</span></td>
                     </tr>`).join('');
             }
             this.bindStoreRowClicks();
@@ -1545,7 +1553,7 @@ function resolveAllowedViews(role, permissions = []) {
                                 </div>
                                 <div class="health-stat">
                                     <strong>${item.criticalSku ?? 0}</strong>
-                                    Kriticka SKU
+                                    Kriticke produkty
                                 </div>
                                 <div class="health-stat">
                                     <strong>${item.avgCloseHours ? Number(item.avgCloseHours).toFixed(1) + ' h' : '0 h'}</strong>
@@ -1560,6 +1568,8 @@ function resolveAllowedViews(role, permissions = []) {
                     `).join('');
                 }
             }
+
+            this.renderWarehouseLoad();
         }
 
         buildStoreRows() {
@@ -1569,29 +1579,25 @@ function resolveAllowedViews(role, permissions = []) {
             const warehouses = Array.isArray(this.state.marketWarehouses) ? this.state.marketWarehouses : [];
 
             if (supermarkets.length) {
-                return supermarkets.map(store => {
-                    const match = warehouses.find(w => w.supermarketId === store.id);
-                    return {
-                        id: store.id,
-                        name: store.nazev,
-                        city: store.adresaMesto || '',
-                        address: store.adresaText || [store.adresaUlice, store.adresaCpop, store.adresaCorient].filter(Boolean).join(' '),
-                        warehouse: match ? match.nazev : '',
-                        manager: 'Neuvedeno',
-                        status: 'Otevreno'
-                    };
-                });
-            }
+            return supermarkets.map(store => {
+                const match = warehouses.find(w => w.supermarketId === store.id);
+                return {
+                    id: store.id,
+                    name: store.nazev,
+                    city: store.adresaMesto || '',
+                    address: store.adresaText || [store.adresaUlice, store.adresaCpop, store.adresaCorient].filter(Boolean).join(' '),
+                    warehouse: match ? match.nazev : ''
+                };
+            });
+        }
 
-            return (this.state.data.stores || []).map(store => ({
-                id: store.id || store.name,
-                name: store.name,
-                city: store.city,
-                address: store.address,
-                warehouse: store.warehouse,
-                manager: store.manager,
-                status: store.status
-            }));
+        return (this.state.data.stores || []).map(store => ({
+            id: store.id || store.name,
+            name: store.name,
+            city: store.city,
+            address: store.address,
+            warehouse: store.warehouse
+        }));
         }
 
         bindStoreRowClicks() {
@@ -1613,6 +1619,39 @@ function resolveAllowedViews(role, permissions = []) {
             const delBtn = document.getElementById('store-delete-btn');
             if (editBtn) editBtn.disabled = !hasSelection;
             if (delBtn) delBtn.disabled = !hasSelection;
+        }
+
+        renderWarehouseLoad() {
+            if (!this.warehouseLoadList) return;
+            const items = Array.isArray(this.state.data.warehouseLoad) ? this.state.data.warehouseLoad : [];
+            if (!items.length) {
+                this.warehouseLoadList.innerHTML = '<p class="muted">Žádná data o skladech.</p>';
+                return;
+            }
+            this.warehouseLoadList.innerHTML = items.map(item => {
+                const cap = item.kapacita ?? 0;
+                const used = item.obsazeno ?? 0;
+                const percent = item.procento ?? (cap > 0 ? (used / cap) * 100 : 0);
+                const safePercent = Math.min(Math.max(percent, 0), 150); // ограничим для вида
+                return `
+                    <div class="warehouse-load-item compact">
+                        <div class="warehouse-load-head">
+                            <span>${escapeHtml(item.sklad || 'Sklad')}</span>
+                            <small class="profile-muted">${escapeHtml(item.supermarket || '')}</small>
+                        </div>
+                        <div class="warehouse-load-meta">
+                            <span>Obsazeno: ${used}</span>
+                            <span>Kapacita: ${cap || '—'}</span>
+                        </div>
+                        <div class="warehouse-progress" aria-label="Vytizenost skladu">
+                            <span style="width:${safePercent}%;"></span>
+                        </div>
+                        <div class="warehouse-load-meta" style="justify-content:flex-start;">
+                            <strong>${safePercent.toFixed(1)} %</strong>
+                        </div>
+                    </div>
+                `;
+            }).join('');
         }
     }
 
@@ -4539,25 +4578,149 @@ function resolveAllowedViews(role, permissions = []) {
             const filter = this.state.customerCategoryFilter;
             const term = (this.state.customerSearchTerm || '').toLowerCase();
             const emojiByKeyword = [
+                // drogerie specifics
+                { key: 'kapesnic', emoji: '🧻' },
+                { key: 'toaletn', emoji: '🧻' },
+                { key: 'kartacek', emoji: '🦷' },
+                { key: 'zubni pasta', emoji: '🦷' },
+                { key: 'pasta', emoji: '🦷' },
+                { key: 'praci', emoji: '🧺' },
+                { key: 'avivaz', emoji: '🧴' },
+                { key: 'uklid', emoji: '🧽' },
+                { key: 'sprej', emoji: '🧽' },
+                { key: 'sampon', emoji: '🧴' },
+                { key: 'sprch', emoji: '🧼' },
+                { key: 'gel', emoji: '🧴' },
+                { key: 'mydlo', emoji: '🧼' },
+                { key: 'droger', emoji: '🧴' },
+                // food & drinks
                 { key: 'pivo', emoji: '🍺' },
-                { key: 'cokolad', emoji: '🍫' },
-                { key: 'baget', emoji: '🥖' },
-                { key: 'chleb', emoji: '🍞' },
-                { key: 'mleko', emoji: '🥛' },
-                { key: 'jogurt', emoji: '🍶' },
+                { key: 'pilsner', emoji: '🍺' },
+                { key: 'gambrinus', emoji: '🍺' },
+                { key: 'kozel', emoji: '🍺' },
+                { key: 'rum', emoji: '🥃' },
+                { key: 'whisky', emoji: '🥃' },
+                { key: 'vodk', emoji: '🍸' },
+                { key: 'vino', emoji: '🍷' },
+                { key: 'cervene', emoji: '🍷' },
+                { key: 'bile', emoji: '🥂' },
+                { key: 'sekt', emoji: '🥂' },
+                { key: 'prosecco', emoji: '🥂' },
+                // sladkosti (specific first)
+                { key: 'susen', emoji: '🍪' }, // susenky
+                { key: 'lentilk', emoji: '🍭' },
+                { key: 'mandle', emoji: '🥜' },
                 { key: 'bonbon', emoji: '🍬' },
+                { key: 'karamel', emoji: '🍯' },
+                { key: 'marcipan', emoji: '🍡' },
+                { key: 'wafle', emoji: '🍰' }, // widely supported
+                { key: 'zmrzlinova tyc', emoji: '🍧' }, // ice cream bar/popsicle
+                { key: 'nanuk', emoji: '🍧' },
+                { key: 'tycink', emoji: '🍫' }, // tycinka
+                { key: 'cokolad', emoji: '🍫' },
+                { key: 'coko', emoji: '🍫' },
+                { key: 'zmrzlin', emoji: '🍦' },
+                { key: 'sladk', emoji: '🍬' }, // fallback for sweets
+                // pizza (before cheese mappings to avoid 🧀)
+                { key: 'pizza mozzarella', emoji: '🍕' },
+                { key: 'mrazena pizza', emoji: '🍕' },
+                { key: 'pizza', emoji: '🍕' },
+                // pecivo
+                { key: 'baget', emoji: '🥖' },
+                { key: 'houska', emoji: '🥯' },
+                { key: 'rohlik', emoji: '🥨' },
+                { key: 'croissant', emoji: '🥐' },
+                { key: 'toust', emoji: '🍞' },
+                { key: 'toast', emoji: '🍞' },
+                { key: 'chleb', emoji: '🍞' },
+                // dairy & misc
+                // mleko & dairy
+                { key: 'mleko', emoji: '🥛' },
+                { key: 'plnotucne', emoji: '🥛' },
+                { key: 'polotucne', emoji: '🥛' },
+                { key: 'jogurt', emoji: '🥣' },
+                { key: 'kefir', emoji: '🥛' },
+                { key: 'skyr', emoji: '🥣' },
+                { key: 'maslo', emoji: '🧈' },
+                { key: 'tvaroh', emoji: '🧀' },
+                { key: 'syr', emoji: '🧀' },
+                { key: 'mozzarella', emoji: '🧀' },
+                { key: 'eidam', emoji: '🧀' },
+                { key: 'gouda', emoji: '🧀' },
+                { key: 'cottage', emoji: '🧀' },
+                // ovoce a zelenina
+                { key: 'hrusk', emoji: '🍐' },
+                { key: 'jablk zel', emoji: '🍏' },
+                { key: 'jablk cerv', emoji: '🍎' },
+                { key: 'jablk', emoji: '🍎' },
+                { key: 'mandarin', emoji: '🍊' },
+                { key: 'pomeran', emoji: '🍊' },
                 { key: 'ovoce', emoji: '🍎' },
-                { key: 'zelenin', emoji: '🥬' },
+                { key: 'brambor', emoji: '🥔' },
+                { key: 'mrkev', emoji: '🥕' },
+                { key: 'okurk', emoji: '🥒' },
+                { key: 'paprik', emoji: '🌶' },
+                { key: 'paprika', emoji: '🌶' },
+                { key: 'rajcat', emoji: '🍅' },
+                { key: 'zelenin', emoji: '🥬' }, // generic veggie fallback
+                // mrazene
+                { key: 'mrazene brokolic', emoji: '🥦' },
+                { key: 'mrazena brokolic', emoji: '🥦' },
+                { key: 'brokolic', emoji: '🥦' },
+                { key: 'mrazene kukuric', emoji: '🌽' },
+                { key: 'mrazena kukuric', emoji: '🌽' },
+                { key: 'kukuric', emoji: '🌽' },
+                { key: 'mrazena zelenin', emoji: '🥬' },
+                { key: 'mrazena zelen', emoji: '🥬' },
+                { key: 'mrazene hranolk', emoji: '🍟' },
+                { key: 'mrazene rybi prst', emoji: '🐟' },
+                { key: 'mrazene ryb', emoji: '🐟' },
+                { key: 'mrazena tresk', emoji: '🐟' },
+                { key: 'mrazene krevety', emoji: '🍤' },
+                { key: 'mrazene maliny', emoji: '🍓' },
+                { key: 'mrazena pizza', emoji: '🍕' },
+                { key: 'zmrzlin', emoji: '🍦' },
+                { key: 'mrazene', emoji: '🧊' },
+                
+                // maso a uzeniny
+                { key: 'hovezi', emoji: '🥩' },
+                { key: 'kureci', emoji: '🍗' },
+                { key: 'prsa', emoji: '🍗' },
+                { key: 'stehno', emoji: '🍗' },
+                { key: 'srdick', emoji: '🍗' },
+                { key: 'veprove', emoji: '🍖' },
+                { key: 'koleno', emoji: '🍖' },
+                { key: 'kare', emoji: '🍖' },
+                { key: 'klobas', emoji: '🌭' },
+                { key: 'salam', emoji: '🍖' },
+                { key: 'sunka', emoji: '🥓' },
+                { key: 'uzen', emoji: '🥓' },
+                // ostatni
                 { key: 'maso', emoji: '🥩' },
                 { key: 'ryb', emoji: '🐟' },
                 { key: 'table', emoji: '💊' }, // tablety
-                { key: 'droger', emoji: '🧴' },
+                // napoje
+                { key: 'cola', emoji: '🥤' },
+                { key: 'energet', emoji: '⚡' },
+                { key: 'sprite', emoji: '🥤' },
+                { key: 'fanta', emoji: '🍊' },
+                { key: 'caj', emoji: '🧊' },
+                { key: 'ledovy', emoji: '🧊' },
+                { key: 'dzus', emoji: '🧃' },
+                { key: 'pomeran', emoji: '🍊' },
+                { key: 'jablec', emoji: '🍏' },
+                { key: 'voda perliv', emoji: '💧' },
+                { key: 'voda neperliv', emoji: '💧' },
+                { key: 'voda', emoji: '💧' },
                 { key: 'napoj', emoji: '🥤' },
                 { key: 'kava', emoji: '☕' }
             ];
             const pickEmoji = prod => {
                 const text = `${prod.name || ''} ${prod.category || ''} ${prod.description || ''}`.toLowerCase();
-                const match = emojiByKeyword.find(entry => text.includes(entry.key));
+                const normalizedText = text.normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+                const match = emojiByKeyword.find(entry =>
+                    text.includes(entry.key) || normalizedText.includes(entry.key)
+                );
                 return match ? match.emoji : '🛒';
             };
             const products = this.state.data.customerProducts
@@ -5980,6 +6143,83 @@ class GlobalSearch {
         return { store, warehouse };
     }
 
+    function buildStoreFormModal(mode, existingStore, existingWarehouse) {
+        const overlay = document.createElement('div');
+        overlay.className = 'modal active';
+        overlay.style.zIndex = '9999';
+        const title = mode === 'edit' ? 'Upravit prodejnu' : 'Nová prodejna';
+        overlay.innerHTML = `
+            <div class="modal-content" role="dialog" aria-modal="true" style="max-width:640px;">
+                <div class="modal-header" style="align-items:flex-start;">
+                    <div>
+                        <p class="eyebrow" style="margin:0;">Prodejny &amp; sklady</p>
+                        <h3 style="margin:0;">${title}</h3>
+                    </div>
+                    <button type="button" class="ghost-btn ghost-muted" data-store-close>&times;</button>
+                </div>
+                <div style="display:grid;gap:12px;">
+                    <label style="display:grid;gap:6px;">
+                        <span>Název prodejny</span>
+                        <input type="text" id="store-name" value="${escapeHtml(existingStore?.nazev || '')}" required>
+                    </label>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <label style="display:grid;gap:6px;">
+                            <span>Telefon</span>
+                            <input type="text" id="store-tel" value="${escapeHtml(existingStore?.telefon || '')}">
+                        </label>
+                        <label style="display:grid;gap:6px;">
+                            <span>Email</span>
+                            <input type="email" id="store-email" value="${escapeHtml(existingStore?.email || '')}">
+                        </label>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <label style="display:grid;gap:6px;">
+                            <span>Ulice</span>
+                            <input type="text" id="store-ulice" value="${escapeHtml(existingStore?.adresaUlice || '')}" required>
+                        </label>
+                        <label style="display:grid;gap:6px;">
+                            <span>PSČ</span>
+                            <input type="text" id="store-psc" value="${escapeHtml(existingStore?.adresaPsc || '')}" required>
+                        </label>
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                        <label style="display:grid;gap:6px;">
+                            <span>Číslo popisné</span>
+                            <input type="text" id="store-cpop" value="${escapeHtml(existingStore?.adresaCpop || '')}" required>
+                        </label>
+                        <label style="display:grid;gap:6px;">
+                            <span>Číslo orientační</span>
+                            <input type="text" id="store-corient" value="${escapeHtml(existingStore?.adresaCorient || '')}" required>
+                        </label>
+                    </div>
+                    <div style="display:grid;gap:10px;border-top:1px solid var(--border);padding-top:10px;">
+                        <strong>Sklad</strong>
+                        <label style="display:grid;gap:6px;">
+                            <span>Název skladu</span>
+                            <input type="text" id="store-wh-name" value="${escapeHtml(existingWarehouse?.nazev || '')}">
+                        </label>
+                        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+                            <label style="display:grid;gap:6px;">
+                                <span>Kapacita</span>
+                                <input type="number" id="store-wh-cap" value="${existingWarehouse?.kapacita ?? ''}" min="0">
+                            </label>
+                            <label style="display:grid;gap:6px;">
+                                <span>Telefon skladu</span>
+                                <input type="text" id="store-wh-tel" value="${escapeHtml(existingWarehouse?.telefon || '')}">
+                            </label>
+                        </div>
+                    </div>
+                    <div class="dialog-actions" style="justify-content:flex-end;gap:10px;">
+                        <button type="button" class="ghost-btn ghost-muted" data-store-close>Zavřít</button>
+                        <button type="button" class="ghost-btn ghost-strong" id="store-save-btn">Uložit</button>
+                    </div>
+                    <p id="store-form-status" class="profile-muted"></p>
+                </div>
+            </div>
+        `;
+        return overlay;
+    }
+
     async function openStoreDialog(mode) {
         const selectedId = state.selectedStoreId;
         const { store: existingStore, warehouse: existingWarehouse } = pickStoreDataById(selectedId);
@@ -5987,57 +6227,60 @@ class GlobalSearch {
             alert('Vyberte prodejnu pro úpravu.');
             return;
         }
+        const overlay = buildStoreFormModal(mode, existingStore, existingWarehouse);
+        const cleanup = () => overlay.remove();
+        overlay.querySelectorAll('[data-store-close]').forEach(btn => btn.addEventListener('click', cleanup));
+        overlay.addEventListener('click', (e) => {
+            if (e.target === overlay) cleanup();
+        });
+        overlay.querySelector('#store-save-btn')?.addEventListener('click', async () => {
+            const name = overlay.querySelector('#store-name')?.value?.trim();
+            const tel = overlay.querySelector('#store-tel')?.value?.trim() || '';
+            const email = overlay.querySelector('#store-email')?.value?.trim() || '';
+            const ulice = overlay.querySelector('#store-ulice')?.value?.trim();
+            const psc = overlay.querySelector('#store-psc')?.value?.trim();
+            const cpop = overlay.querySelector('#store-cpop')?.value?.trim();
+            const corient = overlay.querySelector('#store-corient')?.value?.trim();
+            const whName = overlay.querySelector('#store-wh-name')?.value?.trim() || '';
+            const whCap = Number(overlay.querySelector('#store-wh-cap')?.value || 0) || 0;
+            const whTel = overlay.querySelector('#store-wh-tel')?.value?.trim() || '';
+            const statusEl = overlay.querySelector('#store-form-status');
 
-        const name = prompt('Název prodejny', existingStore?.nazev || '');
-        if (!name) return;
-        const tel = prompt('Telefon prodejny', existingStore?.telefon || '');
-        if (tel === null) return;
-        const email = prompt('Email prodejny', existingStore?.email || '');
-        if (email === null) return;
-        const ulice = prompt('Ulice', existingStore?.adresaUlice || '');
-        if (!ulice) return;
-        const cpop = prompt('Číslo popisné', existingStore?.adresaCpop || '');
-        if (!cpop) return;
-        const corient = prompt('Číslo orientační', existingStore?.adresaCorient || '');
-        if (!corient) return;
-        const psc = prompt('PSČ', existingStore?.adresaPsc || '');
-        if (!psc) return;
-
-        const whName = prompt('Název skladu', existingWarehouse?.nazev || '');
-        if (whName === null) return;
-        const whCapRaw = prompt('Kapacita skladu', existingWarehouse?.kapacita != null ? String(existingWarehouse.kapacita) : '0');
-        if (whCapRaw === null) return;
-        const whCap = Number(whCapRaw) || 0;
-        const whTel = prompt('Telefon skladu', existingWarehouse?.telefon || '');
-        if (whTel === null) return;
-
-        try {
-            const savedStore = await upsertSupermarket({
-                id: mode === 'edit' ? existingStore?.id : null,
-                nazev: name,
-                telefon: tel,
-                email: email,
-                adresaId: mode === 'edit' ? existingStore?.adresaId : null,
-                adresaUlice: ulice,
-                adresaCpop: cpop,
-                adresaCorient: corient,
-                adresaPsc: psc
-            });
-            const storeId = savedStore?.id || existingStore?.id;
-            if (whName && storeId) {
-                await upsertWarehouse({
-                    id: existingWarehouse?.id || null,
-                    nazev: whName,
-                    kapacita: whCap,
-                    telefon: whTel,
-                    supermarketId: storeId
-                });
+            if (!name || !ulice || !psc || !cpop || !corient) {
+                statusEl.textContent = 'Vyplňte povinná pole prodejny (název, ulice, č.p., č.o., PSČ).';
+                return;
             }
-            await refreshMarketDataAndRender();
-        } catch (err) {
-            console.error('Uložení prodejny/skladu selhalo', err);
-            alert(err.message || 'Uložení prodejny selhalo.');
-        }
+            statusEl.textContent = 'Ukládám...';
+            try {
+                const savedStore = await upsertSupermarket({
+                    id: mode === 'edit' ? existingStore?.id : null,
+                    nazev: name,
+                    telefon: tel,
+                    email: email,
+                    adresaId: mode === 'edit' ? existingStore?.adresaId : null,
+                    adresaUlice: ulice,
+                    adresaCpop: cpop,
+                    adresaCorient: corient,
+                    adresaPsc: psc
+                });
+                const storeId = savedStore?.id || existingStore?.id;
+                if (whName && storeId) {
+                    await upsertWarehouse({
+                        id: existingWarehouse?.id || null,
+                        nazev: whName,
+                        kapacita: whCap,
+                        telefon: whTel,
+                        supermarketId: storeId
+                    });
+                }
+                await refreshMarketDataAndRender();
+                cleanup();
+            } catch (err) {
+                console.error('Uložení prodejny/skladu selhalo', err);
+                statusEl.textContent = err.message || 'Uložení prodejny selhalo.';
+            }
+        });
+        document.body.appendChild(overlay);
     }
 
     async function handleStoreDelete() {

@@ -456,6 +456,50 @@ public class MarketProcedureDao {
         ));
     }
 
+    // --- VIEW: V_WAREHOUSE_LOAD (capacity/usage per warehouse) ---
+    public List<WarehouseLoadRow> listWarehouseLoad() {
+        final String sql = """
+                SELECT ID_SKLAD,
+                       SKLAD_NAZEV,
+                       KAPACITA,
+                       OBSAZENO,
+                       PROCENTO,
+                       SUPERMARKET_ID,
+                       SUPERMARKET_NAZEV
+                  FROM V_WAREHOUSE_LOAD
+                ORDER BY ID_SKLAD
+                """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new WarehouseLoadRow(
+                rs.getLong("ID_SKLAD"),
+                rs.getString("SKLAD_NAZEV"),
+                getNullableInt(rs, "KAPACITA"),
+                getNullableLong(rs, "OBSAZENO"),
+                rs.getObject("PROCENTO") != null ? rs.getDouble("PROCENTO") : null,
+                getNullableLong(rs, "SUPERMARKET_ID"),
+                rs.getString("SUPERMARKET_NAZEV")
+        ));
+    }
+
+    // --- VIEW: V_RISK_STOCK (low stock items) ---
+    public List<RiskStockRow> listRiskStock() {
+        final String sql = """
+                SELECT NAZEV,
+                       MNOZSTVI,
+                       MINMNOZSTVI,
+                       SKLAD_NAZEV,
+                       SUPERMARKET_NAZEV
+                  FROM V_RISK_STOCK
+                ORDER BY MNOZSTVI
+                """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new RiskStockRow(
+                rs.getString("NAZEV"),
+                getNullableLong(rs, "MNOZSTVI"),
+                getNullableLong(rs, "MINMNOZSTVI"),
+                rs.getString("SKLAD_NAZEV"),
+                rs.getString("SUPERMARKET_NAZEV")
+        ));
+    }
+
     // --- extractors ---
     private CallableStatementCreator call(String sql, SqlConfigurer configurer) {
         return (Connection con) -> {
@@ -732,6 +776,22 @@ public class MarketProcedureDao {
     public record ZboziDodRow(Long zboziId, Long dodavatelId, String dodavatelFirma) {}
     public record SupermarketDeleteInfo(String nazev, Long skladCount, Long zboziCount, Long dodavatelCount) {}
     public record SkladDeleteInfo(String nazev, Long zboziCount, Long dodavatelCount) {}
+    public record WarehouseLoadRow(
+            Long id,
+            String skladNazev,
+            Integer kapacita,
+            Long obsazeno,
+            Double procento,
+            Long supermarketId,
+            String supermarketNazev
+    ) {}
+    public record RiskStockRow(
+            String nazev,
+            Long mnozstvi,
+            Long minMnozstvi,
+            String skladNazev,
+            String supermarketNazev
+    ) {}
 
     public record CustomerCatalogRow(
             Long id,
