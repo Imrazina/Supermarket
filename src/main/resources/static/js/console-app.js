@@ -5452,6 +5452,17 @@ class GlobalSearch {
             return currencyFormatter.format(num);
         }
 
+        findOrder(orderId) {
+            if (!orderId) return null;
+            const { items = [] } = this.state.customerHistory || {};
+            return (items || []).find(o => String(o?.id) === String(orderId)) || null;
+        }
+
+        formatOrderNumber(orderId) {
+            const order = this.findOrder(orderId);
+            return order?.cislo || '—';
+        }
+
         computeTotal(items) {
             const list = Array.isArray(items) ? items : [];
             return list.reduce((sum, it) => {
@@ -5475,7 +5486,8 @@ class GlobalSearch {
                 return;
             }
             const target = handlerLabel && handlerLabel.trim().length ? handlerLabel.trim() : 'manažerovi';
-            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderId} ke schválení ${target}?`)) {
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderLabel} ke schválení ${target}?`)) {
                 return;
             }
             if (triggerBtn) triggerBtn.disabled = true;
