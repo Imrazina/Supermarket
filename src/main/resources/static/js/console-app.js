@@ -2501,15 +2501,15 @@ function resolveAllowedViews(role, permissions = []) {
             const noteHtml = order?.note ? `<small class="profile-muted">${this.escapeHtml(order.note)}</small>` : '';
             return `
                 <tr data-order-id="${order.id}">
+                    <td>${order.cislo || '—'}</td>
                     <td><span class="status-badge ${typeClass}">${order.type || '—'}</span></td>
                     <td>
                         <div class="order-cell">
-                            <strong>${order.store || '—'}</strong>
+                            <strong>${order.store || '-'}</strong>
                             ${noteHtml}
                         </div>
                     </td>
-                    <td>${order.supplier || '—'}</td>
-                    <td>${order.employee || '—'}</td>
+                    <td>${order.employee || '-'}</td>
                     <td><span class="status-badge ${statusClass}">${order.status || '—'}</span></td>
                     <td>${dateText}</td>
                     <td>${currencyFormatter.format(amount)}</td>
@@ -4433,10 +4433,10 @@ function resolveAllowedViews(role, permissions = []) {
                     <div class="product-icon">${pickEmoji(prod)}</div>
                     <div>
                         <strong>${prod.name}</strong>
-                        <p>${prod.description}</p>
+                        ${prod.description ? `<p>${prod.description}</p>` : ''}
                     </div>
                     <div class="product-meta">
-                        <span>${prod.category}</span>
+                        <span>${(prod.category && prod.category.trim()) ? prod.category : 'Bez kategorie'}</span>
                         <span class="badge">${prod.badge || ''}</span>
                     </div>
                     <div class="product-footer">
@@ -4530,58 +4530,6 @@ function resolveAllowedViews(role, permissions = []) {
             name: store.nazev ?? store.name ?? 'Supermarket',
             city: store.adresaMesto ?? store.mesto ?? ''
         };
-    }
-
-class GlobalSearch {
-        constructor(state) {
-            this.state = state;
-            this.input = document.getElementById('global-search');
-            this.results = document.getElementById('search-results');
-        }
-
-        init() {
-            if (!this.input) return;
-            this.input.addEventListener('input', () => this.handleInput());
-            document.addEventListener('click', event => {
-                if (!event.target.closest('.search')) {
-                    this.hide();
-                }
-            });
-        }
-
-        handleInput() {
-            const term = this.input.value.trim().toLowerCase();
-            if (term.length < 2) {
-                this.hide();
-                return;
-            }
-            const hits = [];
-            this.state.data.inventory.forEach(item => {
-                if (item.name.toLowerCase().includes(term) || item.sku.toLowerCase().includes(term)) {
-                    hits.push({ type: 'SKU', label: `${item.sku} · ${item.name}` });
-                }
-            });
-            this.state.data.orders.forEach(order => {
-                if (order.id.toLowerCase().includes(term) || order.store.toLowerCase().includes(term)) {
-                    hits.push({ type: 'ORDER', label: `${order.id} · ${order.store}` });
-                }
-            });
-            this.state.data.customers.forEach(customer => {
-                if (customer.name.toLowerCase().includes(term)) {
-                    hits.push({ type: 'CLIENT', label: `${customer.name} · ${customer.phone}` });
-                }
-            });
-            this.results.innerHTML = hits.length
-                ? hits.slice(0, 6).map(hit => `<div class="search-hit"><span class="badge">${hit.type}</span> ${hit.label}</div>`).join('')
-                : '<p>Zadne vysledky, zkuste jiny dotaz.</p>';
-            this.results.classList.add('visible');
-        }
-
-        hide() {
-            if (!this.results) return;
-            this.results.classList.remove('visible');
-            this.results.innerHTML = '';
-        }
     }
 
     class ClientOrdersModule {
@@ -5424,7 +5372,6 @@ class GlobalSearch {
         this.customerOrders = new CustomerOrdersView(state, currencyFormatter, { apiUrl, refreshWalletChip: () => this.updateWalletChip() });
         this.clientOrders = new ClientOrdersModule(state, { apiUrl });
         this.customerHistory = new CustomerHistoryModule(state, { apiUrl });
-        this.search = new GlobalSearch(state);
         this.supplier = new SupplierModule(state, { apiUrl });
         }
 
@@ -5446,7 +5393,6 @@ class GlobalSearch {
             this.customerOrders.render();
             this.clientOrders.init();
             this.customerHistory.init();
-            this.search.init();
             this.supplier.init();
             this.registerUtilityButtons();
             this.renderAll();
@@ -6060,9 +6006,15 @@ class GlobalSearch {
                 if (data && data.cashbackAmount && Number(data.cashbackAmount) > 0) {
                     this.showCashbackModal(data.cashbackAmount, data.walletBalance, data.cashbackTurnover);
                 }
-                this.statusEl.textContent = 'Objednávka a platba byly uloženy.';
-                this.statusEl.textContent = 'Objednavka a platba byly ulozeny.';
+                this.statusEl.textContent = 'Objednavka a platba byly ulozeny. Presmerovani do Zakaznicke zony...';
                 this.statusEl.classList.add('chat-status-success');
+                setTimeout(() => {
+                    if (typeof window?.app?.navigation?.setActive === 'function') {
+                        window.app.navigation.setActive('customer');
+                    } else {
+                        window.location.href = 'customer.html';
+                    }
+                }, 2000);
             } catch (error) {
                 this.statusEl.textContent = error.message || 'Platbu se nepodarilo dokoncit.';
             } finally {

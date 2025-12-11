@@ -16,6 +16,7 @@ public record CustomerOrderResponse(
         String note,
         List<Item> items,
         BigDecimal total,
+        String cislo
         boolean refunded,
         boolean pendingRefund
 ) {

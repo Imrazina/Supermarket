@@ -2,6 +2,7 @@ package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.Service.UserJdbcService;
 import dreamteam.com.supermarket.Service.ZboziJdbcService;
+import dreamteam.com.supermarket.Service.KategorieZboziJdbcService;
 import dreamteam.com.supermarket.controller.dto.CustomerProductDto;
 import dreamteam.com.supermarket.model.market.Zbozi;
 import dreamteam.com.supermarket.model.user.Uzivatel;
@@ -17,20 +18,36 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/customer/catalog")
-@CrossOrigin(origins = "http://localhost:8000", allowCredentials = "true")
+@CrossOrigin(
+        origins = {
+                "http://localhost:8000",
+                "http://127.0.0.1:8000",
+                "http://localhost:8082",
+                "http://127.0.0.1:8082",
+                "http://localhost",
+                "http://127.0.0.1"
+        },
+        allowCredentials = "true"
+)
 public class CustomerCatalogController {
 
     private static final Locale LOCALE_CZ = Locale.forLanguageTag("cs-CZ");
 
     private final ZboziJdbcService zboziJdbcService;
     private final UserJdbcService userJdbcService;
+    private final KategorieZboziJdbcService kategorieZboziJdbcService;
 
-    public CustomerCatalogController(ZboziJdbcService zboziJdbcService, UserJdbcService userJdbcService) {
+    public CustomerCatalogController(ZboziJdbcService zboziJdbcService,
+                                     UserJdbcService userJdbcService,
+                                     KategorieZboziJdbcService kategorieZboziJdbcService) {
         this.zboziJdbcService = zboziJdbcService;
         this.userJdbcService = userJdbcService;
+        this.kategorieZboziJdbcService = kategorieZboziJdbcService;
     }
 
     @GetMapping("/products")
@@ -47,8 +64,18 @@ public class CustomerCatalogController {
         if (currentUser == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
+        Map<Long, String> categoryNames = kategorieZboziJdbcService.findAll().stream()
+                .filter(k -> k.getIdKategorie() != null && k.getNazev() != null)
+                .collect(Collectors.toMap(k -> k.getIdKategorie(), k -> k.getNazev(), (a, b) -> a));
+
         List<CustomerProductDto> products = zboziJdbcService.findBySupermarket(supermarketId, q, categoryId)
                 .stream()
+                .peek(z -> {
+                    if (z.getKategorie() != null && (z.getKategorie().getNazev() == null || z.getKategorie().getNazev().isBlank())) {
+                        String name = categoryNames.get(z.getKategorie().getIdKategorie());
+                        z.getKategorie().setNazev(name);
+                    }
+                })
                 .sorted(Comparator.comparing(z -> z.getNazev() == null ? "" : z.getNazev().toLowerCase(LOCALE_CZ)))
                 .map(CustomerCatalogController::toDto)
                 .toList();

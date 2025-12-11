@@ -88,10 +88,16 @@ CREATE OR REPLACE PACKAGE BODY pkg_platba AS
     p_platba_id     OUT NUMBER
   ) IS
     v_typ VARCHAR2(1);
+    v_vraceno  NUMBER;
   BEGIN
+    PKG_ARC_CTRL.set_skip_arc(TRUE);
     v_typ := UPPER(SUBSTR(p_typ, 1, 1));
     IF v_typ NOT IN ('H','K','U') THEN
       RAISE_APPLICATION_ERROR(-20090, 'Neplatný typ platby (H/K/U).');
+    END IF;
+
+    IF p_castka IS NULL OR p_castka <= 0 THEN
+      RAISE_APPLICATION_ERROR(-20095, 'Castka platby musi byt vetsi nez 0.');
     END IF;
 
     INSERT INTO PLATBA(ID_PLATBA, CASTKA, DATUM, ID_OBJEDNAVKA, PLATBATYP, ID_POHYB_UCTU)
@@ -116,13 +122,26 @@ CREATE OR REPLACE PACKAGE BODY pkg_platba AS
       );
       UPDATE PLATBA SET ID_POHYB_UCTU = p_pohyb_id WHERE ID_PLATBA = p_platba_id;
     ELSIF v_typ = 'H' THEN
-      upsert_hotovost(p_platba_id, p_prijato, p_vraceno);
+      IF p_prijato IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20097, 'Pro hotovostni platbu je nutne predat prijatou castku.');
+      END IF;
+      IF p_prijato < p_castka THEN
+        RAISE_APPLICATION_ERROR(
+          -20098,
+          'Prijata hotovost (' || p_prijato || ') nesmi byt mensi nez castka k uhrade (' || p_castka || ').'
+        );
+      END IF;
+      v_vraceno := NVL(p_vraceno, GREATEST(p_prijato - p_castka, 0));
+      upsert_hotovost(p_platba_id, p_prijato, v_vraceno);
     ELSIF v_typ = 'K' THEN
       upsert_karta(p_platba_id, p_cislo_karty);
     END IF;
 
+    PKG_ARC_CTRL.set_skip_arc(FALSE);
+
   EXCEPTION
     WHEN OTHERS THEN
+      PKG_ARC_CTRL.set_skip_arc(FALSE);
       RAISE;
   END create_platba;
 

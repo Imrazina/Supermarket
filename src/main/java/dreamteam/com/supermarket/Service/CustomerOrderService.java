@@ -290,6 +290,7 @@ public class CustomerOrderService {
                         row.note,
                         row.items,
                         computeTotal(row.items),
+                        row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null)
                         row.refunded,
                         row.pendingRefund
                 ))
@@ -313,6 +314,7 @@ public class CustomerOrderService {
         String handlerName;
         String createdAt;
         String note;
+        String cislo;
         boolean refunded;
         boolean pendingRefund;
         List<CustomerOrderResponse.Item> items = new java.util.ArrayList<>();
@@ -334,6 +336,8 @@ public class CustomerOrderService {
             row.handlerName = buildName(handlerFirst, handlerLast);
             Timestamp ts = getTimestamp(rs, "DATUM", "CREATED_AT", "CREATED");
             row.createdAt = ts != null ? FORMATTER.format(ts.toInstant()) : "";
+            row.note = getString(rs, "POZNAMKA", "NOTE");
+            row.cislo = getString(rs, "CISLO");
             String rawNote = getString(rs, "POZNAMKA", "NOTE");
             row.pendingRefund = isPendingRefund(rawNote);
             row.note = stripRefundMark(rawNote);

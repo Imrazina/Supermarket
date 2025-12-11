@@ -57,6 +57,71 @@ BEGIN
 END;
 /
 
+--------------------------------------------------------------------------------
+-- TRIGGER: HOTOVOST_VALIDATE_AMOUNT
+-- Popis:
+--   Zabrani ulozeni hotovostni platby, kdyz prijata castka je mensi nez suma
+--   na objednavce nebo mensi nez castka platby. Zajistuje kontrolu na urovni DB.
+--------------------------------------------------------------------------------
+CREATE OR REPLACE TRIGGER HOTOVOST_VALIDATE_AMOUNT
+BEFORE INSERT OR UPDATE ON HOTOVOST
+FOR EACH ROW
+DECLARE
+    v_castka        PLATBA.CASTKA%TYPE;
+    v_typ           PLATBA.PLATBATYP%TYPE;
+    v_objednavka_id PLATBA.ID_OBJEDNAVKA%TYPE;
+    v_total         NUMBER;
+BEGIN
+    SELECT CASTKA, PLATBATYP, ID_OBJEDNAVKA
+      INTO v_castka, v_typ, v_objednavka_id
+      FROM PLATBA
+     WHERE ID_PLATBA = :NEW.ID_PLATBA;
+
+    IF v_typ <> 'H' THEN
+        RETURN;
+    END IF;
+
+    IF v_castka IS NULL OR v_castka <= 0 THEN
+        RAISE_APPLICATION_ERROR(-20095, 'Castka platby musi byt vetsi nez 0.');
+    END IF;
+
+    IF :NEW.PRIJATO IS NULL THEN
+        RAISE_APPLICATION_ERROR(-20097, 'Pro hotovostni platbu je nutne vyplnit prijatou castku.');
+    END IF;
+
+    IF :NEW.PRIJATO < v_castka THEN
+        RAISE_APPLICATION_ERROR(
+            -20098,
+            'Prijata hotovost (' || :NEW.PRIJATO || ') nesmi byt mensi nez castka k uhrade (' || v_castka || ').'
+        );
+    END IF;
+
+    IF v_objednavka_id IS NOT NULL THEN
+        SELECT NVL(SUM(oz.pocet * NVL(z.cena,0)), 0)
+          INTO v_total
+          FROM OBJEDNAVKA_ZBOZI oz
+          JOIN ZBOZI z ON z.ID_ZBOZI = oz.ID_ZBOZI
+         WHERE oz.ID_OBJEDNAVKA = v_objednavka_id;
+
+        IF v_castka < v_total THEN
+            RAISE_APPLICATION_ERROR(
+                -20096,
+                'Castka platby (' || v_castka || ') je nizsi nez cena objednavky (' || v_total || ').'
+            );
+        END IF;
+    END IF;
+
+    IF :NEW.VRACENO IS NULL THEN
+        :NEW.VRACENO := GREATEST(:NEW.PRIJATO - v_castka, 0);
+    ELSIF :NEW.VRACENO < 0 THEN
+        RAISE_APPLICATION_ERROR(-20099, 'Vracena hotovost nesmi byt zaporna.');
+    END IF;
+EXCEPTION
+    WHEN NO_DATA_FOUND THEN
+        RAISE_APPLICATION_ERROR(-20100, 'Neexistuje platba pro hotovost.');
+END;
+/
+
 ------------------------------------------------------------
 -- PROCEDURA: PROC_CLAIM_SUPPLIER_ORDER
 -- Popis:

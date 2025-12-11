@@ -1,4 +1,4 @@
-﻿const fallbackFormatter = new Intl.NumberFormat('cs-CZ', {
+const fallbackFormatter = new Intl.NumberFormat('cs-CZ', {
     style: 'currency',
     currency: 'CZK',
     maximumFractionDigits: 0
@@ -17,18 +17,19 @@ export default class CustomerOrdersView {
         if (!this.tbody) return;
         const orders = Array.isArray(this.state.data.customerOrders) ? this.state.data.customerOrders : [];
         if (!orders.length) {
-            this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;"> Žádné objednávky.</td></tr>';
+            this.tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;"> Zadne objednavky.</td></tr>';
             return;
         }
         this.tbody.innerHTML = orders.map(order => `
             <tr>
+                <td>${order.cislo || order.id || ''}</td>
                 <td>${order.store || ''}</td>
                 <td>${order.status || ''}</td>
                 <td>${order.date || ''}</td>
                 <td>${order.amount ? this.formatter.format(order.amount) : ''}</td>
                 <td>
                     <button class="ghost-btn ghost-muted" data-refund-order="${order.id || ''}" data-refund-amount="${order.amount || ''}">
-                        Vrátit na účet
+                        Vratit na ucet
                     </button>
                 </td>
             </tr>
@@ -37,25 +38,26 @@ export default class CustomerOrdersView {
             btn.addEventListener('click', () => {
                 const id = btn.dataset.refundOrder;
                 const amount = parseFloat(btn.dataset.refundAmount || '0');
-                this.refundOrder(btn, id, amount);
+                this.refundOrder(btn, id, amount, orders.find(o => (o.id || '').toString() === (id || '').toString()));
             });
         });
     }
 
-    async refundOrder(buttonEl, orderId, amount) {
+    async refundOrder(buttonEl, orderId, amount, order) {
+        const displayNumber = order && (order.cislo || order.id) ? (order.cislo || order.id) : orderId;
         if (!orderId) {
-            alert('Chybí ID objednávky.');
+            alert('Chybi ID objednavky.');
             return;
         }
         if (!this.apiUrl) {
-            alert('API adresa není k dispozici.');
+            alert('API adresa neni k dispozici.');
             return;
         }
         if (!amount || amount <= 0) {
-            alert('Částka k vrácení není platná.');
+            alert('Castka k vraceni neni platna.');
             return;
         }
-        if (!confirm(`Vrátit ${this.formatter.format(amount)} na účet za objednávku ${orderId}?`)) {
+        if (!confirm(`Vratit ${this.formatter.format(amount)} na ucet za objednavku ${displayNumber}?`)) {
             return;
         }
         if (buttonEl) {
@@ -63,7 +65,7 @@ export default class CustomerOrdersView {
         }
         const token = localStorage.getItem('token');
         if (!token) {
-            alert('Nejste přihlášen.');
+            alert('Nejste prihlasen.');
             if (buttonEl) buttonEl.disabled = false;
             return;
         }
@@ -78,21 +80,21 @@ export default class CustomerOrdersView {
             });
             if (!response.ok) {
                 const text = await response.text();
-                throw new Error(text || 'Refund se nepodařil.');
+                throw new Error(text || 'Refund se nepodaril.');
             }
             alert('Refund byl proveden.');
             if (buttonEl) {
-                buttonEl.textContent = 'Vráceno';
+                buttonEl.textContent = 'Vraceno';
                 buttonEl.disabled = true;
                 const row = buttonEl.closest('tr');
                 const statusCell = row ? row.querySelector('td:nth-child(3)') : null;
                 if (statusCell) {
-                    statusCell.textContent = 'Zrušeno';
+                    statusCell.textContent = 'Zruseno';
                 }
             }
             this.refreshWalletChip();
         } catch (err) {
-            alert(err.message || 'Refund se nepodařil.');
+            alert(err.message || 'Refund se nepodaril.');
             if (buttonEl) buttonEl.disabled = false;
         }
     }
