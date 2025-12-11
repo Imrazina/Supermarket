@@ -2466,15 +2466,15 @@ function resolveAllowedViews(role, permissions = []) {
             const noteHtml = order?.note ? `<small class="profile-muted">${this.escapeHtml(order.note)}</small>` : '';
             return `
                 <tr data-order-id="${order.id}">
+                    <td>${order.cislo || '—'}</td>
                     <td><span class="status-badge ${typeClass}">${order.type || '—'}</span></td>
                     <td>
                         <div class="order-cell">
-                            <strong>${order.store || '—'}</strong>
+                            <strong>${order.store || '-'}</strong>
                             ${noteHtml}
                         </div>
                     </td>
-                    <td>${order.supplier || '—'}</td>
-                    <td>${order.employee || '—'}</td>
+                    <td>${order.employee || '-'}</td>
                     <td><span class="status-badge ${statusClass}">${order.status || '—'}</span></td>
                     <td>${dateText}</td>
                     <td>${currencyFormatter.format(amount)}</td>
@@ -4366,10 +4366,10 @@ function resolveAllowedViews(role, permissions = []) {
                     <div class="product-icon">${pickEmoji(prod)}</div>
                     <div>
                         <strong>${prod.name}</strong>
-                        <p>${prod.description}</p>
+                        ${prod.description ? `<p>${prod.description}</p>` : ''}
                     </div>
                     <div class="product-meta">
-                        <span>${prod.category}</span>
+                        <span>${(prod.category && prod.category.trim()) ? prod.category : 'Bez kategorie'}</span>
                         <span class="badge">${prod.badge || ''}</span>
                     </div>
                     <div class="product-footer">
@@ -5993,9 +5993,15 @@ class GlobalSearch {
                 if (data && data.cashbackAmount && Number(data.cashbackAmount) > 0) {
                     this.showCashbackModal(data.cashbackAmount, data.walletBalance, data.cashbackTurnover);
                 }
-                this.statusEl.textContent = 'Objednávka a platba byly uloženy.';
-                this.statusEl.textContent = 'Objednavka a platba byly ulozeny.';
+                this.statusEl.textContent = 'Objednavka a platba byly ulozeny. Presmerovani do Zakaznicke zony...';
                 this.statusEl.classList.add('chat-status-success');
+                setTimeout(() => {
+                    if (typeof window?.app?.navigation?.setActive === 'function') {
+                        window.app.navigation.setActive('customer');
+                    } else {
+                        window.location.href = 'customer.html';
+                    }
+                }, 2000);
             } catch (error) {
                 this.statusEl.textContent = error.message || 'Platbu se nepodarilo dokoncit.';
             } finally {

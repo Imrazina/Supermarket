@@ -35,14 +35,15 @@ public class PushSubscriptionController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        Map<String, Object> keys = (Map<String, Object>) request.get("keys");
-        String endpoint = (String) request.get("endpoint");
+        Object keysObj = request.get("keys");
+        Map<?, ?> keys = keysObj instanceof Map<?, ?> m ? m : null;
+        String endpoint = asString(request.get("endpoint"));
         if (keys == null || endpoint == null) {
             return ResponseEntity.badRequest().body(Map.of("message", "Invalid subscription payload"));
         }
-        String auth = (String) keys.get("auth");
-        String p256dh = (String) keys.get("p256dh");
-        String email = (String) request.getOrDefault("username", authentication.getName());
+        String auth = asString(keys.get("auth"));
+        String p256dh = asString(keys.get("p256dh"));
+        String email = asString(request.getOrDefault("username", authentication.getName()));
 
         Uzivatel user = userJdbcService.findByEmail(email);
         if (user == null) {
@@ -69,5 +70,9 @@ public class PushSubscriptionController {
         String email = authentication.getName();
         notifikaceJdbcService.deleteByAdresat(email);
         return ResponseEntity.noContent().build();
+    }
+
+    private String asString(Object value) {
+        return value != null ? value.toString() : null;
     }
 }

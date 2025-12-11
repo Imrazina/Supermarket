@@ -97,6 +97,9 @@ public class CheckoutService {
         BigDecimal vraceno = null;
         if ("H".equalsIgnoreCase(paymentType)) {
             prijato = Optional.ofNullable(request.cashGiven()).orElse(total);
+            if (prijato.compareTo(total) < 0) {
+                throw new IllegalArgumentException("Prijata hotovost nesmi byt mensi nez castka k uhrade (" + total + ").");
+            }
             vraceno = prijato.subtract(total).max(BigDecimal.ZERO);
         }
 
