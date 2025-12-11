@@ -507,7 +507,7 @@
                             <button class="chip" data-payment-filter="U">Účet</button>
                         </div>
                     </div>
-                    <div class="table-wrapper">
+                    <div class="table-wrapper finance-table-wrapper">
                         <table class="payments-table">
                             <thead>
                             <tr>
@@ -515,7 +515,6 @@
                                 <th>Metoda</th>
                                 <th>Částka</th>
                                 <th>Datum</th>
-                                <th>Stav</th>
                             </tr>
                             </thead>
                             <tbody id="payments-table-body"></tbody>
@@ -523,16 +522,10 @@
                     </div>
                 </article>
 
-                <div class="two-column">
-                    <article class="panel">
-                        <h2>Struktura příjmů</h2>
-                        <div id="payment-stats"></div>
-                    </article>
-                    <article class="panel">
-                        <h2>Účtenky (UCTENKA)</h2>
-                        <ul id="receipt-list"></ul>
-                    </article>
-                </div>
+                <article class="panel">
+                    <h2>Struktura příjmů</h2>
+                    <div id="payment-stats"></div>
+                </article>
             </section>
 
             <section class="view" data-view="dbobjects">
@@ -612,6 +605,10 @@
                             <div class="upload-row">
                                 <input type="file" id="file-upload-input" style="display:none;" />
                                 <button class="logout-btn primary" id="file-upload-btn" type="button">Nahrát soubor</button>
+                                <div class="report-trigger">
+                                    <select id="report-month-select" aria-label="Měsíc reportu"></select>
+                                    <button class="ghost-btn ghost-strong" type="button" id="report-generate-btn">Reporty</button>
+                                </div>
                                 <small id="upload-hint" class="muted"></small>
                             </div>
                         </div>
@@ -707,9 +704,6 @@
                                 <span class="material-symbols-rounded" aria-hidden="true">search</span>
                                 <input type="search" id="customer-search" placeholder="Hledat produkt podle názvu nebo SKU">
                             </div>
-                            <a class="nav-link" data-view="customer-orders" href="customer-orders.html" aria-label="Moje objednávky" title="Moje objednávky" style="width:auto;gap:8px;padding:8px 12px;">
-                                <span class="material-symbols-rounded" aria-hidden="true">receipt_long</span>
-                            </a>
                             <div id="customer-category-chips" style="display:flex;gap:8px;flex-wrap:wrap;"></div>
                         </div>
                     </div>
@@ -789,32 +783,6 @@
                 </article>
             </section>
 
-            <section class="view" data-view="customer-orders">
-                <article class="panel">
-                    <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
-                        <div>
-                            <h2>Moje objednávky</h2>
-                            <p>Seznam objednávek s detailem a možností zrušit.</p>
-                        </div>
-                        <a class="nav-link" data-view="customer" href="customer.html" style="width:auto;gap:8px;padding:8px 12px;">Zpět do zóny</a>
-                    </div>
-                    <div id="customer-orders-table" class="table-wrapper" style="margin-top:12px;">
-                        <table>
-                            <thead>
-                            <tr>
-                                <th>Prodejna</th>
-                                <th>Status</th>
-                                <th>Datum</th>
-                                <th>Částka</th>
-                                <th>Akce</th>
-                            </tr>
-                            </thead>
-                            <tbody id="customer-orders-body"></tbody>
-                        </table>
-                    </div>
-                </article>
-            </section>
-
             <section class="view" data-view="client-orders">
                 <article class="panel">
                     <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
@@ -886,6 +854,24 @@
                                 </div>
                             </div>
                         </section>
+                        <section class="supplier-section">
+                            <div class="supplier-section-head">
+                                <div>
+                                    <p class="eyebrow" style="margin:0;">Refundy k potvrzení</p>
+                                    <h3 style="margin:4px 0 6px;">Čeká na schválení</h3>
+                                    <p class="profile-muted" style="margin:0;">Zákazníci požádali o vrácení peněz.</p>
+                                </div>
+                                <span class="badge" id="client-refund-count">0</span>
+                            </div>
+                            <div class="supplier-section-body">
+                                <div id="client-refund-container" class="supplier-orders-grid supplier-scroll"></div>
+                                <div id="client-refund-empty" class="empty-state" style="display:none;text-align:center;padding:32px;">
+                                    <span class="material-symbols-rounded" style="font-size:44px;color:var(--muted-fg);">undo</span>
+                                    <h3 style="margin-top:12px;font-size:1.1rem;">Žádné refundy</h3>
+                                    <p class="profile-muted">Až zákazník požádá o refund, objeví se zde.</p>
+                                </div>
+                            </div>
+                        </section>
                     </div>
                 </article>
             </section>
@@ -903,7 +889,7 @@
                         </div>
                     </div>
                     <div id="customer-history-alert" class="profile-muted" style="margin-top:4px;"></div>
-                    <div class="table-wrapper" style="margin-top:12px;">
+                    <div class="table-wrapper customer-table-wrapper" style="margin-top:12px;">
                         <table class="data-table">
                             <thead>
                             <tr>
@@ -912,10 +898,11 @@
                                 <th>Datum</th>
                                 <th>Částka</th>
                                 <th>Položky</th>
+                                <th>Akce</th>
                             </tr>
                             </thead>
                             <tbody id="customer-history-body">
-                            <tr><td colspan="5" style="text-align:center;" class="profile-muted">Načítám…</td></tr>
+                            <tr><td colspan="6" style="text-align:center;" class="profile-muted">Načítám…</td></tr>
                             </tbody>
                         </table>
                     </div>

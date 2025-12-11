@@ -162,7 +162,7 @@ export default class UsersModule {
             return;
         }
         this.tableEl.innerHTML = `
-            <div class="table-wrapper">
+            <div class="table-wrapper people-table-wrapper">
                 <table>
                     <thead>
                         <tr>
@@ -218,11 +218,11 @@ export default class UsersModule {
             .replace(/'/g, '&#039;');
     }
 
-    openModal(user) {
+    async openModal(user) {
         if (!this.modal || !this.modalForm || !user) {
             return;
         }
-        const meta = this.profileMeta();
+        const meta = await this.ensureProfileMeta();
         this.previousFocus = document.activeElement;
         this.populateRoleSelect(meta.roles, user.role);
         this.populatePositionSelect(meta.positions, user.position);
@@ -262,6 +262,51 @@ export default class UsersModule {
         firstInput?.focus();
 
         this.attachLoyaltyGenerator();
+    }
+
+    mergePositions(list = []) {
+        const extras = [
+            'MANAZER', 'ANALYTIK', 'SUPERVIZOR', 'DOPLNIT_POZICI',
+            'REKRUTER', 'PROJEKTOVY MANAZER', 'OPERATIONS MANAZER', 'MANAZER SORTIMENTU',
+            'FINANCNI MANAZER', 'MANAZER DODAVATELU', 'MANAZER ZAKAZNICKYCH SLUZEB', 'MANAZER ROZVOJE',
+            'FINANCNI ANALYTIK', 'REPORTING ANALYTIK', 'DATOVY ANALYTIK', 'OBCHODNI ANALYTIK',
+            'RISK ANALYTIK', 'BI ANALYTIK', 'ANALYTIK ZASOB', 'ANALYTIK POPTAVKY',
+            'PRICING ANALYTIK', 'ANALYTIK RETAILU',
+            'SUPERVIZOR POKLADEN', 'SUPERVIZOR SKLADU', 'SUPERVIZOR ONLINE PRODEJE', 'SUPERVIZOR PECIVA',
+            'SUPERVIZOR CERSTVEHO', 'SUPERVIZOR NOCNI SMENY', 'SUPERVIZOR BACKOFFICE', 'SUPERVIZOR UTRZEK',
+            'SUPERVIZOR INVENTUR', 'SUPERVIZOR OVOCE A ZELENINY', 'SUPERVIZOR NONFOOD', 'SUPERVIZOR LOGISTIKY',
+            'HLAVNI UCETNI', 'UCETNI ASISTENT', 'PAYROLL SPECIALISTA', 'HR KOORDINATOR', 'SPECIALISTA BOZP', 'PROCUREMENT SPECIALISTA'
+        ];
+        return Array.from(new Set([...(list || []), ...extras])).filter(Boolean);
+    }
+
+    async ensureProfileMeta() {
+        const current = this.profileMeta();
+        const token = localStorage.getItem('token') || '';
+        if (!token || !this.apiUrl) {
+            return current;
+        }
+        try {
+            const response = await fetch(this.apiUrl('/api/profile/meta'), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                return current;
+            }
+            const fresh = await response.json();
+            this.state.profileMeta = {
+                ...(this.state.profileMeta || { roles: [], cities: [], positions: [] }),
+                ...(fresh || {})
+            };
+            this.state.profileMeta.positions = this.mergePositions(this.state.profileMeta.positions);
+            return this.state.profileMeta;
+        } catch (err) {
+            console.warn('Failed to refresh profile meta', err);
+            return current;
+        }
     }
 
     isEmployeeRole(role) {

@@ -67,7 +67,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_archive AS
       FROM (
             SELECT 1
               FROM ARCHIV
-             WHERE REGEXP_LIKE(NAZEV, '(^|[^[:alnum:]])(log|zpravy|zprava|uzivatele|uživatele)([^[:alnum:]]|$)', 'i')
+             WHERE REGEXP_LIKE(NAZEV, '(^|[^[:alnum:]])(log|zpravy|zprava|uzivatele|uživatele|ucty|účty|platby)([^[:alnum:]]|$)', 'i')
              START WITH ID_ARCHIV = p_archiv_id
            CONNECT BY PRIOR ID_ARCHIV = PARENT_ID
           ) t

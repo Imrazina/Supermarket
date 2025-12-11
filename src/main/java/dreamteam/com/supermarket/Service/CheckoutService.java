@@ -53,7 +53,9 @@ public class CheckoutService {
         }
 
         boolean isCustomer = existsZakaznik(user.getIdUzivatel());
-        String typObjednavka = isCustomer ? "ZAKAZNIK" : "INTERNI";
+        // Checkout z „zakaznicke zony“ má vytvářet zákaznickou objednávku,
+        // i když záznam v ZAKAZNIK zatím neexistuje (nechceme ztratit typ).
+        String typObjednavka = "ZAKAZNIK";
 
         Long objednavkaId = createObjednavka(status.id(), user.getIdUzivatel(), supermarket.id(), request.note(), typObjednavka);
 
@@ -164,7 +166,8 @@ public class CheckoutService {
             CallableStatement cs = con.prepareCall("{ call pkg_zbozi.update_mnozstvi(?, ?) }");
             cs.setLong(1, zboziId);
             cs.setInt(2, delta);
-            return cs;
+            cs.execute();
+            return null;
         });
     }
 
@@ -174,7 +177,8 @@ public class CheckoutService {
             cs.setLong(1, objednavkaId);
             cs.setLong(2, zboziId);
             cs.setInt(3, qty);
-            return cs;
+            cs.execute();
+            return null;
         });
     }
 
