@@ -4463,58 +4463,6 @@ function resolveAllowedViews(role, permissions = []) {
         };
     }
 
-class GlobalSearch {
-        constructor(state) {
-            this.state = state;
-            this.input = document.getElementById('global-search');
-            this.results = document.getElementById('search-results');
-        }
-
-        init() {
-            if (!this.input) return;
-            this.input.addEventListener('input', () => this.handleInput());
-            document.addEventListener('click', event => {
-                if (!event.target.closest('.search')) {
-                    this.hide();
-                }
-            });
-        }
-
-        handleInput() {
-            const term = this.input.value.trim().toLowerCase();
-            if (term.length < 2) {
-                this.hide();
-                return;
-            }
-            const hits = [];
-            this.state.data.inventory.forEach(item => {
-                if (item.name.toLowerCase().includes(term) || item.sku.toLowerCase().includes(term)) {
-                    hits.push({ type: 'SKU', label: `${item.sku} · ${item.name}` });
-                }
-            });
-            this.state.data.orders.forEach(order => {
-                if (order.id.toLowerCase().includes(term) || order.store.toLowerCase().includes(term)) {
-                    hits.push({ type: 'ORDER', label: `${order.id} · ${order.store}` });
-                }
-            });
-            this.state.data.customers.forEach(customer => {
-                if (customer.name.toLowerCase().includes(term)) {
-                    hits.push({ type: 'CLIENT', label: `${customer.name} · ${customer.phone}` });
-                }
-            });
-            this.results.innerHTML = hits.length
-                ? hits.slice(0, 6).map(hit => `<div class="search-hit"><span class="badge">${hit.type}</span> ${hit.label}</div>`).join('')
-                : '<p>Zadne vysledky, zkuste jiny dotaz.</p>';
-            this.results.classList.add('visible');
-        }
-
-        hide() {
-            if (!this.results) return;
-            this.results.classList.remove('visible');
-            this.results.innerHTML = '';
-        }
-    }
-
     class ClientOrdersModule {
         constructor(state, opts) {
             this.state = state;
@@ -5036,7 +4984,6 @@ class GlobalSearch {
         this.customerOrders = new CustomerOrdersView(state, currencyFormatter, { apiUrl, refreshWalletChip: () => this.updateWalletChip() });
         this.clientOrders = new ClientOrdersModule(state, { apiUrl });
         this.customerHistory = new CustomerHistoryModule(state, { apiUrl });
-        this.search = new GlobalSearch(state);
         this.supplier = new SupplierModule(state, { apiUrl });
         }
 
@@ -5058,7 +5005,6 @@ class GlobalSearch {
             this.customerOrders.render();
             this.clientOrders.init();
             this.customerHistory.init();
-            this.search.init();
             this.supplier.init();
             this.registerUtilityButtons();
             this.renderAll();
