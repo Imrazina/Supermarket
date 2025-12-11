@@ -827,7 +827,7 @@ const state = {
     customerStores: [],
     selectedCustomerStoreId: null,
     supplierOrders: { free: [], mine: [], history: [], loading: false, error: null },
-    clientOrders: { items: [], queue: [], mine: [], history: [], loading: false, error: null },
+    clientOrders: { items: [], queue: [], refundRequests: [], mine: [], history: [], loading: false, error: null },
     customerHistory: { items: [], loading: false, error: null },
     data: createEmptyData(),
     permissionsCatalog: [],
@@ -4774,11 +4774,6 @@ class GlobalSearch {
             this.historyToggle?.addEventListener('click', () => this.toggleHistory());
             [this.queueContainer, this.mineContainer].forEach(container => {
                 container?.addEventListener('click', event => {
-                    const btn = event.target.closest('[data-change-status]');
-                    if (btn) {
-                        this.changeStatus(btn.dataset.changeStatus, btn);
-                        return;
-                    }
                     const claim = event.target.closest('[data-claim-order]');
                     if (claim) {
                         this.claimOrder(claim.dataset.claimOrder, claim.dataset.currentStatus, claim);
@@ -4920,7 +4915,6 @@ class GlobalSearch {
             const isRefund = mode === 'refund';
             const isHistory = mode === 'history';
             const refunded = Boolean(order?.refunded);
-            const statusOptions = isMine ? this.buildStatusOptions(order?.statusId) : '';
             const itemsArray = Array.isArray(order?.items) ? order.items : [];
             const itemsList = this.renderItems(itemsArray);
             const amountValue = order?.total ?? this.computeTotal(itemsArray);
@@ -4930,66 +4924,6 @@ class GlobalSearch {
             const store = escapeHtml(order?.supermarket || '');
             const customerLine = [order?.customerEmail, order?.handlerEmail].filter(Boolean).map(escapeHtml).join(' · ');
             const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${escapeHtml(order.note)}</p>` : '';
-            const itemsSummary = this.formatItemsSummary(itemsArray);
-            const orderTitle = `Objednávka #${order?.id ?? ''}`.trim();
-            const refundPill = isHistory && refunded
-                ? `<span class="status-badge warning" style="margin-left:6px;">Vráceno</span>`
-                : '';
-
-            if (isQueue || isRefund) {
-                return `
-                    <div class="client-order-card" data-order-id="${order?.id ?? ''}">
-                        <div class="client-card-top">
-                            <div>
-                                <p class="eyebrow" style="margin:0;">${store || 'Supermarket'}</p>
-                                <h4 style="margin:4px 0 6px;">${orderTitle}</h4>
-                                <div class="meta-row" style="color:var(--muted);gap:8px;">
-                                    <span class="material-symbols-rounded" aria-hidden="true">calendar_today</span>
-                                    <span>Vytvořeno: ${date || '—'}</span>
-                                </div>
-                                ${note}
-                            </div>
-                            <span class="status-badge${order?.pendingRefund ? ' warning' : ''}" style="align-self:flex-start;">${isRefund ? 'Refund čeká' : (statusLabel || 'Vytvořena')}</span>
-                        </div>
-                        <div class="client-card-meta">
-                            <div class="meta-row">
-                                <span class="material-symbols-rounded" aria-hidden="true">person</span>
-                                <span>${customerLine || 'Bez kontaktu'}</span>
-                            </div>
-                        </div>
-                        <div class="client-order-items" data-client-details="${order?.id ?? ''}" hidden>
-                            ${itemsList}
-                        </div>
-                        <div class="client-amount-main">
-                            <small class="profile-muted">Částka</small>
-                            <div class="client-amount-value">${amount}</div>
-                        </div>
-                        <div class="client-card-actions">
-                            <button type="button" class="ghost-btn" data-client-detail="${order?.id ?? ''}">Položky</button>
-                            ${isRefund ? `
-                                <button type="button" class="ghost-btn ghost-strong" data-approve-refund="${order?.id ?? ''}">Schválit refund</button>
-                                <button type="button" class="ghost-btn ghost-danger" data-reject-refund="${order?.id ?? ''}">Zamítnout</button>
-                            ` : `
-                                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">
-                                    Převzít
-                                </button>
-                            `}
-                        </div>
-                    </div>
-                `;
-            }
-
-            const actions = this.renderStatusControls(order);
-            const actions = isMine ? `
-                <div class="pill-select">
-                    <select data-status-select="${order?.id ?? ''}">
-                        ${statusOptions}
-                    </select>
-                </div>
-                <button type="button" class="ghost-btn ghost-strong" data-change-status="${order?.id ?? ''}">Změnit stav</button>
-            ` : isQueue ? `
-                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">Převzít</button>
-            ` : '';
             const itemsSummary = this.formatItemsSummary(itemsArray);
             const displayNumber = order?.cislo || '—';
             const orderTitle = `Objednávka #${displayNumber}`.trim();
@@ -5104,11 +5038,6 @@ class GlobalSearch {
             }, 0);
         }
 
-        buildStatusOptions(selected) {
-            const statuses = Array.isArray(this.state.data.statuses) ? this.state.data.statuses : [];
-            const current = selected != null ? String(selected) : '';
-            if (!statuses.length) {
-                return `<option value="${current}">${current || '—'}</option>`;
         toggleDetails(orderId) {
             if (!orderId) return;
             const section = document.querySelector(`[data-client-details="${orderId}"]`);
@@ -5203,98 +5132,6 @@ class GlobalSearch {
             const actions = this.resolveStatusActions(order?.statusId);
             if (!actions.length) {
                 return `<span class="profile-muted">Žádné další kroky nejsou potřeba.</span>`;
-        toggleDetails(orderId) {
-            if (!orderId) return;
-            const section = document.querySelector(`[data-client-details="${orderId}"]`);
-            if (!section) return;
-            const isHidden = section.hasAttribute('hidden');
-            if (isHidden) {
-                section.removeAttribute('hidden');
-                section.style.display = 'block';
-            } else {
-                section.setAttribute('hidden', 'hidden');
-                section.style.display = 'none';
-            }
-        }
-
-        async refundOrder(orderId, amount, triggerBtn, handlerLabel) {
-            if (!orderId) return;
-            const amt = Number(amount);
-            if (!amt || amt <= 0 || Number.isNaN(amt)) {
-                alert('Částka k vrácení není platná.');
-                return;
-            }
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert('Nejste přihlášen.');
-                return;
-            }
-            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderId}?`)) {
-                return;
-            }
-            if (triggerBtn) triggerBtn.disabled = true;
-            try {
-                const response = await fetch(this.apiUrl('/api/wallet/refund-request'), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ orderId, amount: amt })
-                });
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(text || 'Žádost se nepodařilo odeslat.');
-                }
-                const target = handlerLabel && handlerLabel.trim().length ? handlerLabel : 'obsluze';
-                alert(`Žádost byla odeslána ke schválení (${target}).`);
-                if (triggerBtn) {
-                    triggerBtn.textContent = `Odesláno manažerovi${handlerLabel ? ` (${handlerLabel})` : ''}`;
-                    triggerBtn.disabled = true;
-                }
-            } catch (err) {
-                alert(err.message || 'Žádost se nepodařilo odeslat.');
-                if (triggerBtn) triggerBtn.disabled = false;
-            }
-        }
-
-        async decideRefund(orderId, approve, triggerBtn) {
-            if (!orderId) return;
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert('Nejste přihlášen.');
-                return;
-            }
-            if (!confirm(`${approve ? 'Schválit' : 'Zamítnout'} refund objednávky ${orderId}?`)) {
-                return;
-            }
-            if (triggerBtn) triggerBtn.disabled = true;
-            try {
-                const url = approve
-                    ? this.apiUrl(`/api/client/orders/${orderId}/refund/approve`)
-                    : this.apiUrl(`/api/client/orders/${orderId}/refund/reject`);
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(text || 'Akci se nepodařilo provést.');
-                }
-                await this.load();
-            } catch (err) {
-                alert(err.message || 'Akci se nepodařilo provést.');
-            } finally {
-                if (triggerBtn) triggerBtn.disabled = false;
-            }
-        }
-
-        renderStatusControls(order) {
-            const actions = this.resolveStatusActions(order?.statusId);
-            if (!actions.length) {
-                return `<span class="profile-muted">Žádné další kroky nejsou potřeba.</span>`;
             }
             const nextActions = actions.filter(a => a.theme !== 'danger');
             const cancelAction = actions.find(a => a.theme === 'danger');
@@ -5360,16 +5197,11 @@ class GlobalSearch {
                 }
 
                 if (history.has(statusId)) {
-                    historyList.push(order);
+                    if (isMine) {
+                        historyList.push(order);
+                    }
                     return;
                 }
-                if (active.has(statusId)) {
-                    const handler = (order?.handlerEmail || '').toLowerCase();
-                    if (handler && email && handler === email) {
-                        mine.push(order);
-                    } else {
-                        queue.push(order);
-                    }
                 if (isMine) {
                     mine.push(order);
                     return;
@@ -5440,12 +5272,6 @@ class GlobalSearch {
                 alert('Vyberte platný stav.');
                 return;
             }
-            const select = document.querySelector(`[data-status-select="${orderId}"]`);
-            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number(select?.value);
-            if (Number.isNaN(statusId)) {
-                alert('Vyberte platný stav.');
-                return;
-            }
             const token = localStorage.getItem('token');
             if (!token) {
                 alert('Nejste přihlášen.');
@@ -5483,10 +5309,18 @@ class GlobalSearch {
         }
 
         async claimOrder(orderId, statusId, triggerBtn) {
-            // Převzetí: pošleme bezpečný stav (výchozí 2 = potvrzena) a tím se objednávka naváže na obsluhu
-            const current = Number(statusId);
-            const desired = Number.isNaN(current) || current < 2 ? 2 : current;
+            // Převzetí: posuň na další povolený stav podle matice 1→2→3→4→5 (nebo nech aktuální)
+            const desired = this.resolveNextStatusForClaim(statusId);
             await this.changeStatus(orderId, triggerBtn, desired);
+        }
+
+        resolveNextStatusForClaim(statusId) {
+            const current = Number(statusId);
+            if (Number.isNaN(current) || current <= 1) return 2; // Vytvorena -> Potvrzena
+            if (current === 2) return 3; // Potvrzena -> Pripravuje se
+            if (current === 3) return 4; // Pripravuje se -> Odeslana
+            if (current === 4) return 5; // Odeslana -> Dokoncena
+            return current; // 5/6 necháme beze změny
         }
     }
 
