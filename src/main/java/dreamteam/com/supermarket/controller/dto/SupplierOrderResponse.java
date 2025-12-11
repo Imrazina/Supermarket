@@ -5,6 +5,7 @@ import java.util.List;
 
 public record SupplierOrderResponse(
         Long id,
+        String cislo,
         String status,
         Integer statusId,
         String supermarket,

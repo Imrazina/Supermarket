@@ -19,6 +19,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_customer_queue AS
              s.NAZEV         AS status_nazev,
              o.ID_Supermarket AS supermarket_id,
              sp.NAZEV        AS supermarket_nazev,
+             o.CISLO         AS cislo,
              o.ID_Uzivatel   AS uzivatel_id,
              u.EMAIL         AS uzivatel_email,
              o.POZNAMKA      AS poznamka
@@ -93,6 +94,7 @@ CREATE OR REPLACE PACKAGE BODY pkg_customer_refund AS
              s.NAZEV         AS status_nazev,
              o.ID_Supermarket AS supermarket_id,
              sp.NAZEV        AS supermarket_nazev,
+             o.CISLO         AS cislo,
              o.ID_Uzivatel   AS uzivatel_id,
              u.EMAIL         AS uzivatel_email,
              o.ID_Obsluha    AS obsluha_id,

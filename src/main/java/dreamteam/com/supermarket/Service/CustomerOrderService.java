@@ -290,7 +290,7 @@ public class CustomerOrderService {
                         row.note,
                         row.items,
                         computeTotal(row.items),
-                        row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null)
+                        normalizeCislo(row),
                         row.refunded,
                         row.pendingRefund
                 ))
@@ -301,6 +301,13 @@ public class CustomerOrderService {
         return items.stream()
                 .map(it -> it.price().multiply(BigDecimal.valueOf(it.qty())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private String normalizeCislo(OrderRow row) {
+        if (row == null || row.cislo == null) {
+            return null;
+        }
+        return row.cislo.isBlank() ? null : row.cislo;
     }
 
     private static class OrderRow {

@@ -22,7 +22,7 @@ export default class CustomerOrdersView {
         }
         this.tbody.innerHTML = orders.map(order => `
             <tr>
-                <td>${order.cislo || order.id || ''}</td>
+                <td>${order.cislo || '—'}</td>
                 <td>${order.store || ''}</td>
                 <td>${order.status || ''}</td>
                 <td>${order.date || ''}</td>
@@ -44,7 +44,7 @@ export default class CustomerOrdersView {
     }
 
     async refundOrder(buttonEl, orderId, amount, order) {
-        const displayNumber = order && (order.cislo || order.id) ? (order.cislo || order.id) : orderId;
+        const displayNumber = order && order.cislo ? order.cislo : 'bez čísla';
         if (!orderId) {
             alert('Chybi ID objednavky.');
             return;

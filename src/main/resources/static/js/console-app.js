@@ -412,24 +412,25 @@ class SupplierModule {
         this.historyContainer.innerHTML = history.map(order => this.renderHistoryCard(order)).join('');
     }
 
-    renderCard(order) {
-        const total = this.computeTotal(order?.items || []);
-        const reward = order?.rewardEstimate ?? (total * 0.7);
-        const createdLabel = this.formatDate(order?.createdAt);
-        const itemList = this.renderItems(order?.items);
-        const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${this.escapeHtml(order.note)}</p>` : '';
-        const statusClass = this.resolveStatusClass(order?.status);
-        return `
-            <div class="supplier-order-card" data-order-id="${order.id}">
-                <div class="supplier-card-head">
-                    <div>
-                        <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
-                        <h4 style="margin:0 0 8px;">Objednávka #${order.id}</h4>
+        renderCard(order) {
+            const total = this.computeTotal(order?.items || []);
+            const reward = order?.rewardEstimate ?? (total * 0.7);
+            const createdLabel = this.formatDate(order?.createdAt);
+            const itemList = this.renderItems(order?.items);
+            const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${this.escapeHtml(order.note)}</p>` : '';
+            const statusClass = this.resolveStatusClass(order?.status);
+            const displayNumber = order?.cislo || '—';
+            return `
+                <div class="supplier-order-card" data-order-id="${order.id}">
+                    <div class="supplier-card-head">
+                        <div>
+                            <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
+                            <h4 style="margin:0 0 8px;">Objednávka #${displayNumber}</h4>
+                        </div>
+                        <span class="status-badge ${statusClass}">${order.status || 'Vytvořena'}</span>
                     </div>
-                    <span class="status-badge ${statusClass}">${order.status || 'Vytvořena'}</span>
-                </div>
-                <div class="supplier-card-meta">
-                    <div class="meta-row">
+                    <div class="supplier-card-meta">
+                        <div class="meta-row">
                         <span class="material-symbols-rounded">calendar_today</span>
                         <span>Vytvořeno: ${createdLabel}</span>
                     </div>
@@ -452,22 +453,23 @@ class SupplierModule {
         `;
     }
 
-    renderMineCard(order) {
-        const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
-        const createdLabel = this.formatDate(order?.createdAt);
-        const statusClass = this.resolveStatusClass(order?.status);
-        const itemList = this.renderItems(order?.items);
-        return `
-            <div class="supplier-mine-card" data-mine-order="${order.id}">
-                <div class="supplier-card-head">
-                    <div>
-                        <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
-                        <h4 style="margin:0 0 8px;">Objednávka #${order.id}</h4>
+        renderMineCard(order) {
+            const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
+            const createdLabel = this.formatDate(order?.createdAt);
+            const statusClass = this.resolveStatusClass(order?.status);
+            const itemList = this.renderItems(order?.items);
+            const displayNumber = order?.cislo || '—';
+            return `
+                <div class="supplier-mine-card" data-mine-order="${order.id}">
+                    <div class="supplier-card-head">
+                        <div>
+                            <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
+                            <h4 style="margin:0 0 8px;">Objednávka #${displayNumber}</h4>
+                        </div>
+                        <span class="status-badge ${statusClass}">${order.status || '—'}</span>
                     </div>
-                    <span class="status-badge ${statusClass}">${order.status || '—'}</span>
-                </div>
-                <div class="supplier-card-meta">
-                    <div class="meta-row">
+                    <div class="supplier-card-meta">
+                        <div class="meta-row">
                         <span class="material-symbols-rounded">calendar_today</span>
                         <span>Vytvořeno: ${createdLabel}</span>
                     </div>
@@ -487,22 +489,23 @@ class SupplierModule {
         `;
     }
 
-    renderHistoryCard(order) {
-        const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
-        const createdLabel = this.formatDate(order?.createdAt);
-        const statusClass = this.resolveStatusClass(order?.status);
-        const itemList = this.renderItems(order?.items);
-        return `
-            <div class="supplier-history-card" data-history-order="${order.id}">
-                <div class="supplier-card-head">
-                    <div>
-                        <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
-                        <h4 style="margin:0 0 8px;">Objednávka #${order.id}</h4>
+        renderHistoryCard(order) {
+            const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
+            const createdLabel = this.formatDate(order?.createdAt);
+            const statusClass = this.resolveStatusClass(order?.status);
+            const itemList = this.renderItems(order?.items);
+            const displayNumber = order?.cislo || '—';
+            return `
+                <div class="supplier-history-card" data-history-order="${order.id}">
+                    <div class="supplier-card-head">
+                        <div>
+                            <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
+                            <h4 style="margin:0 0 8px;">Objednávka #${displayNumber}</h4>
+                        </div>
+                            <span class="status-badge ${statusClass}">${order.status || '—'}</span>
                     </div>
-                        <span class="status-badge ${statusClass}">${order.status || '—'}</span>
-                </div>
-                <div class="supplier-card-meta">
-                    <div class="meta-row">
+                    <div class="supplier-card-meta">
+                        <div class="meta-row">
                         <span class="material-symbols-rounded">calendar_today</span>
                         <span>Vytvořeno: ${createdLabel}</span>
                     </div>
@@ -4688,6 +4691,22 @@ function resolveAllowedViews(role, permissions = []) {
             container.innerHTML = items.map(order => this.renderCard(order, mode)).join('');
         }
 
+        findOrder(orderId) {
+            if (!orderId) return null;
+            const { queue = [], refundRequests = [], mine = [], history = [] } = this.state.clientOrders || {};
+            const lists = [queue, refundRequests, mine, history];
+            for (const list of lists) {
+                const found = (list || []).find(o => String(o?.id) === String(orderId));
+                if (found) return found;
+            }
+            return null;
+        }
+
+        formatOrderNumber(orderId) {
+            const order = this.findOrder(orderId);
+            return order?.cislo || '—';
+        }
+
         renderCard(order, mode) {
             const isMine = mode === 'mine';
             const isQueue = mode === 'queue';
@@ -4704,7 +4723,8 @@ function resolveAllowedViews(role, permissions = []) {
             const customerLine = [order?.customerEmail, order?.handlerEmail].filter(Boolean).map(escapeHtml).join(' · ');
             const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${escapeHtml(order.note)}</p>` : '';
             const itemsSummary = this.formatItemsSummary(itemsArray);
-            const orderTitle = `Objednávka #${order?.id ?? ''}`.trim();
+            const displayNumber = order?.cislo || '—';
+            const orderTitle = `Objednávka #${displayNumber}`.trim();
             const refundPill = isHistory && refunded
                 ? `<span class="status-badge warning" style="margin-left:6px;">Vráceno</span>`
                 : '';
@@ -4842,7 +4862,8 @@ function resolveAllowedViews(role, permissions = []) {
                 alert('Nejste přihlášen.');
                 return;
             }
-            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderId}?`)) {
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderLabel}?`)) {
                 return;
             }
             if (triggerBtn) triggerBtn.disabled = true;
@@ -4878,7 +4899,8 @@ function resolveAllowedViews(role, permissions = []) {
                 alert('Nejste přihlášen.');
                 return;
             }
-            if (!confirm(`${approve ? 'Schválit' : 'Zamítnout'} refund objednávky ${orderId}?`)) {
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`${approve ? 'Schválit' : 'Zamítnout'} refund objednávky ${orderLabel}?`)) {
                 return;
             }
             if (triggerBtn) triggerBtn.disabled = true;
@@ -5228,6 +5250,17 @@ function resolveAllowedViews(role, permissions = []) {
             return currencyFormatter.format(num);
         }
 
+        findOrder(orderId) {
+            if (!orderId) return null;
+            const { items = [] } = this.state.customerHistory || {};
+            return (items || []).find(o => String(o?.id) === String(orderId)) || null;
+        }
+
+        formatOrderNumber(orderId) {
+            const order = this.findOrder(orderId);
+            return order?.cislo || '—';
+        }
+
         computeTotal(items) {
             const list = Array.isArray(items) ? items : [];
             return list.reduce((sum, it) => {
@@ -5251,7 +5284,8 @@ function resolveAllowedViews(role, permissions = []) {
                 return;
             }
             const target = handlerLabel && handlerLabel.trim().length ? handlerLabel.trim() : 'manažerovi';
-            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderId} ke schválení ${target}?`)) {
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderLabel} ke schválení ${target}?`)) {
                 return;
             }
             if (triggerBtn) triggerBtn.disabled = true;
