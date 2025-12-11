@@ -9,6 +9,7 @@ export default class ProfileModule {
         this.editing = false;
         this.formState = null;
         this.currentProfile = null;
+        this.metaLoading = false;
 
         this.fetchDashboardSnapshot = deps.fetchDashboardSnapshot;
         this.fetchPermissionsCatalog = deps.fetchPermissionsCatalog;
@@ -193,6 +194,9 @@ export default class ProfileModule {
         }
         const security = profile.security || {};
         const isAdmin = ((localStorage.getItem('role') || '').trim().toUpperCase() === 'ADMIN');
+        if (isAdmin && this.editing && !this.metaLoading) {
+            this.fetchProfileMeta(true);
+        }
 
         if (this.overviewEl) {
             this.overviewEl.innerHTML = this.editing ? this.renderEditForm(profile, isAdmin) : this.renderOverview(profile, isAdmin);
@@ -208,6 +212,61 @@ export default class ProfileModule {
         }
         this.attachAdminHandlers(isAdmin);
         this.showPasswordMatchHint();
+    }
+
+    async fetchProfileMeta(force = false) {
+        if (!this.apiUrl) {
+            return;
+        }
+        if (this.metaLoading && !force) {
+            return;
+        }
+        const token = localStorage.getItem('token') || '';
+        if (!token) {
+            return;
+        }
+        this.metaLoading = true;
+        try {
+            const response = await fetch(this.apiUrl('/api/profile/meta'), {
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/json'
+                }
+            });
+            if (!response.ok) {
+                return;
+            }
+            const fresh = await response.json();
+            const mergedPositions = this.mergePositions(fresh?.positions || (this.state.profileMeta?.positions || []));
+            this.state.profileMeta = {
+                ...(this.state.profileMeta || { roles: [], cities: [], positions: [] }),
+                ...(fresh || {}),
+                positions: mergedPositions
+            };
+            if (this.editing) {
+                this.render();
+            }
+        } catch (err) {
+            console.warn('Failed to refresh profile meta', err);
+        } finally {
+            this.metaLoading = false;
+        }
+    }
+
+    mergePositions(list = []) {
+        const extras = [
+            'MANAZER', 'ANALYTIK', 'SUPERVIZOR', 'DOPLNIT_POZICI',
+            'REKRUTER', 'PROJEKTOVY MANAZER', 'OPERATIONS MANAZER', 'MANAZER SORTIMENTU',
+            'FINANCNI MANAZER', 'MANAZER DODAVATELU', 'MANAZER ZAKAZNICKYCH SLUZEB', 'MANAZER ROZVOJE',
+            'FINANCNI ANALYTIK', 'REPORTING ANALYTIK', 'DATOVY ANALYTIK', 'OBCHODNI ANALYTIK',
+            'RISK ANALYTIK', 'BI ANALYTIK', 'ANALYTIK ZASOB', 'ANALYTIK POPTAVKY',
+            'PRICING ANALYTIK', 'ANALYTIK RETAILU',
+            'SUPERVIZOR POKLADEN', 'SUPERVIZOR SKLADU', 'SUPERVIZOR ONLINE PRODEJE', 'SUPERVIZOR PECIVA',
+            'SUPERVIZOR CERSTVEHO', 'SUPERVIZOR NOCNI SMENY', 'SUPERVIZOR BACKOFFICE', 'SUPERVIZOR UTRZEK',
+            'SUPERVIZOR INVENTUR', 'SUPERVIZOR OVOCE A ZELENINY', 'SUPERVIZOR NONFOOD', 'SUPERVIZOR LOGISTIKY',
+            'HLAVNI UCETNI', 'UCETNI ASISTENT', 'PAYROLL SPECIALISTA', 'HR KOORDINATOR', 'SPECIALISTA BOZP', 'PROCUREMENT SPECIALISTA'
+        ];
+        return Array.from(new Set([...(list || []), ...extras])).filter(Boolean);
     }
 
     renderOverview(profile, isAdmin) {
