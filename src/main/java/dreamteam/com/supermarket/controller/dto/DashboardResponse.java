@@ -61,7 +61,8 @@ public record DashboardResponse(
             String date,
             double amount,
             String priority,
-            String note
+            String note,
+            String cislo
     ) {}
 
     public record OrderLine(String orderId, String sku, String name, long qty, double price) {}

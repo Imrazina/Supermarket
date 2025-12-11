@@ -14,7 +14,8 @@ public record CustomerOrderResponse(
         String createdAt,
         String note,
         List<Item> items,
-        BigDecimal total
+        BigDecimal total,
+        String cislo
 ) {
     public record Item(Long id, String name, Integer qty, BigDecimal price) {}
 }

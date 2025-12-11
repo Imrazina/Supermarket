@@ -6,10 +6,12 @@ import org.springframework.jdbc.core.CallableStatementCallback;
 import org.springframework.jdbc.core.CallableStatementCreator;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.LocalDateTime;
@@ -171,6 +173,7 @@ public class OrderProcedureDao {
         });
     }
 
+    @Transactional
     public void deleteOrderCascade(Long id) {
         if (id == null) {
             return;
@@ -245,6 +248,12 @@ public class OrderProcedureDao {
     private OrderRow mapOrder(ResultSet rs) throws java.sql.SQLException {
         Timestamp ts = rs.getTimestamp("datum");
         LocalDateTime dt = ts != null ? ts.toLocalDateTime() : null;
+        String cislo = null;
+        try {
+            cislo = rs.getString("cislo");
+        } catch (SQLException ignored) {
+            // older package version without CISLO in cursor
+        }
         return new OrderRow(
                 rs.getLong("id"),
                 dt,
@@ -257,7 +266,8 @@ public class OrderProcedureDao {
                 rs.getLong("supermarket_id"),
                 rs.getString("supermarket_nazev"),
                 rs.getString("poznamka"),
-                rs.getString("typ_objednavka")
+                rs.getString("typ_objednavka"),
+                cislo
         );
     }
 
@@ -278,7 +288,8 @@ public class OrderProcedureDao {
             Long supermarketId,
             String supermarketNazev,
             String poznamka,
-            String typObjednavka
+            String typObjednavka,
+            String cislo
     ) {}
 
     public record OrderItemRow(Long objednavkaId, Long zboziId, String zboziNazev, Integer pocet) {}

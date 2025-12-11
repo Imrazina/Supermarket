@@ -284,6 +284,9 @@ public class OrderController {
         String statusLabel = order.statusNazev() != null ? order.statusNazev() : "Nezname";
         String statusCode = order.statusId() != null ? String.valueOf(order.statusId()) : "0";
         String priority = amount > 100000 ? "high" : amount > 10000 ? "medium" : "low";
+        String cislo = (order.cislo() != null && !order.cislo().isBlank())
+                ? order.cislo()
+                : ("PO-" + order.id());
         return new DashboardResponse.OrderInfo(
                 "PO-" + order.id(),
                 order.typObjednavka(),
@@ -295,7 +298,8 @@ public class OrderController {
                 order.datum() != null ? order.datum().format(DATE_FORMAT) : "",
                 amount,
                 priority,
-                order.poznamka()
+                order.poznamka(),
+                cislo
         );
     }
 

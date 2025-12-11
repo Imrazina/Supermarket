@@ -338,7 +338,6 @@
                         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span class="badge" id="orders-count">0</span>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                <button type="button" class="ghost-btn ghost-strong" id="order-add-btn">Pridat</button>
                                 <button type="button" class="ghost-btn" id="order-edit-btn" disabled>Editovat</button>
                                 <button type="button" class="ghost-btn ghost-muted" id="order-delete-btn" disabled>Smazat</button>
                             </div>
@@ -348,10 +347,10 @@
                         <table class="orders-table">
                             <thead>
                             <tr>
+                                <th>cislo</th>
                                 <th>typ</th>
                                 <th>prodejna</th>
-                                <th>odpovědný</th>
-                                <th>dodavatel</th>
+                                <th>uživatel</th>
                                 <th>status</th>
                                 <th>datum</th>
                                 <th>částka</th>
@@ -392,7 +391,7 @@
                             <label><span>Prodejna</span>
                                 <select id="order-store" name="store" required></select>
                             </label>
-                            <label><span>Odpovedny</span>
+                            <label><span>Uzivatel</span>
                                 <select id="order-employee" name="employee" required></select>
                             </label>
                             <label><span>Status</span>

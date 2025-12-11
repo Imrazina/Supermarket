@@ -136,7 +136,8 @@ public class CustomerOrderService {
                         row.createdAt,
                         row.note,
                         row.items,
-                        computeTotal(row.items)
+                        computeTotal(row.items),
+                        row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null)
                 ))
                 .toList();
     }
@@ -157,6 +158,7 @@ public class CustomerOrderService {
         String handlerEmail;
         String createdAt;
         String note;
+        String cislo;
         List<CustomerOrderResponse.Item> items = new java.util.ArrayList<>();
     }
 
@@ -174,6 +176,7 @@ public class CustomerOrderService {
             Timestamp ts = getTimestamp(rs, "DATUM", "CREATED_AT", "CREATED");
             row.createdAt = ts != null ? FORMATTER.format(ts.toInstant()) : "";
             row.note = getString(rs, "POZNAMKA", "NOTE");
+            row.cislo = getString(rs, "CISLO");
             return row;
         }
 

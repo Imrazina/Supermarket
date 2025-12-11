@@ -84,6 +84,11 @@ public class DashboardService {
                     Objednavka o = new Objednavka();
                     o.setIdObjednavka(row.id());
                     o.setDatum(row.datum());
+                    String cislo = row.cislo();
+                    if (cislo == null || cislo.isBlank()) {
+                        cislo = "PO-" + row.id();
+                    }
+                    o.setCislo(cislo);
                     o.setStatus(statusMap.get(row.statusId()));
                     o.setTypObjednavka(row.typObjednavka());
                     o.setPoznamka(row.poznamka());
@@ -246,6 +251,9 @@ public class DashboardService {
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
                     double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
                     String priority = amount > 100000 ? "high" : amount > 10000 ? "medium" : "low";
+                    String cislo = order.getCislo() != null && !order.getCislo().isBlank()
+                            ? order.getCislo()
+                            : "PO-" + order.getIdObjednavka();
                     return new DashboardResponse.OrderInfo(
                             "PO-" + order.getIdObjednavka(),
                             order.getTypObjednavka(),
@@ -257,7 +265,8 @@ public class DashboardService {
                             order.getDatum() != null ? order.getDatum().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : "",
                             amount,
                             priority,
-                            order.getPoznamka()
+                            order.getPoznamka(),
+                            cislo
                     );
                 })
                 .toList();
@@ -272,6 +281,9 @@ public class DashboardService {
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
                     double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
                     String priority = amount > 100000 ? "high" : amount > 10000 ? "medium" : "low";
+                    String cislo = order.getCislo() != null && !order.getCislo().isBlank()
+                            ? order.getCislo()
+                            : "PO-" + order.getIdObjednavka();
                     return new DashboardResponse.OrderInfo(
                             "PO-" + order.getIdObjednavka(),
                             order.getTypObjednavka(),
@@ -283,7 +295,8 @@ public class DashboardService {
                             order.getDatum() != null ? order.getDatum().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : "",
                             amount,
                             priority,
-                            order.getPoznamka()
+                            order.getPoznamka(),
+                            cislo
                     );
                 })
                 .toList();
