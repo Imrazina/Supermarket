@@ -290,8 +290,6 @@ public class CustomerOrderService {
                         row.note,
                         row.items,
                         computeTotal(row.items),
-                        row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null),
-                        normalizeCislo(row),
                         row.refunded,
                         row.pendingRefund
                 ))
@@ -302,13 +300,6 @@ public class CustomerOrderService {
         return items.stream()
                 .map(it -> it.price().multiply(BigDecimal.valueOf(it.qty())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
-    }
-
-    private String normalizeCislo(OrderRow row) {
-        if (row == null || row.cislo == null) {
-            return null;
-        }
-        return row.cislo.isBlank() ? null : row.cislo;
     }
 
     private static class OrderRow {
@@ -322,7 +313,6 @@ public class CustomerOrderService {
         String handlerName;
         String createdAt;
         String note;
-        String cislo;
         boolean refunded;
         boolean pendingRefund;
         List<CustomerOrderResponse.Item> items = new java.util.ArrayList<>();
@@ -344,8 +334,6 @@ public class CustomerOrderService {
             row.handlerName = buildName(handlerFirst, handlerLast);
             Timestamp ts = getTimestamp(rs, "DATUM", "CREATED_AT", "CREATED");
             row.createdAt = ts != null ? FORMATTER.format(ts.toInstant()) : "";
-            row.note = getString(rs, "POZNAMKA", "NOTE");
-            row.cislo = getString(rs, "CISLO");
             String rawNote = getString(rs, "POZNAMKA", "NOTE");
             row.pendingRefund = isPendingRefund(rawNote);
             row.note = stripRefundMark(rawNote);
