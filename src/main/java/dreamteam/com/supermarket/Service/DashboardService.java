@@ -7,6 +7,7 @@ import dreamteam.com.supermarket.model.location.Mesto;
 import dreamteam.com.supermarket.model.market.*;
 import dreamteam.com.supermarket.model.payment.Platba;
 import dreamteam.com.supermarket.model.user.*;
+import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import dreamteam.com.supermarket.repository.ArchiveProcedureDao;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -20,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -60,6 +62,7 @@ public class DashboardService {
     private final RoleJdbcService roleJdbcService;
     private final UserJdbcService userJdbcService;
     private final RolePravoJdbcService rolePravoJdbcService;
+    private final MarketProcedureDao marketProcedureDao;
 
     @Transactional(readOnly = true)
     public DashboardResponse buildSnapshot(Uzivatel currentUser) {
@@ -438,7 +441,52 @@ public class DashboardService {
                 })
                 .toList();
 
+        List<DashboardResponse.SupermarketHealth> storeHealth = marketProcedureDao.listSupermarketHealth().stream()
+                .map(row -> new DashboardResponse.SupermarketHealth(
+                        row.id(),
+                        row.nazev(),
+                        row.mesto(),
+                        row.activeOrders() != null ? row.activeOrders() : 0L,
+                        row.avgCloseHours() != null ? row.avgCloseHours() : 0d,
+                        row.criticalSku() != null ? row.criticalSku() : 0L,
+                        row.tydenniObrat() != null ? row.tydenniObrat() : 0d
+                ))
+                .toList();
+
         List<DashboardResponse.FolderInfo> folderInfos = buildFolders(archiveTree);
+
+        var weeklyByStoreRows = marketProcedureDao.listWeeklyDemandByStore();
+        List<DashboardResponse.WeeklyDemandSeries> weeklyByStore = weeklyByStoreRows.stream()
+                .collect(Collectors.groupingBy(
+                        MarketProcedureDao.WeeklyDemandStoreRow::storeId,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ))
+                .entrySet()
+                .stream()
+                .map(entry -> {
+                    Long storeId = entry.getKey();
+                    List<DashboardResponse.WeeklyDemandPoint> points = entry.getValue().stream()
+                            .map(r -> new DashboardResponse.WeeklyDemandPoint(
+                                    r.label() != null ? r.label() : "",
+                                    r.value() != null ? r.value() : 0L
+                            ))
+                            .toList();
+                    String name = entry.getValue().isEmpty() ? "" : Optional.ofNullable(entry.getValue().get(0).storeName()).orElse("");
+                    return new DashboardResponse.WeeklyDemandSeries(storeId, name, points);
+                })
+                .toList();
+
+        // Aggregate across stores to keep legacy chart data populated (sum per label).
+        Map<String, Long> aggregated = weeklyByStoreRows.stream()
+                .collect(Collectors.groupingBy(
+                        MarketProcedureDao.WeeklyDemandStoreRow::label,
+                        Collectors.summingLong(r -> r.value() != null ? r.value() : 0L)
+                ));
+        List<DashboardResponse.WeeklyDemandPoint> weeklyDemand = aggregated.entrySet().stream()
+                .sorted(Map.Entry.comparingByKey())
+                .map(e -> new DashboardResponse.WeeklyDemandPoint(e.getKey(), e.getValue()))
+                .toList();
 
         // Show customer-facing products only from the primary supermarket (first in list) to avoid mixing stock
         Long primarySupermarketId = supermarkets.stream()
@@ -506,7 +554,8 @@ public class DashboardService {
         String lastMessageSummary = messageJdbcService.lastMessageSummary(user.getIdUzivatel());
         return new DashboardResponse(
                 now.format(DATE_TIME_FORMAT),
-                buildWeeklyDemand(allOrders),
+                weeklyDemand,
+                weeklyByStore,
                 inventory,
                 categoryStats,
                 warehouseInfos,
@@ -526,6 +575,7 @@ public class DashboardService {
                 lastMessageSummary,
                 subscriberInfos,
                 storeInfos,
+                storeHealth,
                 profile,
                 folderInfos,
                 customerProducts,

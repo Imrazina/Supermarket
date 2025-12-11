@@ -290,7 +290,7 @@ public class CustomerOrderService {
                         row.note,
                         row.items,
                         computeTotal(row.items),
-                        row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null)
+                        row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null),
                         row.refunded,
                         row.pendingRefund
                 ))

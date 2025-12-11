@@ -399,6 +399,63 @@ public class MarketProcedureDao {
         });
     }
 
+    // --- VIEW: V_SUPERMARKET_HEALTH ---
+    public List<SupermarketHealthRow> listSupermarketHealth() {
+        final String sql = """
+                SELECT ID_SUPERMARKET,
+                       SUPERMARKET_NAZEV,
+                       MESTO,
+                       ACTIVE_ORDERS,
+                       AVG_CLOSE_HOURS,
+                       CRITICAL_SKU,
+                       TYDENNI_OBRAT
+                  FROM V_SUPERMARKET_HEALTH
+                """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new SupermarketHealthRow(
+                getNullableLong(rs, "ID_SUPERMARKET"),
+                rs.getString("SUPERMARKET_NAZEV"),
+                rs.getString("MESTO"),
+                getNullableLong(rs, "ACTIVE_ORDERS"),
+                rs.getObject("AVG_CLOSE_HOURS") != null ? rs.getDouble("AVG_CLOSE_HOURS") : null,
+                getNullableLong(rs, "CRITICAL_SKU"),
+                rs.getObject("TYDENNI_OBRAT") != null ? rs.getDouble("TYDENNI_OBRAT") : null
+        ));
+    }
+
+    // --- VIEW: V_WEEKLY_DEMAND (orders by day, last 7 days, all supermarkets) ---
+    public List<WeeklyDemandRow> listWeeklyDemand() {
+        final String sql = """
+                SELECT DEN_LABEL,
+                       DEN_ORDER,
+                       POCET
+                  FROM V_WEEKLY_DEMAND
+                ORDER BY DEN_ORDER
+                """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new WeeklyDemandRow(
+                rs.getString("DEN_LABEL"),
+                rs.getObject("POCET") != null ? rs.getLong("POCET") : 0L
+        ));
+    }
+
+    // --- VIEW: V_WEEKLY_DEMAND_STORE (orders by day per supermarket, last 7 days) ---
+    public List<WeeklyDemandStoreRow> listWeeklyDemandByStore() {
+        final String sql = """
+                SELECT ID_SUPERMARKET,
+                       SUPERMARKET_NAZEV,
+                       DEN_LABEL,
+                       DEN_ORDER,
+                       POCET
+                  FROM V_WEEKLY_DEMAND_STORE
+                ORDER BY ID_SUPERMARKET, DEN_ORDER
+                """;
+        return jdbcTemplate.query(sql, (rs, rowNum) -> new WeeklyDemandStoreRow(
+                getNullableLong(rs, "ID_SUPERMARKET"),
+                rs.getString("SUPERMARKET_NAZEV"),
+                rs.getString("DEN_LABEL"),
+                rs.getObject("POCET") != null ? rs.getLong("POCET") : 0L
+        ));
+    }
+
     // --- extractors ---
     private CallableStatementCreator call(String sql, SqlConfigurer configurer) {
         return (Connection con) -> {
@@ -689,6 +746,28 @@ public class MarketProcedureDao {
             String skladNazev,
             Long supermarketId,
             String supermarketNazev
+    ) {}
+
+    public record SupermarketHealthRow(
+            Long id,
+            String nazev,
+            String mesto,
+            Long activeOrders,
+            Double avgCloseHours,
+            Long criticalSku,
+            Double tydenniObrat
+    ) {}
+
+    public record WeeklyDemandRow(
+            String label,
+            Long value
+    ) {}
+
+    public record WeeklyDemandStoreRow(
+            Long storeId,
+            String storeName,
+            String label,
+            Long value
     ) {}
 
     private CustomerCatalogRow mapCustomerCatalog(ResultSet rs) throws java.sql.SQLException {

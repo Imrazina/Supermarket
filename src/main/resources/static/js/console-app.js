@@ -1,4 +1,4 @@
-﻿import ProfileModule from './modules/profile-module.js';
+import ProfileModule from './modules/profile-module.js';
 import PermissionsModule from './modules/permissions-module.js';
 import DbObjectsModule from './modules/dbobjects-module.js';
 import UsersModule from './modules/users-module.js';
@@ -734,6 +734,7 @@ function createEmptyData() {
     return {
         syncUpdatedAt: "",
         weeklyDemand: [],
+        weeklyDemandByStore: [],
         inventory: [],
         categories: [],
         warehouses: [],
@@ -753,6 +754,7 @@ function createEmptyData() {
         lastMessageSummary: "",
         subscribers: [],
         stores: [],
+        storeHealth: [],
         folders: [],
         archiveTree: [],
         customerProducts: [],
@@ -812,14 +814,17 @@ const state = {
     paymentFilter: 'all',
     selectedOrderId: null,
     selectedFolder: null,
-        customerCategoryFilter: 'all',
-        customerSearchTerm: '',
-        customerCart: [],
-        customerCartLoaded: false,
-        customerStores: [],
-        selectedCustomerStoreId: null,
-        supplierOrders: { free: [], mine: [], history: [], loading: false, error: null },
-        clientOrders: { items: [], queue: [], refundRequests: [], mine: [], history: [], loading: false, error: null },
+    selectedStoreId: null,
+    customerCategoryFilter: 'all',
+    customerSearchTerm: '',
+    customerCart: [],
+    customerCartLoaded: false,
+    marketSupermarkets: [],
+    marketWarehouses: [],
+    customerStores: [],
+    selectedCustomerStoreId: null,
+    supplierOrders: { free: [], mine: [], history: [], loading: false, error: null },
+    clientOrders: { items: [], queue: [], mine: [], history: [], loading: false, error: null },
     customerHistory: { items: [], loading: false, error: null },
     data: createEmptyData(),
     permissionsCatalog: [],
@@ -1022,6 +1027,86 @@ async function fetchDashboardSnapshot() {
     return response.json();
 }
 
+async function fetchMarketSupermarkets() {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    const resp = await fetch(apiUrl('/api/market/supermarkets'), {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!resp.ok) {
+        throw new Error('Nepodařilo se načíst prodejny.');
+    }
+    return resp.json();
+}
+
+async function fetchMarketWarehouses() {
+    const token = localStorage.getItem('token');
+    if (!token) return [];
+    const resp = await fetch(apiUrl('/api/market/warehouses'), {
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        }
+    });
+    if (!resp.ok) {
+        throw new Error('Nepodařilo se načíst sklady.');
+    }
+    return resp.json();
+}
+
+async function upsertSupermarket(payload) {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Chybí token');
+    const resp = await fetch(apiUrl('/api/market/supermarkets'), {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+    if (!resp.ok) {
+        throw new Error(await resp.text() || 'Uložení supermarketu selhalo.');
+    }
+    return resp.json();
+}
+
+async function upsertWarehouse(payload) {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Chybí token');
+    const resp = await fetch(apiUrl('/api/market/warehouses'), {
+        method: 'POST',
+        headers: {
+            'Authorization': `Bearer ${token}`,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+    });
+    if (!resp.ok) {
+        throw new Error(await resp.text() || 'Uložení skladu selhalo.');
+    }
+    return resp.json();
+}
+
+async function deleteSupermarketById(id) {
+    const token = localStorage.getItem('token');
+    if (!token) throw new Error('Chybí token');
+    const resp = await fetch(apiUrl(`/api/market/supermarkets/${id}`), {
+        method: 'DELETE',
+        headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!resp.ok && resp.status !== 204) {
+        throw new Error(await resp.text() || 'Smazání supermarketu selhalo.');
+    }
+}
+
 async function fetchPermissionsCatalog() {
     const token = localStorage.getItem('token');
     console.log('[permissions] starting fetch, token present:', !!token);
@@ -1142,6 +1227,7 @@ const viewMeta = {
     customer: { label: 'Zakaznicka zona', title: 'Self-service objednavky' },
     'client-orders': { label: 'Zakaznicke objednavky', title: 'Sprava klientskych objednavek' },
     'customer-history': { label: 'Historie zakaznika', title: 'Prehled vlastnich objednavek' },
+    'customer-orders': { label: 'Moje objednavky', title: 'Objednavky zakaznika' },
     'customer-payment': { label: 'Platba', title: 'Zaplatte objednavku' },
     chat: { label: 'Komunikace', title: 'Chat & push centrum' }
 };
@@ -1152,7 +1238,7 @@ state.requestedView = state.activeView;
 
 const allViews = [
     'dashboard', 'profile', 'inventory', 'orders', 'people', 'finance', 'records',
-    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-payment', 'chat',
+    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-orders', 'customer-payment', 'chat',
     'supplier', 'client-orders', 'customer-history'
 ];
 
@@ -1161,43 +1247,40 @@ function resolveAllowedViews(role, permissions = []) {
     const permSet = new Set(Array.isArray(permissions) ? permissions.map(p => (p || '').toUpperCase()) : []);
     const allowed = new Set(['dashboard', 'profile', 'chat']);
     const add = (...views) => views.forEach(view => allowed.add(view));
-    const has = (code) => permSet.has(code);
 
     if (normalizedRole === 'ADMIN') {
         add(...allViews);
         return allowed;
     }
 
-    if (has('EDIT_PRODUCTS')) {
-        add('inventory');
+    if (permSet.has('MANAGE_USERS')) {
+        allowed.add('people');
     }
-    if (has('VIEW_ORDERS')) {
-        add('orders');
+
+    if (normalizedRole === 'ZAKAZNIK' || normalizedRole === 'CUSTOMER' || normalizedRole === 'NEW_USER') {
+        add('customer', 'customer-cart', 'customer-orders', 'customer-payment');
+        return allowed;
     }
-    if (has('MANAGE_USERS')) {
-        add('people');
-    }
-    if (has('VIEW_FINANCE')) {
-        add('finance');
-    }
-    if (has('VIEW_ARCHIVE')) {
-        add('records');
-    }
-    if (has('VIEW_DB_OBJECTS')) {
-        add('dbobjects');
-    }
-    if (has('CREATE_ORDERS')) {
-        add('customer', 'customer-cart', 'customer-payment', 'customer-history');
-    }
-    if (has('CLIENT_ORDER_MANAGE')) {
-        add('client-orders');
-    }
-    if (has('CUSTOMER_HISTORY')) {
-        add('customer-history');
-    }
+
     if (normalizedRole === 'DODAVATEL') {
         add('supplier');
+        return allowed;
     }
+
+    if (permSet.has('CLIENT_ORDER_MANAGE')) {
+        add('client-orders');
+    }
+
+    if (permSet.has('CUSTOMER_HISTORY')) {
+        add('customer-history');
+    }
+
+    if (normalizedRole.startsWith('DORUCOVATEL') || normalizedRole === 'COURIER' || normalizedRole === 'DORUCOVATEL' || normalizedRole === 'DORUČOVATEL') {
+        add('orders');
+        return allowed;
+    }
+
+    add('inventory', 'orders', 'finance', 'records', 'customer', 'customer-cart', 'customer-orders', 'customer-payment');
     return allowed;
 }
 
@@ -1214,12 +1297,22 @@ function resolveAllowedViews(role, permissions = []) {
             root.innerHTML = markup;
             setAppLoading(true, 'Načítáme data…');
 
-            const [snapshot, permissionsCatalog, profileMeta, adminPermissions, rolePermissions] = await Promise.all([
+            const [
+                snapshot,
+                permissionsCatalog,
+                profileMeta,
+                adminPermissions,
+                rolePermissions,
+                marketStores,
+                marketWarehouses
+            ] = await Promise.all([
                 fetchDashboardSnapshot(),
                 fetchPermissionsCatalog(),
                 fetchProfileMeta(),
                 fetchAdminPermissions(),
-                fetchRolePermissions()
+                fetchRolePermissions(),
+                fetchMarketSupermarkets(),
+                fetchMarketWarehouses()
             ]);
             if (!snapshot) {
                 setAppLoading(false);
@@ -1230,9 +1323,13 @@ function resolveAllowedViews(role, permissions = []) {
             state.profileMeta = profileMeta || state.profileMeta;
             state.adminPermissions = Array.isArray(adminPermissions) ? adminPermissions : [];
             state.rolePermissions = Array.isArray(rolePermissions) ? rolePermissions : [];
+            state.marketSupermarkets = Array.isArray(marketStores) ? marketStores : [];
+            state.marketWarehouses = Array.isArray(marketWarehouses) ? marketWarehouses : [];
 
             const app = new BDASConsole(state, viewMeta);
+            window.app = app;
             app.init();
+            setupStoreCrudHandlers();
 
             const paymentModule = new PaymentModule(state, { apiUrl });
             paymentModule.init();
@@ -1385,6 +1482,8 @@ function resolveAllowedViews(role, permissions = []) {
             this.lowStockList = document.getElementById('low-stock-list');
             this.statusBoard = document.getElementById('overall-status-board');
             this.storeTable = document.getElementById('stores-table');
+            this.storeTableBody = document.getElementById('stores-table-body');
+            this.healthGrid = document.getElementById('store-health-grid');
         }
 
         render() {
@@ -1400,11 +1499,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.kpiOrdersTrend.textContent = `${openOrders} v praci`;
             this.kpiCriticalTrend.textContent = critical.length ? 'nutne doplnit' : 'vse stabilni';
 
-            const maxValue = Math.max(...this.state.data.weeklyDemand.map(point => point.value));
-            this.chart.innerHTML = this.state.data.weeklyDemand.map(point => {
-                const height = Math.round((point.value / maxValue) * 100);
-                return `<div class="spark-bar" style="height:${height}%"><span>${point.label}</span></div>`;
-            }).join('');
+            this.renderWeeklyDemandByStore();
 
             this.lowStockList.innerHTML = critical.length
                 ? critical.map(item => `<li>${item.sku} · ${item.name} — zbyva ${item.stock}, minimum ${item.minStock}</li>`).join('')
@@ -1418,24 +1513,141 @@ function resolveAllowedViews(role, permissions = []) {
                 </div>
             `).join('');
 
-            this.storeTable.innerHTML = this.state.data.stores.map(store => `
-                <tr>
-                    <td>${store.name}</td>
-                    <td>${store.city}</td>
-                    <td>${store.address}</td>
-                    <td>${store.warehouse}</td>
-                    <td>${store.manager}</td>
-                    <td><span class="status-badge ${store.status === 'Otevreno' ? 'success' : 'warning'}">${store.status}</span></td>
-                </tr>`).join('');
+            const storeRows = this.buildStoreRows();
+            if (this.storeTableBody) {
+                this.storeTableBody.innerHTML = storeRows.map(store => `
+                    <tr data-store-id="${store.id || ''}">
+                        <td>${escapeHtml(store.name)}</td>
+                        <td>${escapeHtml(store.city || '')}</td>
+                        <td>${escapeHtml(store.address || '')}</td>
+                        <td>${escapeHtml(store.warehouse || '')}</td>
+                        <td>${escapeHtml(store.manager || 'Neuvedeno')}</td>
+                        <td><span class="status-badge ${store.status === 'Otevreno' ? 'success' : 'warning'}">${escapeHtml(store.status || '')}</span></td>
+                    </tr>`).join('');
+            }
+            this.bindStoreRowClicks();
+
+            if (this.healthGrid) {
+                const items = this.state.data.storeHealth || [];
+                if (!items.length) {
+                    this.healthGrid.innerHTML = '<p class="muted">Zadne metriky k zobrazeni.</p>';
+                } else {
+                    this.healthGrid.innerHTML = items.map(item => `
+                        <article class="health-card">
+                            <div class="health-meta">
+                                <h3>${escapeHtml(item.name || 'Prodejna')}</h3>
+                                <span>${escapeHtml(item.city || '')}</span>
+                            </div>
+                            <div class="health-stats">
+                                <div class="health-stat">
+                                    <strong>${item.activeOrders ?? 0}</strong>
+                                    Aktivni objednavky
+                                </div>
+                                <div class="health-stat">
+                                    <strong>${item.criticalSku ?? 0}</strong>
+                                    Kriticka SKU
+                                </div>
+                                <div class="health-stat">
+                                    <strong>${item.avgCloseHours ? Number(item.avgCloseHours).toFixed(1) + ' h' : '0 h'}</strong>
+                                    Prumer zavreni
+                                </div>
+                                <div class="health-stat">
+                                    <strong>${currencyFormatter.format(item.tydenniObrat || 0)}</strong>
+                                    Tydenni obrat
+                                </div>
+                            </div>
+                        </article>
+                    `).join('');
+                }
+            }
+        }
+
+        buildStoreRows() {
+            const supermarkets = Array.isArray(this.state.marketSupermarkets) && this.state.marketSupermarkets.length
+                ? this.state.marketSupermarkets
+                : [];
+            const warehouses = Array.isArray(this.state.marketWarehouses) ? this.state.marketWarehouses : [];
+
+            if (supermarkets.length) {
+                return supermarkets.map(store => {
+                    const match = warehouses.find(w => w.supermarketId === store.id);
+                    return {
+                        id: store.id,
+                        name: store.nazev,
+                        city: store.adresaMesto || '',
+                        address: store.adresaText || [store.adresaUlice, store.adresaCpop, store.adresaCorient].filter(Boolean).join(' '),
+                        warehouse: match ? match.nazev : '',
+                        manager: 'Neuvedeno',
+                        status: 'Otevreno'
+                    };
+                });
+            }
+
+            return (this.state.data.stores || []).map(store => ({
+                id: store.id || store.name,
+                name: store.name,
+                city: store.city,
+                address: store.address,
+                warehouse: store.warehouse,
+                manager: store.manager,
+                status: store.status
+            }));
+        }
+
+        bindStoreRowClicks() {
+            if (!this.storeTableBody) return;
+            this.storeTableBody.querySelectorAll('tr').forEach(row => {
+                row.addEventListener('click', () => {
+                    this.state.selectedStoreId = row.dataset.storeId || null;
+                    this.storeTableBody.querySelectorAll('tr').forEach(r => r.classList.remove('selected'));
+                    row.classList.add('selected');
+                    this.syncStoreButtons();
+                });
+            });
+            this.syncStoreButtons();
+        }
+
+        syncStoreButtons() {
+            const hasSelection = !!this.state.selectedStoreId;
+            const editBtn = document.getElementById('store-edit-btn');
+            const delBtn = document.getElementById('store-delete-btn');
+            if (editBtn) editBtn.disabled = !hasSelection;
+            if (delBtn) delBtn.disabled = !hasSelection;
+        }
     }
-}
+
+    DashboardModule.prototype.renderWeeklyDemandByStore = function () {
+        const container = this.chart;
+        if (!container) return;
+        container.classList.remove('sparkline');
+        container.classList.add('demand-grid');
+        const seriesList = this.state.data.weeklyDemandByStore || [];
+        if (!seriesList.length) {
+            container.innerHTML = '<p class="muted">Zadne objednavky za 7 dnu.</p>';
+            return;
+        }
+        container.innerHTML = seriesList.map(series => {
+            const points = series.points || [];
+            const values = points.map(p => Number(p.value) || 0);
+            const maxValue = Math.max(1, ...values);
+            const bars = points.map(p => {
+                const val = Number(p.value) || 0;
+                const heightPx = Math.max(8, Math.round((val / maxValue) * 80)); // 0..80px
+                return `<div class="spark-bar" style="height:${heightPx}px"><span>${escapeHtml(p.label)}</span></div>`;
+            }).join('');
+            return `
+                <div class="demand-card">
+                    <div class="demand-title">${escapeHtml(series.storeName || 'Prodejna')}</div>
+                    <div class="sparkline">${bars}</div>
+                </div>
+            `;
+        }).join('');
+    };
 
     class InventoryModule {
         constructor(state, deps = {}) {
             this.state = state;
             this.apiUrl = deps.apiUrl;
-            this.view = document.querySelector('[data-view="inventory"]');
-            this.navLink = document.querySelector('.nav-link[data-view="inventory"]');
             this.categories = [];
             this.cities = [];
             this.modal = document.getElementById('market-editor-modal');
@@ -1537,21 +1749,7 @@ function resolveAllowedViews(role, permissions = []) {
             };
         }
 
-        hasAccess() {
-            const permissions = this.state.data?.profile?.permissions;
-            return Array.isArray(permissions) && permissions.includes('EDIT_PRODUCTS');
-        }
-
-        hideView() {
-            this.view?.remove();
-            this.navLink?.remove();
-        }
-
         init() {
-            if (!this.hasAccess()) {
-                this.hideView();
-                return;
-            }
             if (!this.sections.goods.tableBody) {
                 return;
             }
@@ -2146,8 +2344,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.state = state;
             this.apiUrl = deps.apiUrl;
             this.refreshApp = typeof deps.refreshApp === 'function' ? deps.refreshApp : async () => true;
-            this.view = document.querySelector('[data-view="orders"]');
-            this.navLink = document.querySelector('.nav-link[data-view="orders"]');
             this.tableBody = document.getElementById('orders-table-body');
             this.statusBoard = document.getElementById('order-status-board');
             this.orderLines = document.getElementById('order-lines');
@@ -2173,21 +2369,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.options = { statuses: [], stores: [], employees: [], types: [] };
         }
 
-        hasAccess() {
-            const permissions = this.state.data?.profile?.permissions;
-            return Array.isArray(permissions) && permissions.includes('VIEW_ORDERS');
-        }
-
-        hideView() {
-            this.view?.remove();
-            this.navLink?.remove();
-        }
-
         init() {
-            if (!this.hasAccess()) {
-                this.hideView();
-                return;
-            }
             this.tableBody?.addEventListener('click', event => {
                 const row = event.target.closest('tr[data-order-id]');
                 if (!row) return;
@@ -2301,7 +2483,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.tableBody) return;
             const orders = this.getOrders();
             if (!orders.length) {
-                this.tableBody.innerHTML = '<tr><td colspan="7" class="table-placeholder">Žádné objednávky</td></tr>';
+                this.tableBody.innerHTML = '<tr><td colspan="8" class="table-placeholder">Žádné objednávky</td></tr>';
             } else {
                 this.tableBody.innerHTML = orders.map(order => this.renderOrderRow(order)).join('');
             }
@@ -2509,6 +2691,7 @@ function resolveAllowedViews(role, permissions = []) {
                             ${noteHtml}
                         </div>
                     </td>
+                    <td>${order.supplier || '-'}</td>
                     <td>${order.employee || '-'}</td>
                     <td><span class="status-badge ${statusClass}">${order.status || '—'}</span></td>
                     <td>${dateText}</td>
@@ -2591,7 +2774,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (!Array.isArray(permissions)) {
                 return false;
             }
-            return permissions.includes('MANAGE_USERS');
+            return permissions.includes('MANAGE_USERS') || permissions.includes('MANAGE_SUPPLIERS');
         }
 
         hideView() {
@@ -2630,8 +2813,6 @@ function resolveAllowedViews(role, permissions = []) {
         constructor(state, deps = {}) {
             this.state = state;
             this.apiUrl = deps.apiUrl;
-            this.view = document.querySelector('[data-view="finance"]');
-            this.navLink = document.querySelector('.nav-link[data-view="finance"]');
             this.tableBody = document.getElementById('payments-table-body');
             this.statsEl = document.getElementById('payment-stats');
             this.receiptList = document.getElementById('receipt-list');
@@ -2639,21 +2820,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.allPayments = [];
         }
 
-        hasAccess() {
-            const permissions = this.state.data?.profile?.permissions;
-            return Array.isArray(permissions) && permissions.includes('VIEW_FINANCE');
-        }
-
-        hideView() {
-            this.view?.remove();
-            this.navLink?.remove();
-        }
-
         init() {
-            if (!this.hasAccess()) {
-                this.hideView();
-                return;
-            }
             this.filterButtons.forEach(btn => {
                 btn.addEventListener('click', () => {
                     this.filterButtons.forEach(b => b.classList.remove('active'));
@@ -2753,16 +2920,18 @@ function resolveAllowedViews(role, permissions = []) {
             this.tableBody.innerHTML = filtered.length
                 ? filtered.map(p => {
                     const typeClass = this.resolveTypeClass(p.type);
+                    const statusClass = (p.status || '').toLowerCase().startsWith('zprac') ? 'success' : 'warning';
                     return `
                         <tr class="payment-row ${typeClass}">
                             <td><span class="pay-type ${typeClass}">${this.resolveTypeLabel(p.type)}</span></td>
                             <td class="payment-method">${p.method || '–'}</td>
                             <td>${currencyFormatter.format(p.amount || 0)}</td>
                             <td>${p.date || ''}</td>
+                            <td><span class="status-badge ${statusClass}">${p.status || ''}</span></td>
                         </tr>
                     `;
                 }).join('')
-                : '<tr><td colspan="4" style="text-align:center;">Zadne platby</td></tr>';
+                : '<tr><td colspan="5" style="text-align:center;">Zadne platby</td></tr>';
 
             const cash = payments.filter(p => p.type === 'H').reduce((sum, payment) => sum + (payment.amount || 0), 0);
             const card = payments.filter(p => p.type === 'K').reduce((sum, payment) => sum + (payment.amount || 0), 0);
@@ -3571,16 +3740,11 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.emojiPanel) return;
             if (this.emojiPanel.dataset.ready === '1') return;
             const emojis = [
-                '\u{1F600}','\u{1F602}','\u{1F604}','\u{1F606}','\u{1F923}','\u{1F60D}','\u{1F618}','\u{1F617}',
-                '\u{1F970}','\u{263A}\u{FE0F}','\u{1F60A}','\u{1F61C}','\u{1F61D}','\u{1F62E}','\u{1F633}','\u{1F92A}',
-                '\u{1F607}','\u{1F60E}','\u{1F929}','\u{1F617}','\u{1F917}','\u{1F609}','\u{1F642}','\u{1F643}',
-                '\u{1F92D}','\u{1F644}','\u{1F60F}','\u{1F62A}','\u{1F634}','\u{1F924}','\u{1F637}','\u{1F912}',
-                '\u{1F915}','\u{1F922}','\u{1F975}','\u{1F976}','\u{1F974}','\u{1F635}','\u{1F92F}','\u{1F62D}',
-                '\u{1F621}','\u{1F620}','\u{1F92C}','\u{1F624}','\u{1F631}','\u{1F628}','\u{1F630}','\u{1F62F}',
-                '\u{1F616}','\u{1F623}','\u{1F61E}','\u{1F613}','\u{1F625}','\u{1F622}','\u{1F914}','\u{1F910}',
-                '\u{1F928}','\u{1F9D0}','\u{1F913}','\u{1F4AA}','\u{1F44D}','\u{1F44E}','\u{1F64C}','\u{1F44F}',
-                '\u{1F64F}','\u{1F91D}','\u{1F917}','\u{1F64A}','\u{1F648}','\u{1F649}','\u{1F4A9}','\u{1F525}',
-                '\u{1F389}','\u{1F381}','\u{1F37B}','\u{1F37E}','\u{1F355}','\u{1F32D}','\u{1F36A}','\u{1F9C0}'
+                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
+                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
+                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
+                '??','?','??','??','??','??','??','??','??','??','??','??','??','?','?','?',
+                '?','??','??','?','??','??','??','??','??','??','??','??','??','??','??','??'
             ];
             this.emojiPanel.innerHTML = emojis.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('');
             this.emojiPanel.querySelectorAll('button[data-emoji]').forEach(btn => {
@@ -4118,7 +4282,7 @@ function resolveAllowedViews(role, permissions = []) {
                         this.autoResizeMessage();
                     }
                     await this.refreshMessages({ force: true });
-                    this.setFormStatus('\u2713 Upraveno', true);
+                    this.setFormStatus('? Upraveno', true);
                     return true;
                 } else {
                     if (!this.connected) {
@@ -4148,7 +4312,7 @@ function resolveAllowedViews(role, permissions = []) {
                     this.renderContacts();
                     this.renderFeed();
                     this.highlightActiveContact();
-                    this.setFormStatus('\u2713 Odeslano', true);
+                    this.setFormStatus('? Odeslano', true);
                     this.logger('send:optimistic', optimisticMessage);
                     return true;
                 }
@@ -4194,8 +4358,6 @@ function resolveAllowedViews(role, permissions = []) {
     class CustomerModule {
         constructor(state) {
             this.state = state;
-            this.view = document.querySelector('[data-view="customer"]');
-            this.navLink = document.querySelector('.nav-link[data-view="customer"]');
             this.categoryContainer = document.getElementById('customer-category-chips');
             this.searchInput = document.getElementById('customer-search');
             this.grid = document.getElementById('customer-product-grid');
@@ -4205,21 +4367,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.suggestionsEl = document.getElementById('customer-suggestions');
         }
 
-        hasAccess() {
-            const permissions = this.state.data?.profile?.permissions;
-            return Array.isArray(permissions) && permissions.includes('CREATE_ORDERS');
-        }
-
-        hideView() {
-            this.view?.remove();
-            this.navLink?.remove();
-        }
-
         init() {
-            if (!this.hasAccess()) {
-                this.hideView();
-                return;
-            }
             if (!this.state.customerCartLoaded) {
                 this.state.customerCart = this.loadCart();
                 this.state.customerCartLoaded = true;
@@ -4532,6 +4680,58 @@ function resolveAllowedViews(role, permissions = []) {
         };
     }
 
+class GlobalSearch {
+        constructor(state) {
+            this.state = state;
+            this.input = document.getElementById('global-search');
+            this.results = document.getElementById('search-results');
+        }
+
+        init() {
+            if (!this.input) return;
+            this.input.addEventListener('input', () => this.handleInput());
+            document.addEventListener('click', event => {
+                if (!event.target.closest('.search')) {
+                    this.hide();
+                }
+            });
+        }
+
+        handleInput() {
+            const term = this.input.value.trim().toLowerCase();
+            if (term.length < 2) {
+                this.hide();
+                return;
+            }
+            const hits = [];
+            this.state.data.inventory.forEach(item => {
+                if (item.name.toLowerCase().includes(term) || item.sku.toLowerCase().includes(term)) {
+                    hits.push({ type: 'SKU', label: `${item.sku} · ${item.name}` });
+                }
+            });
+            this.state.data.orders.forEach(order => {
+                if (order.id.toLowerCase().includes(term) || order.store.toLowerCase().includes(term)) {
+                    hits.push({ type: 'ORDER', label: `${order.id} · ${order.store}` });
+                }
+            });
+            this.state.data.customers.forEach(customer => {
+                if (customer.name.toLowerCase().includes(term)) {
+                    hits.push({ type: 'CLIENT', label: `${customer.name} · ${customer.phone}` });
+                }
+            });
+            this.results.innerHTML = hits.length
+                ? hits.slice(0, 6).map(hit => `<div class="search-hit"><span class="badge">${hit.type}</span> ${hit.label}</div>`).join('')
+                : '<p>Zadne vysledky, zkuste jiny dotaz.</p>';
+            this.results.classList.add('visible');
+        }
+
+        hide() {
+            if (!this.results) return;
+            this.results.classList.remove('visible');
+            this.results.innerHTML = '';
+        }
+    }
+
     class ClientOrdersModule {
         constructor(state, opts) {
             this.state = state;
@@ -4544,10 +4744,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.queueEmpty = document.getElementById('client-queue-empty');
             this.queueCount = document.getElementById('client-queue-count');
 
-            this.refundContainer = document.getElementById('client-refund-container');
-            this.refundEmpty = document.getElementById('client-refund-empty');
-            this.refundCount = document.getElementById('client-refund-count');
-
             this.mineContainer = document.getElementById('client-mine-container');
             this.mineEmpty = document.getElementById('client-mine-empty');
             this.mineCount = document.getElementById('client-mine-count');
@@ -4557,10 +4753,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.historyCount = document.getElementById('client-history-count');
             this.historySection = document.getElementById('client-history-section');
             this.historyToggle = document.getElementById('client-history-toggle');
-
-            this.refundContainer = document.getElementById('client-refund-container');
-            this.refundEmpty = document.getElementById('client-refund-empty');
-            this.refundCount = document.getElementById('client-refund-count');
         }
 
         init() {
@@ -4569,52 +4761,16 @@ function resolveAllowedViews(role, permissions = []) {
             this.historyToggle?.addEventListener('click', () => this.toggleHistory());
             [this.queueContainer, this.mineContainer].forEach(container => {
                 container?.addEventListener('click', event => {
+                    const btn = event.target.closest('[data-change-status]');
+                    if (btn) {
+                        this.changeStatus(btn.dataset.changeStatus, btn);
+                        return;
+                    }
                     const claim = event.target.closest('[data-claim-order]');
                     if (claim) {
                         this.claimOrder(claim.dataset.claimOrder, claim.dataset.currentStatus, claim);
-                        return;
-                    }
-                    const toggle = event.target.closest('[data-client-detail]');
-                    if (toggle) {
-                        this.toggleDetails(toggle.dataset.clientDetail);
-                        return;
-                    }
-                    const next = event.target.closest('[data-next-status]');
-                    if (next) {
-                        this.advanceStatus(next.dataset.nextStatus, next.dataset.currentStatus, next);
-                        return;
-                    }
-                    const cancel = event.target.closest('[data-cancel-order]');
-                    if (cancel) {
-                        this.changeStatus(cancel.dataset.cancelOrder, cancel, 6);
-                        return;
-                    }
-                    const change = event.target.closest('[data-status-change]');
-                    if (change) {
-                        this.changeStatus(change.dataset.orderId, change, change.dataset.statusChange);
-                        return;
-                    }
-                    const refund = event.target.closest('[data-refund-order]');
-                    if (refund) {
-                        this.refundOrder(refund.dataset.refundOrder, refund.dataset.refundAmount, refund);
                     }
                 });
-            });
-            this.refundContainer?.addEventListener('click', event => {
-                const toggle = event.target.closest('[data-client-detail]');
-                if (toggle) {
-                    this.toggleDetails(toggle.dataset.clientDetail);
-                    return;
-                }
-                const approve = event.target.closest('[data-approve-refund]');
-                if (approve) {
-                    this.decideRefund(approve.dataset.approveRefund, true, approve);
-                    return;
-                }
-                const reject = event.target.closest('[data-reject-refund]');
-                if (reject) {
-                    this.decideRefund(reject.dataset.rejectRefund, false, reject);
-                }
             });
             this.render();
             this.load();
@@ -4654,17 +4810,15 @@ function resolveAllowedViews(role, permissions = []) {
         }
 
         render() {
-            const { queue = [], refundRequests = [], mine = [], history = [], loading, error } = this.state.clientOrders || {};
+            const { queue = [], mine = [], history = [], loading, error } = this.state.clientOrders || {};
             this.setAlert(error);
-            this.updateCount(this.totalBadge, queue.length + refundRequests.length + mine.length + history.length);
+            this.updateCount(this.totalBadge, queue.length + mine.length + history.length);
             this.renderList(queue, this.queueContainer, this.queueEmpty, this.queueCount, 'queue');
-            this.renderList(refundRequests, this.refundContainer, this.refundEmpty, this.refundCount, 'refund');
             this.renderList(mine, this.mineContainer, this.mineEmpty, this.mineCount, 'mine');
             this.renderList(history, this.historyContainer, this.historyEmpty, this.historyCount, 'history');
 
             if (loading) {
                 this.showLoading(this.queueContainer, this.queueEmpty);
-                this.showLoading(this.refundContainer, this.refundEmpty);
                 this.showLoading(this.mineContainer, this.mineEmpty);
                 this.showLoading(this.historyContainer, this.historyEmpty);
             }
@@ -4691,75 +4845,33 @@ function resolveAllowedViews(role, permissions = []) {
         renderCard(order, mode) {
             const isMine = mode === 'mine';
             const isQueue = mode === 'queue';
-            const isRefund = mode === 'refund';
-            const isHistory = mode === 'history';
-            const refunded = Boolean(order?.refunded);
+            const statusOptions = isMine ? this.buildStatusOptions(order?.statusId) : '';
             const itemsArray = Array.isArray(order?.items) ? order.items : [];
             const itemsList = this.renderItems(itemsArray);
-            const amountValue = order?.total ?? this.computeTotal(itemsArray);
-            const amount = this.formatAmount(amountValue);
+            const amount = this.formatAmount(order?.total ?? this.computeTotal(itemsArray));
             const statusLabel = escapeHtml(order?.status || '');
             const date = escapeHtml(order?.createdAt || '');
             const store = escapeHtml(order?.supermarket || '');
             const customerLine = [order?.customerEmail, order?.handlerEmail].filter(Boolean).map(escapeHtml).join(' · ');
             const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${escapeHtml(order.note)}</p>` : '';
+            const actions = isMine ? `
+                <div class="pill-select">
+                    <select data-status-select="${order?.id ?? ''}">
+                        ${statusOptions}
+                    </select>
+                </div>
+                <button type="button" class="ghost-btn ghost-strong" data-change-status="${order?.id ?? ''}">Změnit stav</button>
+            ` : isQueue ? `
+                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">Převzít</button>
+            ` : '';
             const itemsSummary = this.formatItemsSummary(itemsArray);
-            const orderTitle = `Objednávka #${order?.id ?? ''}`.trim();
-            const refundPill = isHistory && refunded
-                ? `<span class="status-badge warning" style="margin-left:6px;">Vráceno</span>`
-                : '';
-
-            if (isQueue || isRefund) {
-                return `
-                    <div class="client-order-card" data-order-id="${order?.id ?? ''}">
-                        <div class="client-card-top">
-                            <div>
-                                <p class="eyebrow" style="margin:0;">${store || 'Supermarket'}</p>
-                                <h4 style="margin:4px 0 6px;">${orderTitle}</h4>
-                                <div class="meta-row" style="color:var(--muted);gap:8px;">
-                                    <span class="material-symbols-rounded" aria-hidden="true">calendar_today</span>
-                                    <span>Vytvořeno: ${date || '—'}</span>
-                                </div>
-                                ${note}
-                            </div>
-                            <span class="status-badge${order?.pendingRefund ? ' warning' : ''}" style="align-self:flex-start;">${isRefund ? 'Refund čeká' : (statusLabel || 'Vytvořena')}</span>
-                        </div>
-                        <div class="client-card-meta">
-                            <div class="meta-row">
-                                <span class="material-symbols-rounded" aria-hidden="true">person</span>
-                                <span>${customerLine || 'Bez kontaktu'}</span>
-                            </div>
-                        </div>
-                        <div class="client-order-items" data-client-details="${order?.id ?? ''}" hidden>
-                            ${itemsList}
-                        </div>
-                        <div class="client-amount-main">
-                            <small class="profile-muted">Částka</small>
-                            <div class="client-amount-value">${amount}</div>
-                        </div>
-                        <div class="client-card-actions">
-                            <button type="button" class="ghost-btn" data-client-detail="${order?.id ?? ''}">Položky</button>
-                            ${isRefund ? `
-                                <button type="button" class="ghost-btn ghost-strong" data-approve-refund="${order?.id ?? ''}">Schválit refund</button>
-                                <button type="button" class="ghost-btn ghost-danger" data-reject-refund="${order?.id ?? ''}">Zamítnout</button>
-                            ` : `
-                                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">
-                                    Převzít
-                                </button>
-                            `}
-                        </div>
-                    </div>
-                `;
-            }
-
-            const actions = this.renderStatusControls(order);
             return `
                 <div class="supplier-order-card client-order-card" data-order-id="${order?.id ?? ''}">
                     <div class="client-card-top">
                         <div>
                             <p class="eyebrow" style="margin:0;">${store || 'Prodejna'}</p>
                             <div class="client-chip-row">
-                                <span class="status-badge">${statusLabel || 'Stav neznámý'}</span>${refundPill}
+                                <span class="status-badge">${statusLabel || 'Stav neznámý'}</span>
                                 <span class="client-chip">${date || '—'}</span>
                             </div>
                         </div>
@@ -4780,10 +4892,6 @@ function resolveAllowedViews(role, permissions = []) {
                     </div>
                     ${itemsList}
                     ${note}
-                    <div class="client-amount-main" style="margin-top:10px;">
-                        <small class="profile-muted">Částka</small>
-                        <div class="client-amount-value">${amount}</div>
-                    </div>
                     ${actions ? `<div class="client-card-actions">${actions}</div>` : ''}
                 </div>
             `;
@@ -4816,133 +4924,18 @@ function resolveAllowedViews(role, permissions = []) {
             }, 0);
         }
 
-        toggleDetails(orderId) {
-            if (!orderId) return;
-            const section = document.querySelector(`[data-client-details="${orderId}"]`);
-            if (!section) return;
-            const isHidden = section.hasAttribute('hidden');
-            if (isHidden) {
-                section.removeAttribute('hidden');
-                section.style.display = 'block';
-            } else {
-                section.setAttribute('hidden', 'hidden');
-                section.style.display = 'none';
+        buildStatusOptions(selected) {
+            const statuses = Array.isArray(this.state.data.statuses) ? this.state.data.statuses : [];
+            const current = selected != null ? String(selected) : '';
+            if (!statuses.length) {
+                return `<option value="${current}">${current || '—'}</option>`;
             }
-        }
-
-        async refundOrder(orderId, amount, triggerBtn, handlerLabel) {
-            if (!orderId) return;
-            const amt = Number(amount);
-            if (!amt || amt <= 0 || Number.isNaN(amt)) {
-                alert('Částka k vrácení není platná.');
-                return;
-            }
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert('Nejste přihlášen.');
-                return;
-            }
-            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderId}?`)) {
-                return;
-            }
-            if (triggerBtn) triggerBtn.disabled = true;
-            try {
-                const response = await fetch(this.apiUrl('/api/wallet/refund-request'), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ orderId, amount: amt })
-                });
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(text || 'Žádost se nepodařilo odeslat.');
-                }
-                const target = handlerLabel && handlerLabel.trim().length ? handlerLabel : 'obsluze';
-                alert(`Žádost byla odeslána ke schválení (${target}).`);
-                if (triggerBtn) {
-                    triggerBtn.textContent = `Odesláno manažerovi${handlerLabel ? ` (${handlerLabel})` : ''}`;
-                    triggerBtn.disabled = true;
-                }
-            } catch (err) {
-                alert(err.message || 'Žádost se nepodařilo odeslat.');
-                if (triggerBtn) triggerBtn.disabled = false;
-            }
-        }
-
-        async decideRefund(orderId, approve, triggerBtn) {
-            if (!orderId) return;
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert('Nejste přihlášen.');
-                return;
-            }
-            if (!confirm(`${approve ? 'Schválit' : 'Zamítnout'} refund objednávky ${orderId}?`)) {
-                return;
-            }
-            if (triggerBtn) triggerBtn.disabled = true;
-            try {
-                const url = approve
-                    ? this.apiUrl(`/api/client/orders/${orderId}/refund/approve`)
-                    : this.apiUrl(`/api/client/orders/${orderId}/refund/reject`);
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`
-                    }
-                });
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(text || 'Akci se nepodařilo provést.');
-                }
-                await this.load();
-            } catch (err) {
-                alert(err.message || 'Akci se nepodařilo provést.');
-            } finally {
-                if (triggerBtn) triggerBtn.disabled = false;
-            }
-        }
-
-        renderStatusControls(order) {
-            const actions = this.resolveStatusActions(order?.statusId);
-            if (!actions.length) {
-                return `<span class="profile-muted">Žádné další kroky nejsou potřeba.</span>`;
-            }
-            const nextActions = actions.filter(a => a.theme !== 'danger');
-            const cancelAction = actions.find(a => a.theme === 'danger');
-            return `
-                <div class="supplier-mine-actions" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-start;align-items:center;">
-                    ${nextActions.map(action => `
-                        <button type="button" class="ghost-btn ghost-strong" data-status-change="${action.id}" data-order-id="${order?.id ?? ''}">
-                            ${escapeHtml(action.label)}
-                        </button>
-                    `).join('')}
-                    ${cancelAction ? `
-                        <button type="button" class="ghost-btn ghost-danger" data-status-change="${cancelAction.id}" data-order-id="${order?.id ?? ''}">
-                            ${escapeHtml(cancelAction.label)}
-                        </button>
-                    ` : ''}
-                </div>
-            `;
-        }
-
-        resolveStatusActions(statusId) {
-            const map = {
-                2: [
-                    { id: 3, label: 'Připravit', theme: 'strong' },
-                    { id: 6, label: 'Zrušit', theme: 'danger' }
-                ],
-                3: [
-                    { id: 4, label: 'Odeslat', theme: 'strong' },
-                    { id: 6, label: 'Zrušit', theme: 'danger' }
-                ],
-                4: [
-                    { id: 5, label: 'Dokončit', theme: 'strong' },
-                    { id: 6, label: 'Zrušit', theme: 'danger' }
-                ]
-            };
-            return map[Number(statusId)] || [];
+            return statuses.map(stat => {
+                const value = stat.code ?? stat.id ?? '';
+                const label = stat.label ?? stat.name ?? value;
+                const isSelected = current && String(value) === current;
+                return `<option value="${escapeHtml(value)}" ${isSelected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
+            }).join('');
         }
 
         formatAmount(value) {
@@ -4958,37 +4951,29 @@ function resolveAllowedViews(role, permissions = []) {
 
         partitionOrders(list) {
             const email = (this.state.data?.profile?.email || '').toLowerCase();
+            const active = new Set([1, 2, 3, 4]);
             const history = new Set([5, 6]);
             const queue = [];
             const mine = [];
             const historyList = [];
-            const refundRequests = [];
             list.forEach(order => {
                 const statusId = Number(order?.statusId);
-                const handler = (order?.handlerEmail || '').toLowerCase();
-                const isMine = handler && email && handler === email;
-                if (order?.pendingRefund && isMine) {
-                    refundRequests.push(order);
+                if (history.has(statusId)) {
+                    historyList.push(order);
                     return;
                 }
-
-                if (history.has(statusId)) {
-                    if (isMine) {
-                        historyList.push(order);
+                if (active.has(statusId)) {
+                    const handler = (order?.handlerEmail || '').toLowerCase();
+                    if (handler && email && handler === email) {
+                        mine.push(order);
+                    } else {
+                        queue.push(order);
                     }
                     return;
                 }
-                if (isMine) {
-                    mine.push(order);
-                    return;
-                }
-                // Volné zobrazujeme jen stav Vytvořena (1) bez obsluhy
-                if (statusId === 1) {
-                    queue.push(order);
-                }
+                queue.push(order);
             });
             this.state.clientOrders.queue = queue;
-            this.state.clientOrders.refundRequests = refundRequests;
             this.state.clientOrders.mine = mine;
             this.state.clientOrders.history = historyList;
         }
@@ -5016,7 +5001,6 @@ function resolveAllowedViews(role, permissions = []) {
                 }
                 if (response.status === 403) {
                     this.state.clientOrders.queue = [];
-                    this.state.clientOrders.refundRequests = [];
                     this.state.clientOrders.mine = [];
                     this.state.clientOrders.history = [];
                     this.state.clientOrders.error = 'Nemáte oprávnění k obsluze zákaznických objednávek.';
@@ -5043,7 +5027,8 @@ function resolveAllowedViews(role, permissions = []) {
                 alert('Chybí ID objednávky.');
                 return;
             }
-            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number.NaN;
+            const select = document.querySelector(`[data-status-select="${orderId}"]`);
+            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number(select?.value);
             if (Number.isNaN(statusId)) {
                 alert('Vyberte platný stav.');
                 return;
@@ -5085,18 +5070,10 @@ function resolveAllowedViews(role, permissions = []) {
         }
 
         async claimOrder(orderId, statusId, triggerBtn) {
-            // Převzetí: posuň na další povolený stav podle matice 1→2→3→4→5 (nebo nech aktuální)
-            const desired = this.resolveNextStatusForClaim(statusId);
-            await this.changeStatus(orderId, triggerBtn, desired);
-        }
-
-        resolveNextStatusForClaim(statusId) {
+            // Převzetí: pošleme bezpečný stav (výchozí 2 = potvrzena) a tím se objednávka naváže na obsluhu
             const current = Number(statusId);
-            if (Number.isNaN(current) || current <= 1) return 2; // Vytvorena -> Potvrzena
-            if (current === 2) return 3; // Potvrzena -> Pripravuje se
-            if (current === 3) return 4; // Pripravuje se -> Odeslana
-            if (current === 4) return 5; // Odeslana -> Dokoncena
-            return current; // 5/6 necháme beze změny
+            const desired = Number.isNaN(current) || current < 2 ? 2 : current;
+            await this.changeStatus(orderId, triggerBtn, desired);
         }
     }
 
@@ -5113,17 +5090,6 @@ function resolveAllowedViews(role, permissions = []) {
         init() {
             if (!this.tbody) return;
             this.refreshBtn?.addEventListener('click', () => this.load());
-            this.tbody.addEventListener('click', event => {
-                const refund = event.target.closest('[data-history-refund]');
-                if (refund) {
-                    this.refundOrder(
-                        refund.dataset.historyRefund,
-                        refund.dataset.refundAmount,
-                        refund,
-                        refund.dataset.handlerLabel
-                    );
-                }
-            });
             this.render();
             this.load();
         }
@@ -5150,11 +5116,11 @@ function resolveAllowedViews(role, permissions = []) {
             const { items = [], loading, error } = this.state.customerHistory || {};
             this.setAlert(error);
             if (loading) {
-                this.tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;" class="profile-muted">Načítám…</td></tr>';
+                this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="profile-muted">Načítám…</td></tr>';
                 return;
             }
             if (!items.length) {
-                this.tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;" class="profile-muted">Zatím žádné objednávky.</td></tr>';
+                this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="profile-muted">Zatím žádné objednávky.</td></tr>';
                 this.updateBadge(0);
                 return;
             }
@@ -5163,48 +5129,20 @@ function resolveAllowedViews(role, permissions = []) {
         }
 
         renderRow(order) {
-            const amountValue = order?.total ?? this.computeTotal(order?.items);
-            const amount = this.formatAmount(amountValue);
+            const amount = this.formatAmount(order?.total);
             const status = escapeHtml(order?.status || '');
             const store = escapeHtml(order?.supermarket || '');
             const date = escapeHtml(order?.createdAt || '');
             const items = this.renderItems(order?.items);
-            const refunded = Boolean(order?.refunded);
-            const pending = Boolean(order?.pendingRefund);
-            const statusClass = this.statusClass(order?.statusId, refunded || pending);
-            const canRefund = !refunded && !pending && Number(order?.statusId) === 5 && amountValue > 0;
-            const handler = order?.handlerName
-                ? escapeHtml(order.handlerName)
-                : (order?.handlerEmail ? escapeHtml(order.handlerEmail) : '');
-            const handlerLabel = handler || 'manažerovi';
-            const refundBtn = canRefund
-                ? `<button type="button" class="ghost-btn ghost-muted" data-history-refund="${order?.id ?? ''}" data-refund-amount="${amountValue}" data-handler-label="${handlerLabel}">Vrátit na účet</button>`
-                : (pending
-                    ? `<span class="badge status-badge warning">Odesláno manažerovi${handler ? ` (${handler})` : ''}</span>`
-                    : (refunded ? '<span class="badge badge-muted">Vráceno</span>' : ''));
             return `
-                <tr class="history-row${refunded ? ' refunded' : ''}">
+                <tr>
                     <td>${store}</td>
-                    <td><span class="status-badge ${statusClass}">${status || '—'}</span></td>
+                    <td><span class="badge">${status || '—'}</span></td>
                     <td>${date || '—'}</td>
                     <td>${amount}</td>
                     <td>${items}</td>
-                    <td>${refundBtn}</td>
                 </tr>
             `;
-        }
-
-        statusClass(statusId, refunded) {
-            if (refunded) return 'muted';
-            const id = Number(statusId);
-            switch (id) {
-                case 5: return 'success';
-                case 6: return 'danger';
-                case 3: return 'warning';
-                case 2:
-                case 4: return 'info';
-                default: return 'info';
-            }
         }
 
         renderItems(items) {
@@ -5226,63 +5164,6 @@ function resolveAllowedViews(role, permissions = []) {
                 return escapeHtml(String(value));
             }
             return currencyFormatter.format(num);
-        }
-
-        computeTotal(items) {
-            const list = Array.isArray(items) ? items : [];
-            return list.reduce((sum, it) => {
-                const price = Number(it.price ?? 0);
-                const qty = Number(it.qty ?? 0);
-                if (Number.isNaN(price) || Number.isNaN(qty)) return sum;
-                return sum + price * qty;
-            }, 0);
-        }
-
-        async refundOrder(orderId, amount, triggerBtn, handlerLabel) {
-            if (!orderId) return;
-            const amt = Number(amount);
-            if (!amt || amt <= 0 || Number.isNaN(amt)) {
-                alert('Částka k vrácení není platná.');
-                return;
-            }
-            const token = localStorage.getItem('token');
-            if (!token) {
-                alert('Nejste přihlášen.');
-                return;
-            }
-            const target = handlerLabel && handlerLabel.trim().length ? handlerLabel.trim() : 'manažerovi';
-            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderId} ke schválení ${target}?`)) {
-                return;
-            }
-            if (triggerBtn) triggerBtn.disabled = true;
-            try {
-                const response = await fetch(this.apiUrl('/api/wallet/refund-request'), {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${token}`
-                    },
-                    body: JSON.stringify({ orderId, amount: amt })
-                });
-                if (!response.ok) {
-                    const text = await response.text();
-                    throw new Error(text || 'Žádost se nepodařilo odeslat.');
-                }
-                alert(`Žádost byla odeslána ke schválení (${target}).`);
-                if (triggerBtn) {
-                    triggerBtn.textContent = `Odesláno manažerovi${handlerLabel ? ` (${handlerLabel})` : ''}`;
-                    triggerBtn.disabled = true;
-                }
-                const items = Array.isArray(this.state.customerHistory.items) ? this.state.customerHistory.items : [];
-                this.state.customerHistory.items = items.map(it => {
-                    if (String(it?.id) !== String(orderId)) return it;
-                    return { ...it, pendingRefund: true };
-                });
-                this.render();
-            } catch (err) {
-                alert(err.message || 'Žádost se nepodařilo odeslat.');
-                if (triggerBtn) triggerBtn.disabled = false;
-            }
         }
 
         async load() {
@@ -5372,6 +5253,7 @@ function resolveAllowedViews(role, permissions = []) {
         this.customerOrders = new CustomerOrdersView(state, currencyFormatter, { apiUrl, refreshWalletChip: () => this.updateWalletChip() });
         this.clientOrders = new ClientOrdersModule(state, { apiUrl });
         this.customerHistory = new CustomerHistoryModule(state, { apiUrl });
+        this.search = new GlobalSearch(state);
         this.supplier = new SupplierModule(state, { apiUrl });
         }
 
@@ -5393,6 +5275,7 @@ function resolveAllowedViews(role, permissions = []) {
             this.customerOrders.render();
             this.clientOrders.init();
             this.customerHistory.init();
+            this.search.init();
             this.supplier.init();
             this.registerUtilityButtons();
             this.renderAll();
@@ -5493,20 +5376,9 @@ function resolveAllowedViews(role, permissions = []) {
                         <p class="muted-label">Muj ucet</p>
                         <div class="wallet-balance" id="wallet-balance">Nacitam...</div>
                     </div>
-                    <div class="wallet-actions-inline">
-                        <label class="wallet-filter">
-                            <span>Od</span>
-                            <input type="date" id="wallet-date-from">
-                        </label>
-                        <label class="wallet-filter">
-                            <span>Do</span>
-                            <input type="date" id="wallet-date-to">
-                        </label>
-                        <button class="wallet-download" type="button" id="wallet-download" title="Stáhnout výpis"><span class="material-symbols-rounded" aria-hidden="true">download</span></button>
-                        <button class="wallet-close" type="button" id="wallet-close">
-                            <span class="material-symbols-rounded" aria-hidden="true">close</span>
-                        </button>
-                    </div>
+                    <button class="wallet-download" type="button" id="wallet-download" title="Stáhnout výpis"><span class="material-symbols-rounded" aria-hidden="true">download</span></button><button class="wallet-close" type="button" id="wallet-close">
+                        <span class="material-symbols-rounded" aria-hidden="true">close</span>
+                    </button>
                 </div>
                 <div class="panel" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
                     <h3 style="margin-top:0;">Historie</h3>
@@ -5547,8 +5419,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.walletBalanceEl = panel.querySelector('#wallet-balance');
             this.walletHistoryList = panel.querySelector('#wallet-history');
             this.walletStatus = panel.querySelector('#wallet-status');
-            this.walletFromInput = panel.querySelector('#wallet-date-from');
-            this.walletToInput = panel.querySelector('#wallet-date-to');
             const closeBtn = panel.querySelector('#wallet-close');
             const downloadBtn = panel.querySelector('#wallet-download');
             downloadBtn?.addEventListener('click', () => this.downloadWalletStatement());
@@ -5557,9 +5427,6 @@ function resolveAllowedViews(role, permissions = []) {
                 if (e.target === overlay) {
                     overlay.style.display = 'none';
                 }
-            });
-            [this.walletFromInput, this.walletToInput].forEach(input => {
-                input?.addEventListener('change', () => this.loadWalletData());
             });
             const methodSelect = panel.querySelector('#wallet-method');
             const cardWrap = panel.querySelector('#wallet-card-wrap');
@@ -5577,28 +5444,17 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.walletData) {
                 this.walletData = { balance: 0, history: [] };
             }
-            const from = this.walletFromInput?.value ? this.walletFromInput.value : null;
-            const to = this.walletToInput?.value ? this.walletToInput.value : null;
-            if (from && to && from > to) {
-                this.walletStatus.textContent = 'Datum \"od\" musi byt <= \"do\".';
-                this.walletStatus.classList.add('chat-status-error');
-                return;
-            }
             try {
                 if (this.walletStatus) {
                     this.walletStatus.textContent = 'Nacitam...';
-                    this.walletStatus.classList.remove('chat-status-error');
                 }
                 const token = localStorage.getItem('token');
                 if (!token) {
                     throw new Error('Chybi prihlaseni.');
                 }
-                const params = new URLSearchParams();
-                if (from) params.append('from', from);
-                if (to) params.append('to', to);
                 const [balanceRes, historyRes] = await Promise.all([
                     fetch(apiUrl('/api/wallet'), { headers: { 'Authorization': `Bearer ${token}` } }),
-                    fetch(apiUrl(`/api/wallet/history${params.toString() ? '?' + params.toString() : ''}`), { headers: { 'Authorization': `Bearer ${token}` } })
+                    fetch(apiUrl('/api/wallet/history'), { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
                 if (!balanceRes.ok) {
                     throw new Error(await balanceRes.text() || 'Nelze nacist zustatek.');
@@ -5617,8 +5473,7 @@ function resolveAllowedViews(role, permissions = []) {
                 if (this.walletHistoryList) {
                     this.walletHistoryList.innerHTML = '';
                     this.walletData.history = Array.isArray(history) ? history : [];
-                    const list = this.filterWalletHistory();
-                    list.forEach(item => {
+                    (history || []).forEach(item => {
                         const li = document.createElement('li');
                         const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
                         li.innerHTML = `
@@ -5641,30 +5496,6 @@ function resolveAllowedViews(role, permissions = []) {
                     this.walletStatus.textContent = error.message || 'Chyba nacitani penezky.';
                 }
             }
-        }
-
-        parseDateOnly(val) {
-            if (!val) return null;
-            const d = new Date(val);
-            if (Number.isNaN(d.getTime())) return null;
-            return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
-        }
-
-        filterWalletHistory() {
-            const { history } = this.walletData || {};
-            if (!history || !history.length) return [];
-            const fromVal = this.walletFromInput?.value || null;
-            const toVal = this.walletToInput?.value || null;
-            const from = this.parseDateOnly(fromVal);
-            const to = this.parseDateOnly(toVal);
-            return history.filter(item => {
-                if (!item?.createdAt) return true;
-                const d = this.parseDateOnly(item.createdAt);
-                if (!d) return true;
-                if (from && d < from) return false;
-                if (to && d > to) return false;
-                return true;
-            });
         }
 
         async submitWalletTopUp() {
@@ -5739,14 +5570,11 @@ function resolveAllowedViews(role, permissions = []) {
         }
 
         downloadWalletStatement() {
-            const { balance } = this.walletData || {};
-            const history = this.filterWalletHistory();
+            const { balance, history } = this.walletData || {};
             if (!history || !history.length) {
                 alert('Žádné pohyby k exportu.');
                 return;
             }
-            const from = this.walletFromInput?.value || '';
-            const to = this.walletToInput?.value || '';
             const rows = history.map(item => {
                 const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
                 const castka = this.formatCurrency(item.amount || 0);
@@ -5777,7 +5605,6 @@ function resolveAllowedViews(role, permissions = []) {
 <body>
     <h1>Výpis účtu</h1>
     <p>Datum: ${new Date().toLocaleString('cs-CZ')}</p>
-    ${from || to ? `<p>Období: ${from || '—'} až ${to || '—'}</p>` : ''}
     <p>Zůstatek: ${this.formatCurrency(balance || 0)}</p>
     <table>
         <thead>
@@ -6112,5 +5939,121 @@ function resolveAllowedViews(role, permissions = []) {
             overlay.querySelector('#cashback-close')?.addEventListener('click', cleanup);
             overlay.querySelector('#cashback-ok')?.addEventListener('click', cleanup);
             document.body.appendChild(overlay);
+        }
+    }
+
+    // --- Prodejny & sklady CRUD na dashboardu ---
+    function setupStoreCrudHandlers() {
+        const addBtn = document.getElementById('store-add-btn');
+        const editBtn = document.getElementById('store-edit-btn');
+        const delBtn = document.getElementById('store-delete-btn');
+        if (addBtn) {
+            addBtn.addEventListener('click', () => openStoreDialog('create'));
+        }
+        if (editBtn) {
+            editBtn.addEventListener('click', () => openStoreDialog('edit'));
+        }
+        if (delBtn) {
+            delBtn.addEventListener('click', handleStoreDelete);
+        }
+    }
+
+    async function refreshMarketDataAndRender() {
+        try {
+            const [stores, warehouses] = await Promise.all([fetchMarketSupermarkets(), fetchMarketWarehouses()]);
+            state.marketSupermarkets = Array.isArray(stores) ? stores : [];
+            state.marketWarehouses = Array.isArray(warehouses) ? warehouses : [];
+            state.selectedStoreId = null;
+            if (window.app?.dashboard?.render) {
+                window.app.dashboard.render();
+            }
+        } catch (err) {
+            console.error('Nepodarilo se obnovit prodejny/sklady', err);
+            alert(err.message || 'Obnova prodejen selhala.');
+        }
+    }
+
+    function pickStoreDataById(id) {
+        if (!id) return { store: null, warehouse: null };
+        const store = (state.marketSupermarkets || []).find(s => String(s.id) === String(id));
+        const warehouse = store ? (state.marketWarehouses || []).find(w => String(w.supermarketId) === String(store.id)) : null;
+        return { store, warehouse };
+    }
+
+    async function openStoreDialog(mode) {
+        const selectedId = state.selectedStoreId;
+        const { store: existingStore, warehouse: existingWarehouse } = pickStoreDataById(selectedId);
+        if (mode === 'edit' && !existingStore) {
+            alert('Vyberte prodejnu pro úpravu.');
+            return;
+        }
+
+        const name = prompt('Název prodejny', existingStore?.nazev || '');
+        if (!name) return;
+        const tel = prompt('Telefon prodejny', existingStore?.telefon || '');
+        if (tel === null) return;
+        const email = prompt('Email prodejny', existingStore?.email || '');
+        if (email === null) return;
+        const ulice = prompt('Ulice', existingStore?.adresaUlice || '');
+        if (!ulice) return;
+        const cpop = prompt('Číslo popisné', existingStore?.adresaCpop || '');
+        if (!cpop) return;
+        const corient = prompt('Číslo orientační', existingStore?.adresaCorient || '');
+        if (!corient) return;
+        const psc = prompt('PSČ', existingStore?.adresaPsc || '');
+        if (!psc) return;
+
+        const whName = prompt('Název skladu', existingWarehouse?.nazev || '');
+        if (whName === null) return;
+        const whCapRaw = prompt('Kapacita skladu', existingWarehouse?.kapacita != null ? String(existingWarehouse.kapacita) : '0');
+        if (whCapRaw === null) return;
+        const whCap = Number(whCapRaw) || 0;
+        const whTel = prompt('Telefon skladu', existingWarehouse?.telefon || '');
+        if (whTel === null) return;
+
+        try {
+            const savedStore = await upsertSupermarket({
+                id: mode === 'edit' ? existingStore?.id : null,
+                nazev: name,
+                telefon: tel,
+                email: email,
+                adresaId: mode === 'edit' ? existingStore?.adresaId : null,
+                adresaUlice: ulice,
+                adresaCpop: cpop,
+                adresaCorient: corient,
+                adresaPsc: psc
+            });
+            const storeId = savedStore?.id || existingStore?.id;
+            if (whName && storeId) {
+                await upsertWarehouse({
+                    id: existingWarehouse?.id || null,
+                    nazev: whName,
+                    kapacita: whCap,
+                    telefon: whTel,
+                    supermarketId: storeId
+                });
+            }
+            await refreshMarketDataAndRender();
+        } catch (err) {
+            console.error('Uložení prodejny/skladu selhalo', err);
+            alert(err.message || 'Uložení prodejny selhalo.');
+        }
+    }
+
+    async function handleStoreDelete() {
+        const selectedId = state.selectedStoreId;
+        if (!selectedId) {
+            alert('Vyberte prodejnu ke smazání.');
+            return;
+        }
+        if (!confirm('Opravdu smazat vybranou prodejnu včetně skladu?')) {
+            return;
+        }
+        try {
+            await deleteSupermarketById(selectedId);
+            await refreshMarketDataAndRender();
+        } catch (err) {
+            console.error('Smazání prodejny selhalo', err);
+            alert(err.message || 'Smazání se nepodařilo.');
         }
     }
