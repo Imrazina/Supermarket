@@ -80,11 +80,12 @@ function renderOrders(container, orders, options = {}) {
         const itemsHtml = (order.items || []).map(it =>
             `<li>${it.name} · ${it.qty} ks × ${currencyFormatter.format(it.price || 0)}</li>`
         ).join('');
+        const displayNumber = order.cislo || '—';
         return `
         <article class="panel" data-order-id="${order.id}">
             <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;">
                 <div>
-                    <h3 style="margin:0;">Objednávka #${order.id}</h3>
+                    <h3 style="margin:0;">Objednávka #${displayNumber}</h3>
                     <p style="margin:0;color:var(--muted);">${order.supermarket || '—'} • Stav: ${order.status || order.statusId}</p>
                     ${order.rewardEstimate ? `<p style="margin:4px 0 0;">Odhad výplaty: <strong>${currencyFormatter.format(order.rewardEstimate)}</strong></p>` : ''}
                 </div>
