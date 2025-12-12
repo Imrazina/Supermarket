@@ -114,6 +114,17 @@ public class DashboardService {
                         sm.setNazev(row.supermarketNazev());
                     }
                     o.setSupermarket(sm);
+
+                    Uzivatel obsluha = userMap.getOrDefault(row.obsluhaId(), null);
+                    if (obsluha == null && row.obsluhaId() != null) {
+                        Uzivatel stub = new Uzivatel();
+                        stub.setIdUzivatel(row.obsluhaId());
+                        stub.setJmeno(row.obsluhaJmeno());
+                        stub.setPrijmeni(row.obsluhaPrijmeni());
+                        stub.setEmail(row.obsluhaEmail());
+                        obsluha = stub;
+                    }
+                    o.setObsluha(obsluha);
                     return o;
                 })
                 .toList();
@@ -250,6 +261,15 @@ public class DashboardService {
                             ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
                             : "Neuvedeno";
                     String supplierName = order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno";
+                    String handlerName = "—";
+                    if (order.getObsluha() != null) {
+                        String first = Optional.ofNullable(order.getObsluha().getJmeno()).orElse("");
+                        String last = Optional.ofNullable(order.getObsluha().getPrijmeni()).orElse("");
+                        handlerName = (first + " " + last).trim();
+                        if (handlerName.isEmpty()) {
+                            handlerName = "—";
+                        }
+                    }
                     String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
                     double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
@@ -262,6 +282,7 @@ public class DashboardService {
                             order.getTypObjednavka(),
                             order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno",
                             employeeName,
+                            handlerName,
                             supplierName,
                             statusLabel,
                             statusCode,
@@ -280,6 +301,15 @@ public class DashboardService {
                             ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
                             : "Neuvedeno";
                     String supplierName = resolveOrderSupplier(order, suppliersByUserId);
+                    String handlerName = "—";
+                    if (order.getObsluha() != null) {
+                        String first = Optional.ofNullable(order.getObsluha().getJmeno()).orElse("");
+                        String last = Optional.ofNullable(order.getObsluha().getPrijmeni()).orElse("");
+                        handlerName = (first + " " + last).trim();
+                        if (handlerName.isEmpty()) {
+                            handlerName = "—";
+                        }
+                    }
                     String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
                     double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
@@ -292,6 +322,7 @@ public class DashboardService {
                             order.getTypObjednavka(),
                             order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno",
                             employeeName,
+                            handlerName,
                             supplierName,
                             statusLabel,
                             statusCode,

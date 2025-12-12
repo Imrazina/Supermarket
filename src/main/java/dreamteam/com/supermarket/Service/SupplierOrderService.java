@@ -36,7 +36,7 @@ public class SupplierOrderService {
 
     public List<SupplierOrderResponse> listFreeOrders() {
         String sql = """
-                SELECT o.ID_Objednavka, o.ID_Status, s.NAZEV AS status_nazev,
+                SELECT o.ID_Objednavka, o.CISLO, o.ID_Status, s.NAZEV AS status_nazev,
                        o.ID_Supermarket, sp.NAZEV AS super_nazev,
                        o.ID_Uzivatel AS owner_id, u.EMAIL AS owner_email,
                        o.DATUM, o.POZNAMKA
@@ -56,7 +56,7 @@ public class SupplierOrderService {
 
     public List<SupplierOrderResponse> listOrdersByOwner(Long userId) {
         String sql = """
-                SELECT o.ID_Objednavka, o.ID_Status, s.NAZEV AS status_nazev,
+                SELECT o.ID_Objednavka, o.CISLO, o.ID_Status, s.NAZEV AS status_nazev,
                        o.ID_Supermarket, sp.NAZEV AS super_nazev,
                        o.ID_Uzivatel AS owner_id, u.EMAIL AS owner_email,
                        o.DATUM, o.POZNAMKA
@@ -142,6 +142,7 @@ public class SupplierOrderService {
         return orders.stream()
                 .map(row -> new SupplierOrderResponse(
                         row.id,
+                        normalizeCislo(row.cislo),
                         row.statusName,
                         row.statusId,
                         row.superName,
@@ -162,8 +163,16 @@ public class SupplierOrderService {
         return total.multiply(SUPPLIER_SHARE);
     }
 
+    private String normalizeCislo(String cislo) {
+        if (cislo == null) {
+            return null;
+        }
+        return cislo.isBlank() ? null : cislo;
+    }
+
     private static class OrderRow {
         Long id;
+        String cislo;
         Integer statusId;
         String statusName;
         Long superId;
@@ -179,6 +188,7 @@ public class SupplierOrderService {
         public OrderRow mapRow(ResultSet rs, int rowNum) throws SQLException {
             OrderRow row = new OrderRow();
             row.id = rs.getLong("ID_Objednavka");
+            row.cislo = rs.getString("CISLO");
             row.statusId = rs.getInt("ID_Status");
             row.statusName = rs.getString("status_nazev");
             row.superId = rs.getLong("ID_Supermarket");

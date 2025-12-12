@@ -7,6 +7,7 @@ import dreamteam.com.supermarket.Service.UserJdbcService;
 import dreamteam.com.supermarket.Service.ZakaznikJdbcService;
 import dreamteam.com.supermarket.Service.DodavatelJdbcService;
 import dreamteam.com.supermarket.controller.dto.DashboardResponse;
+import dreamteam.com.supermarket.controller.dto.OrderDeleteInfoDto;
 import dreamteam.com.supermarket.controller.dto.OrderRequest;
 import dreamteam.com.supermarket.model.market.ObjednavkaStatus;
 import dreamteam.com.supermarket.model.market.Supermarket;
@@ -126,6 +127,36 @@ public class OrderController {
         }
         orderDao.deleteOrderCascade(orderId);
         return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/{id}/delete-info")
+    public ResponseEntity<OrderDeleteInfoDto> deleteInfo(@PathVariable String id, Authentication authentication) {
+        Uzivatel user = resolveUser(authentication);
+        if (user == null) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+        Long orderId = parseOrderId(id);
+        if (orderId == null) {
+            return ResponseEntity.badRequest().build();
+        }
+        OrderProcedureDao.OrderRow row = orderDao.getOrder(orderId);
+        if (row == null) {
+            return ResponseEntity.notFound().build();
+        }
+        OrderProcedureDao.OrderDeleteInfo info = orderDao.getDeleteInfo(orderId);
+        if (info == null) {
+            return ResponseEntity.notFound().build();
+        }
+        String storeName = info.store() != null ? info.store() : row.supermarketNazev();
+        return ResponseEntity.ok(new OrderDeleteInfoDto(
+                info.cislo(),
+                storeName,
+                info.itemCount() != null ? info.itemCount() : 0,
+                info.platbaCount() != null ? info.platbaCount() : 0,
+                info.hotovostCount() != null ? info.hotovostCount() : 0,
+                info.kartaCount() != null ? info.kartaCount() : 0,
+                info.pohybCount() != null ? info.pohybCount() : 0
+        ));
     }
 
     private ResponseEntity<?> save(Long orderId,
@@ -287,11 +318,18 @@ public class OrderController {
         String cislo = (order.cislo() != null && !order.cislo().isBlank())
                 ? order.cislo()
                 : ("PO-" + order.id());
+        String handlerName = (order.obsluhaJmeno() != null || order.obsluhaPrijmeni() != null)
+                ? ((order.obsluhaJmeno() != null ? order.obsluhaJmeno() : "") + " " + (order.obsluhaPrijmeni() != null ? order.obsluhaPrijmeni() : "")).trim()
+                : "—";
+        if (handlerName.isBlank()) {
+            handlerName = "—";
+        }
         return new DashboardResponse.OrderInfo(
                 "PO-" + order.id(),
                 order.typObjednavka(),
                 storeName,
                 employeeName,
+                handlerName,
                 storeName,
                 statusLabel,
                 statusCode,

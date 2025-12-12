@@ -31,6 +31,7 @@ public class CustomerOrderService {
             .withLocale(Locale.forLanguageTag("cs-CZ"))
             .withZone(ZoneId.systemDefault());
     private static final String REFUND_MARK = "[REFUND_PENDING]";
+    private static final String REFUND_DENIED_MARK = "[REFUND_DENIED]";
     private static final int SQL_CURSOR = oracle.jdbc.OracleTypes.CURSOR;
 
     public Long resolveUserId(String email) {
@@ -176,9 +177,18 @@ public class CustomerOrderService {
         return note != null && note.contains(REFUND_MARK);
     }
 
+    private boolean isRefundRejected(String note) {
+        return note != null && note.contains(REFUND_DENIED_MARK);
+    }
+
     private String stripRefundMark(String note) {
         if (note == null) return null;
-        return note.replace(REFUND_MARK, "").trim();
+        String cleaned = note
+                .replace(REFUND_MARK, "")
+                .replace(REFUND_DENIED_MARK, "")
+                .replaceAll("\\s{2,}", " ")
+                .trim();
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     private void clearRefundMark(Long orderId, String note) {
@@ -290,9 +300,10 @@ public class CustomerOrderService {
                         row.note,
                         row.items,
                         computeTotal(row.items),
-                        row.cislo != null ? row.cislo : (row.id != null ? "PO-" + row.id : null),
+                        normalizeCislo(row),
                         row.refunded,
-                        row.pendingRefund
+                        row.pendingRefund,
+                        row.refundRejected
                 ))
                 .toList();
     }
@@ -301,6 +312,13 @@ public class CustomerOrderService {
         return items.stream()
                 .map(it -> it.price().multiply(BigDecimal.valueOf(it.qty())))
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
+    }
+
+    private String normalizeCislo(OrderRow row) {
+        if (row == null || row.cislo == null) {
+            return null;
+        }
+        return row.cislo.isBlank() ? null : row.cislo;
     }
 
     private static class OrderRow {
@@ -317,6 +335,7 @@ public class CustomerOrderService {
         String cislo;
         boolean refunded;
         boolean pendingRefund;
+        boolean refundRejected;
         List<CustomerOrderResponse.Item> items = new java.util.ArrayList<>();
     }
 
@@ -336,10 +355,10 @@ public class CustomerOrderService {
             row.handlerName = buildName(handlerFirst, handlerLast);
             Timestamp ts = getTimestamp(rs, "DATUM", "CREATED_AT", "CREATED");
             row.createdAt = ts != null ? FORMATTER.format(ts.toInstant()) : "";
-            row.note = getString(rs, "POZNAMKA", "NOTE");
             row.cislo = getString(rs, "CISLO");
             String rawNote = getString(rs, "POZNAMKA", "NOTE");
             row.pendingRefund = isPendingRefund(rawNote);
+            row.refundRejected = isRefundRejected(rawNote);
             row.note = stripRefundMark(rawNote);
             row.refunded = walletJdbcService.hasRefundForOrder(row.id);
             return row;

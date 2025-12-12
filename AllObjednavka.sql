@@ -7,6 +7,7 @@ create or replace PACKAGE BODY pkg_objednavka AS
              o.DATUM          AS datum,
              o.ID_STATUS      AS status_id,
              s.NAZEV          AS status_nazev,
+             o.CISLO          AS cislo,
              o.ID_UZIVATEL    AS uzivatel_id,
              u.EMAIL          AS uzivatel_email,
              u.JMENO          AS uzivatel_jmeno,
@@ -30,6 +31,7 @@ create or replace PACKAGE BODY pkg_objednavka AS
              o.DATUM          AS datum,
              o.ID_STATUS      AS status_id,
              s.NAZEV          AS status_nazev,
+             o.CISLO          AS cislo,
              o.ID_UZIVATEL    AS uzivatel_id,
              u.EMAIL          AS uzivatel_email,
              u.JMENO          AS uzivatel_jmeno,
@@ -54,6 +56,7 @@ create or replace PACKAGE BODY pkg_objednavka AS
              o.DATUM          AS datum,
              o.ID_STATUS      AS status_id,
              s.NAZEV          AS status_nazev,
+             o.CISLO          AS cislo,
              o.ID_UZIVATEL    AS uzivatel_id,
              u.EMAIL          AS uzivatel_email,
              u.JMENO          AS uzivatel_jmeno,
@@ -138,6 +141,7 @@ create or replace PACKAGE BODY pkg_objednavka AS
              s.NAZEV         AS status_nazev,
              o.ID_Supermarket AS supermarket_id,
              sp.NAZEV        AS supermarket_nazev,
+             o.CISLO         AS cislo,
              o.ID_Uzivatel   AS uzivatel_id,
              u.EMAIL         AS uzivatel_email,
              o.ID_Obsluha    AS obsluha_id,
@@ -163,6 +167,7 @@ create or replace PACKAGE BODY pkg_objednavka AS
              s.NAZEV         AS status_nazev,
              o.ID_Supermarket AS supermarket_id,
              sp.NAZEV        AS supermarket_nazev,
+             o.CISLO         AS cislo,
              o.ID_Uzivatel   AS uzivatel_id,
              u.EMAIL         AS uzivatel_email,
              o.ID_Obsluha    AS obsluha_id,
@@ -192,7 +197,6 @@ create or replace PACKAGE BODY pkg_objednavka AS
   END;
 
 END pkg_objednavka;
-
 
 
 create or replace PACKAGE BODY pkg_objednavka_zbozi AS

@@ -34,6 +34,7 @@ public class CheckoutService {
     private final OrderProcedureDao orderDao;
     private final MarketProcedureDao marketDao;
     private final JdbcTemplate jdbcTemplate;
+    private final WalletJdbcService walletJdbcService;
 
     @Transactional
     public CheckoutResponse createOrderWithPayment(Uzivatel user, CheckoutRequest request) {
@@ -120,25 +121,44 @@ public class CheckoutService {
             responseLines.add(new CheckoutResponse.Line(item.sku(), zbozi.getNazev(), item.qty(), linePrice));
         }
 
-        String paymentType = resolvePaymentType(request.paymentType());
+        String paymentType = resolvePaymentType(request.paymentType()); // H / K / U
+        String cardNumber = "K".equalsIgnoreCase(paymentType)
+                ? Optional.ofNullable(request.cardNumber()).orElse(null)
+                : null;
 
-        Platba platba = createPayment(objednavkaId, total, paymentType, request);
+        BigDecimal prijato = null;
+        BigDecimal vraceno = null;
+        Long platbaId;
 
-        BigDecimal prijatoForResponse = "K".equalsIgnoreCase(paymentType)
-                ? null
-                : Optional.ofNullable(request.cashGiven()).orElse(total);
+        if ("H".equalsIgnoreCase(paymentType)) {
+            prijato = Optional.ofNullable(request.cashGiven()).orElse(total);
+            if (prijato.compareTo(total) < 0) {
+                throw new IllegalArgumentException("Prijata hotovost nesmi byt mensi nez castka k uhrade (" + total + ").");
+            }
+            vraceno = prijato.subtract(total).max(BigDecimal.ZERO);
+            Platba platba = createPayment(objednavkaId, total, paymentType, cardNumber, prijato, vraceno);
+            platbaId = platba.getIdPlatba();
+        } else if ("K".equalsIgnoreCase(paymentType)) {
+            Platba platba = createPayment(objednavkaId, total, paymentType, cardNumber, null, null);
+            platbaId = platba.getIdPlatba();
+        } else if ("U".equalsIgnoreCase(paymentType)) {
+            Long ucetId = walletJdbcService.ensureAccountForUser(user.getIdUzivatel());
+            WalletJdbcService.PayResult pay = walletJdbcService.payOrder(ucetId, objednavkaId, total);
+            platbaId = pay.platbaId();
+        } else {
+            throw new IllegalArgumentException("Neznama platebni metoda.");
+        }
 
-        BigDecimal changeForResponse = (prijatoForResponse == null)
-                ? null
-                : prijatoForResponse.subtract(total).max(BigDecimal.ZERO);
+        BigDecimal prijatoForResponse = prijato;
+        BigDecimal changeForResponse = vraceno;
 
         return new CheckoutResponse(
                 objednavka.getIdObjednavka(),
-                platba.getIdPlatba(),
+                platbaId,
                 total,
                 prijatoForResponse,
                 changeForResponse,
-                platba.getPlatbaTyp(),
+                paymentType,
                 responseLines,
                 BigDecimal.ZERO,   // cashback amount
                 BigDecimal.ZERO,   // cashback turnover
@@ -167,6 +187,7 @@ public class CheckoutService {
         return switch (type.trim().toUpperCase(Locale.ROOT)) {
             case "CASH", "H", "HOTOVOST" -> "H"; // hotovost
             case "CARD", "K", "KARTA" -> "K";
+            case "WALLET", "W", "U", "UCET" -> "U";
             default -> "H";
         };
     }
@@ -176,7 +197,7 @@ public class CheckoutService {
             return false;
         }
         Integer count = jdbcTemplate.query(
-                "select count(*) from zakaznik where id_uzivatel = ?",
+                "select count(*) from zakaznik where id_uzivatelu = ?",
                 ps -> ps.setLong(1, userId),
                 rs -> rs.next() ? rs.getInt(1) : 0
         );
@@ -203,7 +224,12 @@ public class CheckoutService {
         return supermarket;
     }
 
-    private Platba createPayment(Long objednavkaId, BigDecimal total, String paymentType, CheckoutRequest request) {
+    private Platba createPayment(Long objednavkaId,
+                                 BigDecimal total,
+                                 String paymentType,
+                                 String cardNumber,
+                                 BigDecimal prijato,
+                                 BigDecimal vraceno) {
         return jdbcTemplate.execute((java.sql.Connection con) -> {
                     CallableStatement cs = con.prepareCall("{ call pkg_platba.create_platba(?, ?, ?, ?, ?, ?, ?, ?, ?) }");
                     cs.setLong(1, objednavkaId);
@@ -211,14 +237,18 @@ public class CheckoutService {
                     cs.setString(3, paymentType);
                     cs.setNull(4, Types.NUMERIC); // account payment not used here
                     if ("K".equalsIgnoreCase(paymentType)) {
-                        cs.setString(5, Optional.ofNullable(request.cardNumber()).orElse(null));
+                        if (cardNumber != null && !cardNumber.isBlank()) {
+                            cs.setString(5, cardNumber);
+                        } else {
+                            cs.setNull(5, Types.VARCHAR);
+                        }
                         cs.setNull(6, Types.NUMERIC);
                         cs.setNull(7, Types.NUMERIC);
                     } else {
                         cs.setNull(5, Types.VARCHAR);
-                        BigDecimal prijato = Optional.ofNullable(request.cashGiven()).orElse(total);
-                        cs.setBigDecimal(6, prijato);
-                        cs.setBigDecimal(7, prijato.subtract(total).max(BigDecimal.ZERO));
+                        BigDecimal prijataCastka = prijato != null ? prijato : total;
+                        cs.setBigDecimal(6, prijataCastka);
+                        cs.setBigDecimal(7, vraceno != null ? vraceno : prijataCastka.subtract(total).max(BigDecimal.ZERO));
                     }
                     cs.registerOutParameter(8, Types.NUMERIC);
                     cs.registerOutParameter(9, Types.NUMERIC);

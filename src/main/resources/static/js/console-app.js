@@ -412,24 +412,25 @@ class SupplierModule {
         this.historyContainer.innerHTML = history.map(order => this.renderHistoryCard(order)).join('');
     }
 
-    renderCard(order) {
-        const total = this.computeTotal(order?.items || []);
-        const reward = order?.rewardEstimate ?? (total * 0.7);
-        const createdLabel = this.formatDate(order?.createdAt);
-        const itemList = this.renderItems(order?.items);
-        const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${this.escapeHtml(order.note)}</p>` : '';
-        const statusClass = this.resolveStatusClass(order?.status);
-        return `
-            <div class="supplier-order-card" data-order-id="${order.id}">
-                <div class="supplier-card-head">
-                    <div>
-                        <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
-                        <h4 style="margin:0 0 8px;">Objednávka #${order.id}</h4>
+        renderCard(order) {
+            const total = this.computeTotal(order?.items || []);
+            const reward = order?.rewardEstimate ?? (total * 0.7);
+            const createdLabel = this.formatDate(order?.createdAt);
+            const itemList = this.renderItems(order?.items);
+            const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${this.escapeHtml(order.note)}</p>` : '';
+            const statusClass = this.resolveStatusClass(order?.status);
+            const displayNumber = order?.cislo || '—';
+            return `
+                <div class="supplier-order-card" data-order-id="${order.id}">
+                    <div class="supplier-card-head">
+                        <div>
+                            <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
+                            <h4 style="margin:0 0 8px;">Objednávka #${displayNumber}</h4>
+                        </div>
+                        <span class="status-badge ${statusClass}">${order.status || 'Vytvořena'}</span>
                     </div>
-                    <span class="status-badge ${statusClass}">${order.status || 'Vytvořena'}</span>
-                </div>
-                <div class="supplier-card-meta">
-                    <div class="meta-row">
+                    <div class="supplier-card-meta">
+                        <div class="meta-row">
                         <span class="material-symbols-rounded">calendar_today</span>
                         <span>Vytvořeno: ${createdLabel}</span>
                     </div>
@@ -452,22 +453,23 @@ class SupplierModule {
         `;
     }
 
-    renderMineCard(order) {
-        const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
-        const createdLabel = this.formatDate(order?.createdAt);
-        const statusClass = this.resolveStatusClass(order?.status);
-        const itemList = this.renderItems(order?.items);
-        return `
-            <div class="supplier-mine-card" data-mine-order="${order.id}">
-                <div class="supplier-card-head">
-                    <div>
-                        <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
-                        <h4 style="margin:0 0 8px;">Objednávka #${order.id}</h4>
+        renderMineCard(order) {
+            const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
+            const createdLabel = this.formatDate(order?.createdAt);
+            const statusClass = this.resolveStatusClass(order?.status);
+            const itemList = this.renderItems(order?.items);
+            const displayNumber = order?.cislo || '—';
+            return `
+                <div class="supplier-mine-card" data-mine-order="${order.id}">
+                    <div class="supplier-card-head">
+                        <div>
+                            <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
+                            <h4 style="margin:0 0 8px;">Objednávka #${displayNumber}</h4>
+                        </div>
+                        <span class="status-badge ${statusClass}">${order.status || '—'}</span>
                     </div>
-                    <span class="status-badge ${statusClass}">${order.status || '—'}</span>
-                </div>
-                <div class="supplier-card-meta">
-                    <div class="meta-row">
+                    <div class="supplier-card-meta">
+                        <div class="meta-row">
                         <span class="material-symbols-rounded">calendar_today</span>
                         <span>Vytvořeno: ${createdLabel}</span>
                     </div>
@@ -487,22 +489,23 @@ class SupplierModule {
         `;
     }
 
-    renderHistoryCard(order) {
-        const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
-        const createdLabel = this.formatDate(order?.createdAt);
-        const statusClass = this.resolveStatusClass(order?.status);
-        const itemList = this.renderItems(order?.items);
-        return `
-            <div class="supplier-history-card" data-history-order="${order.id}">
-                <div class="supplier-card-head">
-                    <div>
-                        <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
-                        <h4 style="margin:0 0 8px;">Objednávka #${order.id}</h4>
+        renderHistoryCard(order) {
+            const reward = order?.rewardEstimate ?? (this.computeTotal(order?.items || []) * 0.7);
+            const createdLabel = this.formatDate(order?.createdAt);
+            const statusClass = this.resolveStatusClass(order?.status);
+            const itemList = this.renderItems(order?.items);
+            const displayNumber = order?.cislo || '—';
+            return `
+                <div class="supplier-history-card" data-history-order="${order.id}">
+                    <div class="supplier-card-head">
+                        <div>
+                            <p class="eyebrow" style="margin:0 0 6px;">${order.supermarket || 'Neznámý supermarket'}</p>
+                            <h4 style="margin:0 0 8px;">Objednávka #${displayNumber}</h4>
+                        </div>
+                            <span class="status-badge ${statusClass}">${order.status || '—'}</span>
                     </div>
-                        <span class="status-badge ${statusClass}">${order.status || '—'}</span>
-                </div>
-                <div class="supplier-card-meta">
-                    <div class="meta-row">
+                    <div class="supplier-card-meta">
+                        <div class="meta-row">
                         <span class="material-symbols-rounded">calendar_today</span>
                         <span>Vytvořeno: ${createdLabel}</span>
                     </div>
@@ -826,7 +829,7 @@ const state = {
     customerStores: [],
     selectedCustomerStoreId: null,
     supplierOrders: { free: [], mine: [], history: [], loading: false, error: null },
-    clientOrders: { items: [], queue: [], mine: [], history: [], loading: false, error: null },
+    clientOrders: { items: [], queue: [], refundRequests: [], mine: [], history: [], loading: false, error: null },
     customerHistory: { items: [], loading: false, error: null },
     data: createEmptyData(),
     permissionsCatalog: [],
@@ -1229,7 +1232,6 @@ const viewMeta = {
     customer: { label: 'Zakaznicka zona', title: 'Self-service objednavky' },
     'client-orders': { label: 'Zakaznicke objednavky', title: 'Sprava klientskych objednavek' },
     'customer-history': { label: 'Historie zakaznika', title: 'Prehled vlastnich objednavek' },
-    'customer-orders': { label: 'Moje objednavky', title: 'Objednavky zakaznika' },
     'customer-payment': { label: 'Platba', title: 'Zaplatte objednavku' },
     chat: { label: 'Komunikace', title: 'Chat & push centrum' }
 };
@@ -1240,7 +1242,7 @@ state.requestedView = state.activeView;
 
 const allViews = [
     'dashboard', 'profile', 'inventory', 'orders', 'people', 'finance', 'records',
-    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-orders', 'customer-payment', 'chat',
+    'dbobjects', 'permissions', 'customer', 'customer-cart', 'customer-payment', 'chat',
     'supplier', 'client-orders', 'customer-history'
 ];
 
@@ -1260,7 +1262,7 @@ function resolveAllowedViews(role, permissions = []) {
     }
 
     if (normalizedRole === 'ZAKAZNIK' || normalizedRole === 'CUSTOMER' || normalizedRole === 'NEW_USER') {
-        add('customer', 'customer-cart', 'customer-orders', 'customer-payment');
+        add('customer', 'customer-cart', 'customer-payment', 'customer-history');
         return allowed;
     }
 
@@ -2405,6 +2407,11 @@ function resolveAllowedViews(role, permissions = []) {
             this.cancelBtn = document.getElementById('order-cancel-btn');
             this.closeBtn = document.getElementById('order-modal-close');
             this.saveBtn = document.getElementById('order-save-btn');
+            this.formItemsSection = document.getElementById('order-form-items');
+            this.formItemsList = document.getElementById('order-form-items-list');
+            this.formItemsEmpty = document.getElementById('order-form-items-empty');
+            this.formItemsBadge = document.getElementById('order-form-items-badge');
+            this.formItemsTotal = document.getElementById('order-form-items-total');
             this.options = { statuses: [], stores: [], employees: [], types: [] };
         }
 
@@ -2522,7 +2529,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.tableBody) return;
             const orders = this.getOrders();
             if (!orders.length) {
-                this.tableBody.innerHTML = '<tr><td colspan="8" class="table-placeholder">Žádné objednávky</td></tr>';
+                this.tableBody.innerHTML = '<tr><td colspan="9" class="table-placeholder">Žádné objednávky</td></tr>';
             } else {
                 this.tableBody.innerHTML = orders.map(order => this.renderOrderRow(order)).join('');
             }
@@ -2570,10 +2577,59 @@ function resolveAllowedViews(role, permissions = []) {
                 : 'nevybráno';
             this.orderLinesTitle.textContent = 'Slozeni objednavky';
             this.orderLinesBadge.textContent = orderId ? 'vybrana' : '-';
-            const lines = (this.state.data.orderItems || []).filter(item => item.orderId === orderId);
+            const lines = this.getOrderItems(orderId);
             this.orderLines.innerHTML = lines.length
                 ? lines.map(line => `<li>${line.sku} &times; ${line.name} — ${line.qty} ks · ${currencyFormatter.format(line.price)}</li>`).join('')
                 : '<p class="profile-muted">Žádná data o položkách.</p>';
+        }
+
+        getOrderItems(orderId) {
+            if (!orderId) {
+                return [];
+            }
+            const all = Array.isArray(this.state.data.orderItems) ? this.state.data.orderItems : [];
+            return all.filter(item => item.orderId === orderId);
+        }
+
+        renderFormItems(orderId) {
+            if (!this.formItemsSection) return;
+            const items = this.getOrderItems(orderId);
+            const totalQty = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+            const totalAmount = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+            if (this.formItemsBadge) {
+                this.formItemsBadge.textContent = orderId ? `${totalQty} ks` : '—';
+            }
+            if (this.formItemsTotal) {
+                this.formItemsTotal.textContent = currencyFormatter.format(totalAmount || 0);
+            }
+            if (items.length && this.formItemsList) {
+                this.formItemsList.innerHTML = items.map(item => `
+                    <li class="order-form-item">
+                        <div class="order-form-item-main">
+                            <strong>${this.escapeHtml(item.name || 'Položka')}</strong>
+                        </div>
+                        <div class="order-form-item-meta">
+                            <span>${Number(item.qty) || 0} ks</span>
+                            <span>${currencyFormatter.format(item.price || 0)}</span>
+                        </div>
+                    </li>
+                `).join('');
+                this.formItemsList.hidden = false;
+                if (this.formItemsEmpty) {
+                    this.formItemsEmpty.hidden = true;
+                }
+            } else {
+                if (this.formItemsList) {
+                    this.formItemsList.innerHTML = '';
+                    this.formItemsList.hidden = true;
+                }
+                if (this.formItemsEmpty) {
+                    this.formItemsEmpty.textContent = orderId
+                        ? 'Žádné položky pro tuto objednávku.'
+                        : 'Položky se zobrazí po výběru existující objednávky.';
+                    this.formItemsEmpty.hidden = false;
+                }
+            }
         }
 
         openForm(orderId = null) {
@@ -2594,6 +2650,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (this.formStatus) {
                 this.formStatus.textContent = '';
             }
+            this.renderFormItems(order?.id || null);
             this.modal.classList.add('active');
             this.modal.setAttribute('aria-hidden', 'false');
             document.body.classList.add('modal-open');
@@ -2677,14 +2734,14 @@ function resolveAllowedViews(role, permissions = []) {
                 return;
             }
             const order = this.getOrders().find(o => o.id === orderId);
-            const label = order
-                ? `${order.store || 'Objednávka'} (${order.status || order.type || ''})`.trim()
-                : 'vybranou objednavku';
-            if (!window.confirm(`Opravdu smazat ${label}?`)) {
-                return;
+            const token = localStorage.getItem('token') || '';
+            let deleteInfo = null;
+            if (token) {
+                deleteInfo = await this.fetchOrderDeleteInfo(orderId, token);
             }
+            const confirmed = await this.showOrderDeleteDialog(order, deleteInfo);
+            if (!confirmed) return;
             try {
-                const token = localStorage.getItem('token') || '';
                 const response = await fetch(this.apiUrl(`/api/orders/${orderId}`), {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -2697,6 +2754,93 @@ function resolveAllowedViews(role, permissions = []) {
                 await this.refreshApp();
             } catch (error) {
                 alert(error.message || 'Smazani se nezdarilo.');
+            }
+        }
+
+        async showOrderDeleteDialog(order, info) {
+            const label = order?.store || order?.type || 'objednávku';
+            const orderNumber = order?.cislo || (order?.id ? `PO-${order.id}` : '—');
+            const overlay = document.createElement('div');
+            overlay.className = 'modal active';
+            overlay.style.zIndex = '9999';
+            const formatCount = (value) => {
+                const num = Number(value);
+                return Number.isFinite(num) ? `${num}×` : '';
+            };
+            const cascades = [
+                { label: 'OBJEDNAVKA_ZBOZI', detail: 'Položky objednávky', count: formatCount(info?.itemCount) },
+                { label: 'PLATBA', detail: 'Záznamy o platbách', count: formatCount(info?.paymentCount) },
+                { label: 'HOTOVOST', detail: 'Detaily hotovostních plateb', count: formatCount(info?.cashCount) },
+                { label: 'KARTA', detail: 'Detaily karetních plateb', count: formatCount(info?.cardCount) },
+                { label: 'POHYB_UCTU', detail: 'Pohyby peněženky navázané na objednávku', count: formatCount(info?.walletMovements) }
+            ];
+            const headerCislo = this.escapeHtml(info?.cislo || orderNumber);
+            const storeLine = info?.store ? `<p class="profile-muted" style="margin:4px 0 0;">Prodejna: ${this.escapeHtml(info.store)}</p>` : '';
+            const cascadeList = `
+                <div class="cascade-list">
+                    ${cascades.map(item => `
+                        <div class="cascade-item">
+                            <div class="cascade-item-head">
+                                <strong>${this.escapeHtml(item.label)}</strong>
+                                ${item.count ? `<span class="cascade-count">${this.escapeHtml(item.count)}</span>` : ''}
+                            </div>
+                            <span class="cascade-detail">${this.escapeHtml(item.detail)}</span>
+                        </div>`).join('')}
+                </div>`;
+            overlay.innerHTML = `
+                <div class="modal-content" role="dialog" aria-modal="true" style="max-width:520px;">
+                    <div class="modal-header">
+                        <h3 style="margin:0;">Smazat objednávku ${headerCislo}</h3>
+                        <button type="button" class="ghost-btn ghost-muted" data-order-delete="close" aria-label="Zavřít">×</button>
+                    </div>
+                    <p style="margin:8px 0 0;">Opravdu chcete odstranit <strong>${this.escapeHtml(label)}</strong>?</p>
+                    ${storeLine}
+                    <p class="profile-muted" style="margin:8px 0;">Databázová procedura <code>delete_objednavka_cascade</code> smaže také následující vazby:</p>
+                    ${cascadeList}
+                    <p class="profile-muted" style="margin-top:12px;">Tuto akci nelze vrátit.</p>
+                    <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                        <button type="button" class="ghost-btn ghost-muted" data-order-delete="cancel">Zrušit</button>
+                        <button type="button" class="ghost-btn ghost-strong" data-order-delete="confirm">Ano, smazat vše</button>
+                    </div>
+                </div>
+            `;
+            return new Promise((resolve) => {
+                const cleanup = (result) => {
+                    if (overlay.dataset.closed) return;
+                    overlay.dataset.closed = '1';
+                    overlay.remove();
+                    document.removeEventListener('keydown', escHandler);
+                    resolve(result);
+                };
+                const escHandler = (event) => {
+                    if (event.key === 'Escape') {
+                        cleanup(false);
+                    }
+                };
+                document.addEventListener('keydown', escHandler);
+                overlay.addEventListener('click', (event) => {
+                    if (event.target === overlay) {
+                        cleanup(false);
+                    }
+                });
+                overlay.querySelector('[data-order-delete="close"]')?.addEventListener('click', () => cleanup(false));
+                overlay.querySelector('[data-order-delete="cancel"]')?.addEventListener('click', () => cleanup(false));
+                overlay.querySelector('[data-order-delete="confirm"]')?.addEventListener('click', () => cleanup(true));
+                document.body.appendChild(overlay);
+            });
+        }
+
+        async fetchOrderDeleteInfo(orderId, token) {
+            if (!orderId || !token) return null;
+            try {
+                const response = await fetch(this.apiUrl(`/api/orders/${orderId}/delete-info`), {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                console.warn('Nepodařilo se načíst informace o mazání objednávky', error);
+                return null;
             }
         }
 
@@ -2732,6 +2876,7 @@ function resolveAllowedViews(role, permissions = []) {
                     </td>
                     <td>${order.supplier || '-'}</td>
                     <td>${order.employee || '-'}</td>
+                    <td>${order.handler || '-'}</td>
                     <td><span class="status-badge ${statusClass}">${order.status || '—'}</span></td>
                     <td>${dateText}</td>
                     <td>${currencyFormatter.format(amount)}</td>
@@ -2959,18 +3104,16 @@ function resolveAllowedViews(role, permissions = []) {
             this.tableBody.innerHTML = filtered.length
                 ? filtered.map(p => {
                     const typeClass = this.resolveTypeClass(p.type);
-                    const statusClass = (p.status || '').toLowerCase().startsWith('zprac') ? 'success' : 'warning';
                     return `
                         <tr class="payment-row ${typeClass}">
                             <td><span class="pay-type ${typeClass}">${this.resolveTypeLabel(p.type)}</span></td>
                             <td class="payment-method">${p.method || '–'}</td>
                             <td>${currencyFormatter.format(p.amount || 0)}</td>
                             <td>${p.date || ''}</td>
-                            <td><span class="status-badge ${statusClass}">${p.status || ''}</span></td>
                         </tr>
                     `;
                 }).join('')
-                : '<tr><td colspan="5" style="text-align:center;">Zadne platby</td></tr>';
+                : '<tr><td colspan="4" style="text-align:center;">Zadne platby</td></tr>';
 
             const cash = payments.filter(p => p.type === 'H').reduce((sum, payment) => sum + (payment.amount || 0), 0);
             const card = payments.filter(p => p.type === 'K').reduce((sum, payment) => sum + (payment.amount || 0), 0);
@@ -3779,11 +3922,16 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.emojiPanel) return;
             if (this.emojiPanel.dataset.ready === '1') return;
             const emojis = [
-                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
-                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
-                '??','??','??','??','??','??','??','??','??','??','??','??','??','??','??','??',
-                '??','?','??','??','??','??','??','??','??','??','??','??','??','?','?','?',
-                '?','??','??','?','??','??','??','??','??','??','??','??','??','??','??','??'
+                '\u{1F600}','\u{1F602}','\u{1F604}','\u{1F606}','\u{1F923}','\u{1F60D}','\u{1F618}','\u{1F617}',
+                '\u{1F970}','\u{263A}\u{FE0F}','\u{1F60A}','\u{1F61C}','\u{1F61D}','\u{1F62E}','\u{1F633}','\u{1F92A}',
+                '\u{1F607}','\u{1F60E}','\u{1F929}','\u{1F617}','\u{1F917}','\u{1F609}','\u{1F642}','\u{1F643}',
+                '\u{1F92D}','\u{1F644}','\u{1F60F}','\u{1F62A}','\u{1F634}','\u{1F924}','\u{1F637}','\u{1F912}',
+                '\u{1F915}','\u{1F922}','\u{1F975}','\u{1F976}','\u{1F974}','\u{1F635}','\u{1F92F}','\u{1F62D}',
+                '\u{1F621}','\u{1F620}','\u{1F92C}','\u{1F624}','\u{1F631}','\u{1F628}','\u{1F630}','\u{1F62F}',
+                '\u{1F616}','\u{1F623}','\u{1F61E}','\u{1F613}','\u{1F625}','\u{1F622}','\u{1F914}','\u{1F910}',
+                '\u{1F928}','\u{1F9D0}','\u{1F913}','\u{1F4AA}','\u{1F44D}','\u{1F44E}','\u{1F64C}','\u{1F44F}',
+                '\u{1F64F}','\u{1F91D}','\u{1F917}','\u{1F64A}','\u{1F648}','\u{1F649}','\u{1F4A9}','\u{1F525}',
+                '\u{1F389}','\u{1F381}','\u{1F37B}','\u{1F37E}','\u{1F355}','\u{1F32D}','\u{1F36A}','\u{1F9C0}'
             ];
             this.emojiPanel.innerHTML = emojis.map(e => `<button type="button" data-emoji="${e}">${e}</button>`).join('');
             this.emojiPanel.querySelectorAll('button[data-emoji]').forEach(btn => {
@@ -4321,7 +4469,7 @@ function resolveAllowedViews(role, permissions = []) {
                         this.autoResizeMessage();
                     }
                     await this.refreshMessages({ force: true });
-                    this.setFormStatus('? Upraveno', true);
+                    this.setFormStatus('\u2713 Upraveno', true);
                     return true;
                 } else {
                     if (!this.connected) {
@@ -4351,7 +4499,7 @@ function resolveAllowedViews(role, permissions = []) {
                     this.renderContacts();
                     this.renderFeed();
                     this.highlightActiveContact();
-                    this.setFormStatus('? Odeslano', true);
+                    this.setFormStatus('\u2713 Odeslano', true);
                     this.logger('send:optimistic', optimisticMessage);
                     return true;
                 }
@@ -4403,7 +4551,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.storeSelect = document.getElementById('customer-store-select');
             this.cartEls = Array.from(document.querySelectorAll('[data-customer-cart]'));
             this.cartCountEl = document.getElementById('customer-cart-count');
-            this.suggestionsEl = document.getElementById('customer-suggestions');
         }
 
         init() {
@@ -4500,7 +4647,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.renderChips();
             this.renderProducts();
             this.renderCart();
-            this.renderSuggestions();
         }
 
         async loadStoresAndProducts() {
@@ -4799,15 +4945,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.cartEls.forEach(el => el.innerHTML = markup);
         }
 
-        renderSuggestions() {
-            if (!this.suggestionsEl) return;
-            this.suggestionsEl.innerHTML = this.state.data.customerSuggestions.map(text => `
-                <div class="pill-card">
-                    <p>${text}</p>
-                </div>
-            `).join('');
-        }
-
         loadCart() {
             try {
                 const raw = localStorage.getItem('customerCart');
@@ -4907,6 +5044,10 @@ class GlobalSearch {
             this.queueEmpty = document.getElementById('client-queue-empty');
             this.queueCount = document.getElementById('client-queue-count');
 
+            this.refundContainer = document.getElementById('client-refund-container');
+            this.refundEmpty = document.getElementById('client-refund-empty');
+            this.refundCount = document.getElementById('client-refund-count');
+
             this.mineContainer = document.getElementById('client-mine-container');
             this.mineEmpty = document.getElementById('client-mine-empty');
             this.mineCount = document.getElementById('client-mine-count');
@@ -4916,6 +5057,10 @@ class GlobalSearch {
             this.historyCount = document.getElementById('client-history-count');
             this.historySection = document.getElementById('client-history-section');
             this.historyToggle = document.getElementById('client-history-toggle');
+
+            this.refundContainer = document.getElementById('client-refund-container');
+            this.refundEmpty = document.getElementById('client-refund-empty');
+            this.refundCount = document.getElementById('client-refund-count');
         }
 
         init() {
@@ -4924,16 +5069,52 @@ class GlobalSearch {
             this.historyToggle?.addEventListener('click', () => this.toggleHistory());
             [this.queueContainer, this.mineContainer].forEach(container => {
                 container?.addEventListener('click', event => {
-                    const btn = event.target.closest('[data-change-status]');
-                    if (btn) {
-                        this.changeStatus(btn.dataset.changeStatus, btn);
-                        return;
-                    }
                     const claim = event.target.closest('[data-claim-order]');
                     if (claim) {
                         this.claimOrder(claim.dataset.claimOrder, claim.dataset.currentStatus, claim);
+                        return;
+                    }
+                    const toggle = event.target.closest('[data-client-detail]');
+                    if (toggle) {
+                        this.toggleDetails(toggle.dataset.clientDetail);
+                        return;
+                    }
+                    const next = event.target.closest('[data-next-status]');
+                    if (next) {
+                        this.advanceStatus(next.dataset.nextStatus, next.dataset.currentStatus, next);
+                        return;
+                    }
+                    const cancel = event.target.closest('[data-cancel-order]');
+                    if (cancel) {
+                        this.changeStatus(cancel.dataset.cancelOrder, cancel, 6);
+                        return;
+                    }
+                    const change = event.target.closest('[data-status-change]');
+                    if (change) {
+                        this.changeStatus(change.dataset.orderId, change, change.dataset.statusChange);
+                        return;
+                    }
+                    const refund = event.target.closest('[data-refund-order]');
+                    if (refund) {
+                        this.refundOrder(refund.dataset.refundOrder, refund.dataset.refundAmount, refund);
                     }
                 });
+            });
+            this.refundContainer?.addEventListener('click', event => {
+                const toggle = event.target.closest('[data-client-detail]');
+                if (toggle) {
+                    this.toggleDetails(toggle.dataset.clientDetail);
+                    return;
+                }
+                const approve = event.target.closest('[data-approve-refund]');
+                if (approve) {
+                    this.decideRefund(approve.dataset.approveRefund, true, approve);
+                    return;
+                }
+                const reject = event.target.closest('[data-reject-refund]');
+                if (reject) {
+                    this.decideRefund(reject.dataset.rejectRefund, false, reject);
+                }
             });
             this.render();
             this.load();
@@ -4973,15 +5154,17 @@ class GlobalSearch {
         }
 
         render() {
-            const { queue = [], mine = [], history = [], loading, error } = this.state.clientOrders || {};
+            const { queue = [], refundRequests = [], mine = [], history = [], loading, error } = this.state.clientOrders || {};
             this.setAlert(error);
-            this.updateCount(this.totalBadge, queue.length + mine.length + history.length);
+            this.updateCount(this.totalBadge, queue.length + refundRequests.length + mine.length + history.length);
             this.renderList(queue, this.queueContainer, this.queueEmpty, this.queueCount, 'queue');
+            this.renderList(refundRequests, this.refundContainer, this.refundEmpty, this.refundCount, 'refund');
             this.renderList(mine, this.mineContainer, this.mineEmpty, this.mineCount, 'mine');
             this.renderList(history, this.historyContainer, this.historyEmpty, this.historyCount, 'history');
 
             if (loading) {
                 this.showLoading(this.queueContainer, this.queueEmpty);
+                this.showLoading(this.refundContainer, this.refundEmpty);
                 this.showLoading(this.mineContainer, this.mineEmpty);
                 this.showLoading(this.historyContainer, this.historyEmpty);
             }
@@ -5005,36 +5188,98 @@ class GlobalSearch {
             container.innerHTML = items.map(order => this.renderCard(order, mode)).join('');
         }
 
+        findOrder(orderId) {
+            if (!orderId) return null;
+            const { queue = [], refundRequests = [], mine = [], history = [] } = this.state.clientOrders || {};
+            const lists = [queue, refundRequests, mine, history];
+            for (const list of lists) {
+                const found = (list || []).find(o => String(o?.id) === String(orderId));
+                if (found) return found;
+            }
+            return null;
+        }
+
+        formatOrderNumber(orderId) {
+            const order = this.findOrder(orderId);
+            return order?.cislo || '—';
+        }
+
         renderCard(order, mode) {
             const isMine = mode === 'mine';
             const isQueue = mode === 'queue';
-            const statusOptions = isMine ? this.buildStatusOptions(order?.statusId) : '';
+            const isRefund = mode === 'refund';
+            const isHistory = mode === 'history';
+            const refunded = Boolean(order?.refunded);
+            const rejectedRefund = Boolean(order?.refundRejected);
             const itemsArray = Array.isArray(order?.items) ? order.items : [];
             const itemsList = this.renderItems(itemsArray);
-            const amount = this.formatAmount(order?.total ?? this.computeTotal(itemsArray));
+            const amountValue = order?.total ?? this.computeTotal(itemsArray);
+            const amount = this.formatAmount(amountValue);
             const statusLabel = escapeHtml(order?.status || '');
             const date = escapeHtml(order?.createdAt || '');
             const store = escapeHtml(order?.supermarket || '');
             const customerLine = [order?.customerEmail, order?.handlerEmail].filter(Boolean).map(escapeHtml).join(' · ');
             const note = order?.note ? `<p class="profile-muted" style="margin:6px 0 0;">${escapeHtml(order.note)}</p>` : '';
-            const actions = isMine ? `
-                <div class="pill-select">
-                    <select data-status-select="${order?.id ?? ''}">
-                        ${statusOptions}
-                    </select>
-                </div>
-                <button type="button" class="ghost-btn ghost-strong" data-change-status="${order?.id ?? ''}">Změnit stav</button>
-            ` : isQueue ? `
-                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">Převzít</button>
-            ` : '';
             const itemsSummary = this.formatItemsSummary(itemsArray);
+            const displayNumber = order?.cislo || '—';
+            const orderTitle = `Objednávka #${displayNumber}`.trim();
+            const refundPill = isHistory
+                ? (rejectedRefund
+                    ? `<span class="status-badge danger" style="margin-left:6px;">Zamítnuto</span>`
+                    : (refunded ? `<span class="status-badge warning" style="margin-left:6px;">Vráceno</span>` : ''))
+                : '';
+
+            if (isQueue || isRefund) {
+                return `
+                    <div class="client-order-card" data-order-id="${order?.id ?? ''}">
+                        <div class="client-card-top">
+                            <div>
+                                <p class="eyebrow" style="margin:0;">${store || 'Supermarket'}</p>
+                                <h4 style="margin:4px 0 6px;">${orderTitle}</h4>
+                                <div class="meta-row" style="color:var(--muted);gap:8px;">
+                                    <span class="material-symbols-rounded" aria-hidden="true">calendar_today</span>
+                                    <span>Vytvořeno: ${date || '—'}</span>
+                                </div>
+                                ${note}
+                            </div>
+                            <span class="status-badge${order?.pendingRefund ? ' warning' : ''}" style="align-self:flex-start;">${isRefund ? 'Refund čeká' : (statusLabel || 'Vytvořena')}</span>
+                        </div>
+                        <div class="client-card-meta">
+                            <div class="meta-row">
+                                <span class="material-symbols-rounded" aria-hidden="true">person</span>
+                                <span>${customerLine || 'Bez kontaktu'}</span>
+                            </div>
+                        </div>
+                        <div class="client-order-items" data-client-details="${order?.id ?? ''}" hidden>
+                            ${itemsList}
+                        </div>
+                        <div class="client-amount-main">
+                            <small class="profile-muted">Částka</small>
+                            <div class="client-amount-value">${amount}</div>
+                        </div>
+                        <div class="client-card-actions">
+                            <button type="button" class="ghost-btn" data-client-detail="${order?.id ?? ''}">Položky</button>
+                            ${isRefund ? `
+                                <button type="button" class="ghost-btn ghost-strong" data-approve-refund="${order?.id ?? ''}">Schválit refund</button>
+                                <button type="button" class="ghost-btn ghost-danger" data-reject-refund="${order?.id ?? ''}">Zamítnout</button>
+                            ` : `
+                                <button type="button" class="ghost-btn ghost-strong" data-claim-order="${order?.id ?? ''}" data-current-status="${order?.statusId ?? ''}">
+                                    Převzít
+                                </button>
+                            `}
+                        </div>
+                    </div>
+                `;
+            }
+
+            const actions = this.renderStatusControls(order);
             return `
                 <div class="supplier-order-card client-order-card" data-order-id="${order?.id ?? ''}">
                     <div class="client-card-top">
                         <div>
                             <p class="eyebrow" style="margin:0;">${store || 'Prodejna'}</p>
                             <div class="client-chip-row">
-                                <span class="status-badge">${statusLabel || 'Stav neznámý'}</span>
+                                <span class="status-badge">${statusLabel || 'Stav neznámý'}</span>${refundPill}
                                 <span class="client-chip">${date || '—'}</span>
                             </div>
                         </div>
@@ -5055,6 +5300,10 @@ class GlobalSearch {
                     </div>
                     ${itemsList}
                     ${note}
+                    <div class="client-amount-main" style="margin-top:10px;">
+                        <small class="profile-muted">Částka</small>
+                        <div class="client-amount-value">${amount}</div>
+                    </div>
                     ${actions ? `<div class="client-card-actions">${actions}</div>` : ''}
                 </div>
             `;
@@ -5087,18 +5336,135 @@ class GlobalSearch {
             }, 0);
         }
 
-        buildStatusOptions(selected) {
-            const statuses = Array.isArray(this.state.data.statuses) ? this.state.data.statuses : [];
-            const current = selected != null ? String(selected) : '';
-            if (!statuses.length) {
-                return `<option value="${current}">${current || '—'}</option>`;
+        toggleDetails(orderId) {
+            if (!orderId) return;
+            const section = document.querySelector(`[data-client-details="${orderId}"]`);
+            if (!section) return;
+            const isHidden = section.hasAttribute('hidden');
+            if (isHidden) {
+                section.removeAttribute('hidden');
+                section.style.display = 'block';
+            } else {
+                section.setAttribute('hidden', 'hidden');
+                section.style.display = 'none';
             }
-            return statuses.map(stat => {
-                const value = stat.code ?? stat.id ?? '';
-                const label = stat.label ?? stat.name ?? value;
-                const isSelected = current && String(value) === current;
-                return `<option value="${escapeHtml(value)}" ${isSelected ? 'selected' : ''}>${escapeHtml(label)}</option>`;
-            }).join('');
+        }
+
+        async refundOrder(orderId, amount, triggerBtn, handlerLabel) {
+            if (!orderId) return;
+            const amt = Number(amount);
+            if (!amt || amt <= 0 || Number.isNaN(amt)) {
+                alert('Částka k vrácení není platná.');
+                return;
+            }
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Nejste přihlášen.');
+                return;
+            }
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderLabel}?`)) {
+                return;
+            }
+            if (triggerBtn) triggerBtn.disabled = true;
+            try {
+                const response = await fetch(this.apiUrl('/api/wallet/refund-request'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ orderId, amount: amt })
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Žádost se nepodařilo odeslat.');
+                }
+                const target = handlerLabel && handlerLabel.trim().length ? handlerLabel : 'obsluze';
+                alert(`Žádost byla odeslána ke schválení (${target}).`);
+                if (triggerBtn) {
+                    triggerBtn.textContent = `Odesláno manažerovi${handlerLabel ? ` (${handlerLabel})` : ''}`;
+                    triggerBtn.disabled = true;
+                }
+            } catch (err) {
+                alert(err.message || 'Žádost se nepodařilo odeslat.');
+                if (triggerBtn) triggerBtn.disabled = false;
+            }
+        }
+
+        async decideRefund(orderId, approve, triggerBtn) {
+            if (!orderId) return;
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Nejste přihlášen.');
+                return;
+            }
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`${approve ? 'Schválit' : 'Zamítnout'} refund objednávky ${orderLabel}?`)) {
+                return;
+            }
+            if (triggerBtn) triggerBtn.disabled = true;
+            try {
+                const url = approve
+                    ? this.apiUrl(`/api/client/orders/${orderId}/refund/approve`)
+                    : this.apiUrl(`/api/client/orders/${orderId}/refund/reject`);
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Akci se nepodařilo provést.');
+                }
+                await this.load();
+            } catch (err) {
+                alert(err.message || 'Akci se nepodařilo provést.');
+            } finally {
+                if (triggerBtn) triggerBtn.disabled = false;
+            }
+        }
+
+        renderStatusControls(order) {
+            const actions = this.resolveStatusActions(order?.statusId);
+            if (!actions.length) {
+                return `<span class="profile-muted">Žádné další kroky nejsou potřeba.</span>`;
+            }
+            const nextActions = actions.filter(a => a.theme !== 'danger');
+            const cancelAction = actions.find(a => a.theme === 'danger');
+            return `
+                <div class="supplier-mine-actions" style="display:flex;flex-wrap:wrap;gap:10px;justify-content:flex-start;align-items:center;">
+                    ${nextActions.map(action => `
+                        <button type="button" class="ghost-btn ghost-strong" data-status-change="${action.id}" data-order-id="${order?.id ?? ''}">
+                            ${escapeHtml(action.label)}
+                        </button>
+                    `).join('')}
+                    ${cancelAction ? `
+                        <button type="button" class="ghost-btn ghost-danger" data-status-change="${cancelAction.id}" data-order-id="${order?.id ?? ''}">
+                            ${escapeHtml(cancelAction.label)}
+                        </button>
+                    ` : ''}
+                </div>
+            `;
+        }
+
+        resolveStatusActions(statusId) {
+            const map = {
+                2: [
+                    { id: 3, label: 'Připravit', theme: 'strong' },
+                    { id: 6, label: 'Zrušit', theme: 'danger' }
+                ],
+                3: [
+                    { id: 4, label: 'Odeslat', theme: 'strong' },
+                    { id: 6, label: 'Zrušit', theme: 'danger' }
+                ],
+                4: [
+                    { id: 5, label: 'Dokončit', theme: 'strong' },
+                    { id: 6, label: 'Zrušit', theme: 'danger' }
+                ]
+            };
+            return map[Number(statusId)] || [];
         }
 
         formatAmount(value) {
@@ -5114,29 +5480,37 @@ class GlobalSearch {
 
         partitionOrders(list) {
             const email = (this.state.data?.profile?.email || '').toLowerCase();
-            const active = new Set([1, 2, 3, 4]);
             const history = new Set([5, 6]);
             const queue = [];
             const mine = [];
             const historyList = [];
+            const refundRequests = [];
             list.forEach(order => {
                 const statusId = Number(order?.statusId);
-                if (history.has(statusId)) {
-                    historyList.push(order);
+                const handler = (order?.handlerEmail || '').toLowerCase();
+                const isMine = handler && email && handler === email;
+                if (order?.pendingRefund && isMine) {
+                    refundRequests.push(order);
                     return;
                 }
-                if (active.has(statusId)) {
-                    const handler = (order?.handlerEmail || '').toLowerCase();
-                    if (handler && email && handler === email) {
-                        mine.push(order);
-                    } else {
-                        queue.push(order);
+
+                if (history.has(statusId)) {
+                    if (isMine) {
+                        historyList.push(order);
                     }
                     return;
                 }
-                queue.push(order);
+                if (isMine) {
+                    mine.push(order);
+                    return;
+                }
+                // Volné zobrazujeme jen stav Vytvořena (1) bez obsluhy
+                if (statusId === 1) {
+                    queue.push(order);
+                }
             });
             this.state.clientOrders.queue = queue;
+            this.state.clientOrders.refundRequests = refundRequests;
             this.state.clientOrders.mine = mine;
             this.state.clientOrders.history = historyList;
         }
@@ -5164,6 +5538,7 @@ class GlobalSearch {
                 }
                 if (response.status === 403) {
                     this.state.clientOrders.queue = [];
+                    this.state.clientOrders.refundRequests = [];
                     this.state.clientOrders.mine = [];
                     this.state.clientOrders.history = [];
                     this.state.clientOrders.error = 'Nemáte oprávnění k obsluze zákaznických objednávek.';
@@ -5190,8 +5565,7 @@ class GlobalSearch {
                 alert('Chybí ID objednávky.');
                 return;
             }
-            const select = document.querySelector(`[data-status-select="${orderId}"]`);
-            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number(select?.value);
+            const statusId = forcedStatusId !== null ? Number(forcedStatusId) : Number.NaN;
             if (Number.isNaN(statusId)) {
                 alert('Vyberte platný stav.');
                 return;
@@ -5233,10 +5607,18 @@ class GlobalSearch {
         }
 
         async claimOrder(orderId, statusId, triggerBtn) {
-            // Převzetí: pošleme bezpečný stav (výchozí 2 = potvrzena) a tím se objednávka naváže na obsluhu
-            const current = Number(statusId);
-            const desired = Number.isNaN(current) || current < 2 ? 2 : current;
+            // Převzetí: posuň na další povolený stav podle matice 1→2→3→4→5 (nebo nech aktuální)
+            const desired = this.resolveNextStatusForClaim(statusId);
             await this.changeStatus(orderId, triggerBtn, desired);
+        }
+
+        resolveNextStatusForClaim(statusId) {
+            const current = Number(statusId);
+            if (Number.isNaN(current) || current <= 1) return 2; // Vytvorena -> Potvrzena
+            if (current === 2) return 3; // Potvrzena -> Pripravuje se
+            if (current === 3) return 4; // Pripravuje se -> Odeslana
+            if (current === 4) return 5; // Odeslana -> Dokoncena
+            return current; // 5/6 necháme beze změny
         }
     }
 
@@ -5253,6 +5635,17 @@ class GlobalSearch {
         init() {
             if (!this.tbody) return;
             this.refreshBtn?.addEventListener('click', () => this.load());
+            this.tbody.addEventListener('click', event => {
+                const refund = event.target.closest('[data-history-refund]');
+                if (refund) {
+                    this.refundOrder(
+                        refund.dataset.historyRefund,
+                        refund.dataset.refundAmount,
+                        refund,
+                        refund.dataset.handlerLabel
+                    );
+                }
+            });
             this.render();
             this.load();
         }
@@ -5279,11 +5672,11 @@ class GlobalSearch {
             const { items = [], loading, error } = this.state.customerHistory || {};
             this.setAlert(error);
             if (loading) {
-                this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="profile-muted">Načítám…</td></tr>';
+                this.tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;" class="profile-muted">Načítám…</td></tr>';
                 return;
             }
             if (!items.length) {
-                this.tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;" class="profile-muted">Zatím žádné objednávky.</td></tr>';
+                this.tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;" class="profile-muted">Zatím žádné objednávky.</td></tr>';
                 this.updateBadge(0);
                 return;
             }
@@ -5292,20 +5685,54 @@ class GlobalSearch {
         }
 
         renderRow(order) {
-            const amount = this.formatAmount(order?.total);
+            const amountValue = order?.total ?? this.computeTotal(order?.items);
+            const amount = this.formatAmount(amountValue);
             const status = escapeHtml(order?.status || '');
             const store = escapeHtml(order?.supermarket || '');
+            const orderNumber = escapeHtml(order?.cislo || this.formatOrderNumber(order?.id));
             const date = escapeHtml(order?.createdAt || '');
             const items = this.renderItems(order?.items);
+            const refunded = Boolean(order?.refunded);
+            const pending = Boolean(order?.pendingRefund);
+            const rejected = Boolean(order?.refundRejected);
+            const statusClass = this.statusClass(order?.statusId, refunded || pending, rejected);
+            const canRefund = !refunded && !pending && !rejected && Number(order?.statusId) === 5 && amountValue > 0;
+            const handler = order?.handlerName
+                ? escapeHtml(order.handlerName)
+                : (order?.handlerEmail ? escapeHtml(order.handlerEmail) : '');
+            const handlerLabel = handler || 'manažerovi';
+            const refundBtn = canRefund
+                ? `<button type="button" class="ghost-btn ghost-muted" data-history-refund="${order?.id ?? ''}" data-refund-amount="${amountValue}" data-handler-label="${handlerLabel}">Vrátit na účet</button>`
+                : (pending
+                    ? `<span class="badge status-badge warning">Odesláno manažerovi${handler ? ` (${handler})` : ''}</span>`
+                    : (refunded
+                        ? '<span class="badge badge-muted">Vráceno</span>'
+                        : (rejected ? '<span class="badge status-badge danger">Zamítnuto</span>' : '')));
             return `
-                <tr>
+                <tr class="history-row${refunded ? ' refunded' : ''}${rejected ? ' refund-rejected' : ''}">
                     <td>${store}</td>
-                    <td><span class="badge">${status || '—'}</span></td>
+                    <td>${orderNumber}</td>
+                    <td><span class="status-badge ${statusClass}">${status || '—'}</span></td>
                     <td>${date || '—'}</td>
                     <td>${amount}</td>
                     <td>${items}</td>
+                    <td>${refundBtn}</td>
                 </tr>
             `;
+        }
+
+        statusClass(statusId, refunded, rejected) {
+            if (rejected) return 'danger';
+            if (refunded) return 'muted';
+            const id = Number(statusId);
+            switch (id) {
+                case 5: return 'success';
+                case 6: return 'danger';
+                case 3: return 'warning';
+                case 2:
+                case 4: return 'info';
+                default: return 'info';
+            }
         }
 
         renderItems(items) {
@@ -5327,6 +5754,144 @@ class GlobalSearch {
                 return escapeHtml(String(value));
             }
             return currencyFormatter.format(num);
+        }
+
+        findOrder(orderId) {
+            if (!orderId) return null;
+            const { items = [] } = this.state.customerHistory || {};
+            return (items || []).find(o => String(o?.id) === String(orderId)) || null;
+        }
+
+        formatOrderNumber(orderId) {
+            const order = this.findOrder(orderId);
+            return order?.cislo || '—';
+        }
+
+        computeTotal(items) {
+            const list = Array.isArray(items) ? items : [];
+            return list.reduce((sum, it) => {
+                const price = Number(it.price ?? 0);
+                const qty = Number(it.qty ?? 0);
+                if (Number.isNaN(price) || Number.isNaN(qty)) return sum;
+                return sum + price * qty;
+            }, 0);
+        }
+
+        async refundOrder(orderId, amount, triggerBtn, handlerLabel) {
+            if (!orderId) return;
+            const amt = Number(amount);
+            if (!amt || amt <= 0 || Number.isNaN(amt)) {
+                alert('Částka k vrácení není platná.');
+                return;
+            }
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Nejste přihlášen.');
+                return;
+            }
+            const target = handlerLabel && handlerLabel.trim().length ? handlerLabel.trim() : 'manažerovi';
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderLabel} ke schválení ${target}?`)) {
+                return;
+            }
+            if (triggerBtn) triggerBtn.disabled = true;
+            try {
+                const response = await fetch(this.apiUrl('/api/wallet/refund-request'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ orderId, amount: amt })
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Žádost se nepodařilo odeslat.');
+                }
+                alert(`Žádost byla odeslána ke schválení (${target}).`);
+                if (triggerBtn) {
+                    triggerBtn.textContent = `Odesláno manažerovi${handlerLabel ? ` (${handlerLabel})` : ''}`;
+                    triggerBtn.disabled = true;
+                }
+                const items = Array.isArray(this.state.customerHistory.items) ? this.state.customerHistory.items : [];
+                this.state.customerHistory.items = items.map(it => {
+                    if (String(it?.id) !== String(orderId)) return it;
+                    return { ...it, pendingRefund: true, refundRejected: false };
+                });
+                this.render();
+            } catch (err) {
+                alert(err.message || 'Žádost se nepodařilo odeslat.');
+                if (triggerBtn) triggerBtn.disabled = false;
+            }
+        }
+
+        findOrder(orderId) {
+            if (!orderId) return null;
+            const { items = [] } = this.state.customerHistory || {};
+            return (items || []).find(o => String(o?.id) === String(orderId)) || null;
+        }
+
+        formatOrderNumber(orderId) {
+            const order = this.findOrder(orderId);
+            return order?.cislo || '—';
+        }
+
+        computeTotal(items) {
+            const list = Array.isArray(items) ? items : [];
+            return list.reduce((sum, it) => {
+                const price = Number(it.price ?? 0);
+                const qty = Number(it.qty ?? 0);
+                if (Number.isNaN(price) || Number.isNaN(qty)) return sum;
+                return sum + price * qty;
+            }, 0);
+        }
+
+        async refundOrder(orderId, amount, triggerBtn, handlerLabel) {
+            if (!orderId) return;
+            const amt = Number(amount);
+            if (!amt || amt <= 0 || Number.isNaN(amt)) {
+                alert('Částka k vrácení není platná.');
+                return;
+            }
+            const token = localStorage.getItem('token');
+            if (!token) {
+                alert('Nejste přihlášen.');
+                return;
+            }
+            const target = handlerLabel && handlerLabel.trim().length ? handlerLabel.trim() : 'manažerovi';
+            const orderLabel = this.formatOrderNumber(orderId);
+            if (!confirm(`Poslat žádost o vrácení ${this.formatAmount(amt)} na účet za objednávku ${orderLabel} ke schválení ${target}?`)) {
+                return;
+            }
+            if (triggerBtn) triggerBtn.disabled = true;
+            try {
+                const response = await fetch(this.apiUrl('/api/wallet/refund-request'), {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${token}`
+                    },
+                    body: JSON.stringify({ orderId, amount: amt })
+                });
+                if (!response.ok) {
+                    const text = await response.text();
+                    throw new Error(text || 'Žádost se nepodařilo odeslat.');
+                }
+                alert(`Žádost byla odeslána ke schválení (${target}).`);
+                if (triggerBtn) {
+                    triggerBtn.textContent = `Odesláno manažerovi${handlerLabel ? ` (${handlerLabel})` : ''}`;
+                    triggerBtn.disabled = true;
+                }
+                const items = Array.isArray(this.state.customerHistory.items) ? this.state.customerHistory.items : [];
+                this.state.customerHistory.items = items.map(it => {
+                    if (String(it?.id) !== String(orderId)) return it;
+                    return { ...it, pendingRefund: true, refundRejected: false };
+                });
+                this.render();
+            } catch (err) {
+                alert(err.message || 'Žádost se nepodařilo odeslat.');
+                if (triggerBtn) triggerBtn.disabled = false;
+            }
         }
 
         async load() {
@@ -5539,9 +6104,20 @@ class GlobalSearch {
                         <p class="muted-label">Muj ucet</p>
                         <div class="wallet-balance" id="wallet-balance">Nacitam...</div>
                     </div>
-                    <button class="wallet-download" type="button" id="wallet-download" title="Stáhnout výpis"><span class="material-symbols-rounded" aria-hidden="true">download</span></button><button class="wallet-close" type="button" id="wallet-close">
-                        <span class="material-symbols-rounded" aria-hidden="true">close</span>
-                    </button>
+                    <div class="wallet-actions-inline">
+                        <label class="wallet-filter">
+                            <span>Od</span>
+                            <input type="date" id="wallet-date-from">
+                        </label>
+                        <label class="wallet-filter">
+                            <span>Do</span>
+                            <input type="date" id="wallet-date-to">
+                        </label>
+                        <button class="wallet-download" type="button" id="wallet-download" title="Stáhnout výpis"><span class="material-symbols-rounded" aria-hidden="true">download</span></button>
+                        <button class="wallet-close" type="button" id="wallet-close">
+                            <span class="material-symbols-rounded" aria-hidden="true">close</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="panel" style="background:rgba(255,255,255,0.02); border:1px solid rgba(255,255,255,0.06);">
                     <h3 style="margin-top:0;">Historie</h3>
@@ -5582,6 +6158,8 @@ class GlobalSearch {
             this.walletBalanceEl = panel.querySelector('#wallet-balance');
             this.walletHistoryList = panel.querySelector('#wallet-history');
             this.walletStatus = panel.querySelector('#wallet-status');
+            this.walletFromInput = panel.querySelector('#wallet-date-from');
+            this.walletToInput = panel.querySelector('#wallet-date-to');
             const closeBtn = panel.querySelector('#wallet-close');
             const downloadBtn = panel.querySelector('#wallet-download');
             downloadBtn?.addEventListener('click', () => this.downloadWalletStatement());
@@ -5590,6 +6168,9 @@ class GlobalSearch {
                 if (e.target === overlay) {
                     overlay.style.display = 'none';
                 }
+            });
+            [this.walletFromInput, this.walletToInput].forEach(input => {
+                input?.addEventListener('change', () => this.loadWalletData());
             });
             const methodSelect = panel.querySelector('#wallet-method');
             const cardWrap = panel.querySelector('#wallet-card-wrap');
@@ -5607,17 +6188,28 @@ class GlobalSearch {
             if (!this.walletData) {
                 this.walletData = { balance: 0, history: [] };
             }
+            const from = this.walletFromInput?.value ? this.walletFromInput.value : null;
+            const to = this.walletToInput?.value ? this.walletToInput.value : null;
+            if (from && to && from > to) {
+                this.walletStatus.textContent = 'Datum \"od\" musi byt <= \"do\".';
+                this.walletStatus.classList.add('chat-status-error');
+                return;
+            }
             try {
                 if (this.walletStatus) {
                     this.walletStatus.textContent = 'Nacitam...';
+                    this.walletStatus.classList.remove('chat-status-error');
                 }
                 const token = localStorage.getItem('token');
                 if (!token) {
                     throw new Error('Chybi prihlaseni.');
                 }
+                const params = new URLSearchParams();
+                if (from) params.append('from', from);
+                if (to) params.append('to', to);
                 const [balanceRes, historyRes] = await Promise.all([
                     fetch(apiUrl('/api/wallet'), { headers: { 'Authorization': `Bearer ${token}` } }),
-                    fetch(apiUrl('/api/wallet/history'), { headers: { 'Authorization': `Bearer ${token}` } })
+                    fetch(apiUrl(`/api/wallet/history${params.toString() ? '?' + params.toString() : ''}`), { headers: { 'Authorization': `Bearer ${token}` } })
                 ]);
                 if (!balanceRes.ok) {
                     throw new Error(await balanceRes.text() || 'Nelze nacist zustatek.');
@@ -5636,7 +6228,8 @@ class GlobalSearch {
                 if (this.walletHistoryList) {
                     this.walletHistoryList.innerHTML = '';
                     this.walletData.history = Array.isArray(history) ? history : [];
-                    (history || []).forEach(item => {
+                    const list = this.filterWalletHistory();
+                    list.forEach(item => {
                         const li = document.createElement('li');
                         const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
                         li.innerHTML = `
@@ -5659,6 +6252,30 @@ class GlobalSearch {
                     this.walletStatus.textContent = error.message || 'Chyba nacitani penezky.';
                 }
             }
+        }
+
+        parseDateOnly(val) {
+            if (!val) return null;
+            const d = new Date(val);
+            if (Number.isNaN(d.getTime())) return null;
+            return new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+        }
+
+        filterWalletHistory() {
+            const { history } = this.walletData || {};
+            if (!history || !history.length) return [];
+            const fromVal = this.walletFromInput?.value || null;
+            const toVal = this.walletToInput?.value || null;
+            const from = this.parseDateOnly(fromVal);
+            const to = this.parseDateOnly(toVal);
+            return history.filter(item => {
+                if (!item?.createdAt) return true;
+                const d = this.parseDateOnly(item.createdAt);
+                if (!d) return true;
+                if (from && d < from) return false;
+                if (to && d > to) return false;
+                return true;
+            });
         }
 
         async submitWalletTopUp() {
@@ -5733,11 +6350,14 @@ class GlobalSearch {
         }
 
         downloadWalletStatement() {
-            const { balance, history } = this.walletData || {};
+            const { balance } = this.walletData || {};
+            const history = this.filterWalletHistory();
             if (!history || !history.length) {
                 alert('Žádné pohyby k exportu.');
                 return;
             }
+            const from = this.walletFromInput?.value || '';
+            const to = this.walletToInput?.value || '';
             const rows = history.map(item => {
                 const dir = ((item.direction || '').toUpperCase() === 'P') ? '+' : '-';
                 const castka = this.formatCurrency(item.amount || 0);
@@ -5768,6 +6388,7 @@ class GlobalSearch {
 <body>
     <h1>Výpis účtu</h1>
     <p>Datum: ${new Date().toLocaleString('cs-CZ')}</p>
+    ${from || to ? `<p>Období: ${from || '—'} až ${to || '—'}</p>` : ''}
     <p>Zůstatek: ${this.formatCurrency(balance || 0)}</p>
     <table>
         <thead>
@@ -5982,11 +6603,16 @@ class GlobalSearch {
                 });
                 if (!response.ok) {
                     const text = await response.text();
-                    throw new Error(text || 'Platbu se nepodarilo dokoncit.');
+                    const header = response.headers.get('X-Error');
+                    const message = header || text || `Platbu se nepodarilo dokoncit. (HTTP ${response.status})`;
+                    throw new Error(message);
                 }
                 const data = await response.json();
                 this.state.customerCart = [];
                 try { localStorage.removeItem('customerCart'); } catch (e) {}
+                if (typeof window?.app?.customer?.render === 'function') {
+                    try { window.app.customer.render(); } catch (e) { console.debug('Customer view refresh skip', e); }
+                }
                 if (typeof window?.app?.updateWalletChip === 'function' && method === 'WALLET') {
                     try { window.app.updateWalletChip(); } catch (e) { console.debug('Wallet chip refresh skip', e); }
                 }
@@ -5996,15 +6622,18 @@ class GlobalSearch {
                 if (data && data.cashbackAmount && Number(data.cashbackAmount) > 0) {
                     this.showCashbackModal(data.cashbackAmount, data.walletBalance, data.cashbackTurnover);
                 }
-                this.statusEl.textContent = 'Objednavka a platba byly ulozeny. Presmerovani do Zakaznicke zony...';
+                this.statusEl.textContent = 'Objednavka a platba byly ulozeny. Presmerovani do historie zakaznika...';
                 this.statusEl.classList.add('chat-status-success');
                 setTimeout(() => {
-                    if (typeof window?.app?.navigation?.setActive === 'function') {
-                        window.app.navigation.setActive('customer');
-                    } else {
-                        window.location.href = 'customer.html';
+                    if (typeof window?.app?.customerHistory?.load === 'function') {
+                        try { window.app.customerHistory.load(); } catch (e) { console.debug('history refresh skip', e); }
                     }
-                }, 2000);
+                    if (typeof window?.app?.navigation?.setActive === 'function') {
+                        window.app.navigation.setActive('customer-history');
+                    } else {
+                        window.location.href = 'customer-history.html';
+                    }
+                }, 1500);
             } catch (error) {
                 this.statusEl.textContent = error.message || 'Platbu se nepodarilo dokoncit.';
             } finally {
