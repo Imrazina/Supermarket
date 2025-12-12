@@ -21,6 +21,12 @@ import org.springframework.web.multipart.MultipartFile;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xwpf.extractor.XWPFWordExtractor;
+import org.apache.poi.xwpf.usermodel.XWPFDocument;
+
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -253,8 +259,21 @@ public class ArchiveController {
     private byte[] buildEditedContent(String ext, String text) {
         String lowerExt = Optional.ofNullable(ext).orElse("").toLowerCase();
         try {
-            if (lowerExt.equals("docx") || lowerExt.equals("xlsx") || lowerExt.equals("xls")) {
-                // zatím nepodporujeme editaci binárních formátů přes procedury
+            if (lowerExt.startsWith(".")) lowerExt = lowerExt.substring(1);
+            if (lowerExt.equals("docx")) {
+                try (XWPFDocument doc = new XWPFDocument(); ByteArrayOutputStream out = new ByteArrayOutputStream()) {
+                    String safe = Optional.ofNullable(text).orElse("");
+                    String[] lines = safe.split("\\R", -1);
+                    for (String line : lines) {
+                        var p = doc.createParagraph();
+                        var run = p.createRun();
+                        run.setText(line == null ? "" : line);
+                    }
+                    doc.write(out);
+                    return out.toByteArray();
+                }
+            }
+            if (lowerExt.equals("xlsx") || lowerExt.equals("xls")) {
                 return null;
             }
             return text.getBytes(StandardCharsets.UTF_8);
@@ -272,8 +291,48 @@ public class ArchiveController {
     private String extractPreviewText(byte[] content, String ext) {
         if (content == null || content.length == 0) return null;
         String lowerExt = Optional.ofNullable(ext).orElse("").toLowerCase();
+        if (lowerExt.startsWith(".")) lowerExt = lowerExt.substring(1);
         if (isPlainTextExt(lowerExt)) {
             return new String(content, StandardCharsets.UTF_8);
+        }
+        if (lowerExt.equals("docx")) {
+            try (XWPFDocument doc = new XWPFDocument(new ByteArrayInputStream(content));
+                 XWPFWordExtractor extractor = new XWPFWordExtractor(doc)) {
+                String extracted = extractor.getText();
+                return extracted == null ? "" : extracted;
+            } catch (Exception e) {
+                return null;
+            }
+        }
+        if (lowerExt.equals("xlsx") || lowerExt.equals("xls")) {
+            try (Workbook workbook = WorkbookFactory.create(new ByteArrayInputStream(content))) {
+                DataFormatter formatter = new DataFormatter();
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < workbook.getNumberOfSheets(); i++) {
+                    Sheet sheet = workbook.getSheetAt(i);
+                    if (workbook.getNumberOfSheets() > 1) {
+                        sb.append("Sheet: ").append(sheet.getSheetName()).append('\n');
+                    }
+                    for (Row row : sheet) {
+                        short last = row.getLastCellNum();
+                        if (last < 0) {
+                            sb.append('\n');
+                            continue;
+                        }
+                        for (int c = 0; c < last; c++) {
+                            Cell cell = row.getCell(c, Row.MissingCellPolicy.RETURN_BLANK_AS_NULL);
+                            String value = cell == null ? "" : formatter.formatCellValue(cell);
+                            sb.append(value == null ? "" : value);
+                            if (c < last - 1) sb.append('\t');
+                        }
+                        sb.append('\n');
+                    }
+                    if (i < workbook.getNumberOfSheets() - 1) sb.append('\n');
+                }
+                return sb.toString();
+            } catch (Exception e) {
+                return null;
+            }
         }
         return null;
     }
