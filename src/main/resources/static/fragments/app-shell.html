@@ -175,9 +175,19 @@
                     </article>
 
                     <div class="two-column">
-                        <article class="panel">
-                            <h2>Rizikové zásoby</h2>
+                        <article class="panel risk-panel">
+                            <h2>Rizikove zasoby</h2>
                             <ul id="low-stock-list"></ul>
+                            <div class="warehouse-inline">
+                                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;">
+                                    <div>
+                                        <h3 style="margin:0;">Vytizenost skladu</h3>
+                                        <p class="profile-muted" style="margin:0;">V_WAREHOUSE_LOAD</p>
+                                    </div>
+                                    <span class="badge ghost">sledovat</span>
+                                </div>
+                                <div id="warehouse-load-list" class="warehouse-load-list compact"></div>
+                            </div>
                         </article>
                         <article class="panel">
                             <h2>Stavy řetězce</h2>

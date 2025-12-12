@@ -26,6 +26,8 @@ public record DashboardResponse(
         List<SubscriberInfo> subscribers,
         List<StoreInfo> stores,
         List<SupermarketHealth> storeHealth,
+        List<WarehouseLoad> warehouseLoad,
+        List<RiskStock> riskStock,
         Profile profile,
         List<FolderInfo> folders,
         List<CustomerProduct> customerProducts,
@@ -123,6 +125,23 @@ public record DashboardResponse(
             double avgCloseHours,
             long criticalSku,
             double tydenniObrat
+    ) {}
+
+    public record WarehouseLoad(
+            Long id,
+            String sklad,
+            String supermarket,
+            Integer kapacita,
+            Long obsazeno,
+            Double procento
+    ) {}
+
+    public record RiskStock(
+            String name,
+            Long stock,
+            Long minStock,
+            String warehouse,
+            String supermarket
     ) {}
 
     public record FolderInfo(String name, String color, List<FileInfo> files) {}
