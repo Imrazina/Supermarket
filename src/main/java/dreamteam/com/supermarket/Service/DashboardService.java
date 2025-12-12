@@ -42,6 +42,7 @@ public class DashboardService {
             ThreadLocal.withInitial(() -> NumberFormat.getCurrencyInstance(LOCALE_CZ));
     private static final DateTimeFormatter DATE_TIME_FORMAT = DateTimeFormatter.ofPattern("dd.MM.yyyy HH:mm", LOCALE_CZ);
     private static final DateTimeFormatter DATE_FORMAT = DateTimeFormatter.ISO_LOCAL_DATE;
+    private static final BigDecimal SUPPLIER_REWARD_SHARE = BigDecimal.valueOf(0.7);
 
     private final ZboziJdbcService zboziJdbcService;
     private final KategorieZboziJdbcService kategorieZboziJdbcService;
@@ -74,6 +75,9 @@ public class DashboardService {
         Zakaznik currentCustomer = zakaznikJdbcService.findById(user.getIdUzivatel());
 
         List<Zbozi> goods = zboziJdbcService.findAll();
+        Map<Long, BigDecimal> goodsPriceMap = goods.stream()
+                .filter(zbozi -> zbozi.getIdZbozi() != null && zbozi.getCena() != null)
+                .collect(Collectors.toMap(Zbozi::getIdZbozi, Zbozi::getCena, (existing, ignored) -> existing));
         List<Sklad> warehouses = skladJdbcService.findAll();
         List<Supermarket> supermarkets = supermarketJdbcService.findAll();
         List<ObjednavkaStatus> statuses = objednavkaStatusJdbcService.findAll();
@@ -254,12 +258,29 @@ public class DashboardService {
                 })
                 .toList();
 
+        Map<Long, Double> supplierRewards = orderLines.stream()
+                .filter(line -> line.getObjednavka() != null && line.getObjednavka().getIdObjednavka() != null)
+                .filter(line -> line.getZbozi() != null && line.getZbozi().getCena() != null)
+                .collect(Collectors.groupingBy(
+                        line -> line.getObjednavka().getIdObjednavka(),
+                        Collectors.reducing(
+                                0d,
+                                line -> line.getZbozi().getCena()
+                                        .multiply(BigDecimal.valueOf(Optional.ofNullable(line.getPocet()).orElse(0)))
+                                        .multiply(SUPPLIER_REWARD_SHARE)
+                                        .doubleValue(),
+                                Double::sum
+                        )
+                ));
+
         List<DashboardResponse.OrderInfo> orderInfos = allOrders.stream()
                 .sorted(Comparator.comparing(Objednavka::getDatum).reversed())
                 .map(order -> {
+                    Long employeeId = order.getUzivatel() != null ? order.getUzivatel().getIdUzivatel() : null;
                     String employeeName = order.getUzivatel() != null
                             ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
                             : "Neuvedeno";
+                    Long storeId = order.getSupermarket() != null ? order.getSupermarket().getIdSupermarket() : null;
                     String supplierName = order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno";
                     String handlerName = "—";
                     if (order.getObsluha() != null) {
@@ -270,9 +291,10 @@ public class DashboardService {
                             handlerName = "—";
                         }
                     }
+                    Long statusId = order.getStatus() != null ? order.getStatus().getIdStatus() : null;
                     String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
-                    double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
+                    double amount = resolveOrderAmount(order, orderAmounts, supplierRewards);
                     String priority = amount > 100000 ? "high" : amount > 10000 ? "medium" : "low";
                     String cislo = order.getCislo() != null && !order.getCislo().isBlank()
                             ? order.getCislo()
@@ -281,11 +303,14 @@ public class DashboardService {
                             "PO-" + order.getIdObjednavka(),
                             order.getTypObjednavka(),
                             order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno",
+                            storeId,
                             employeeName,
+                            employeeId,
                             handlerName,
                             supplierName,
                             statusLabel,
                             statusCode,
+                            statusId,
                             order.getDatum() != null ? order.getDatum().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : "",
                             amount,
                             priority,
@@ -297,9 +322,11 @@ public class DashboardService {
         List<DashboardResponse.OrderInfo> customerOrderInfos = customerOrders.stream()
                 .sorted(Comparator.comparing(Objednavka::getDatum).reversed())
                 .map(order -> {
+                    Long employeeId = order.getUzivatel() != null ? order.getUzivatel().getIdUzivatel() : null;
                     String employeeName = order.getUzivatel() != null
                             ? order.getUzivatel().getJmeno() + " " + order.getUzivatel().getPrijmeni()
                             : "Neuvedeno";
+                    Long storeId = order.getSupermarket() != null ? order.getSupermarket().getIdSupermarket() : null;
                     String supplierName = resolveOrderSupplier(order, suppliersByUserId);
                     String handlerName = "—";
                     if (order.getObsluha() != null) {
@@ -310,9 +337,10 @@ public class DashboardService {
                             handlerName = "—";
                         }
                     }
+                    Long statusId = order.getStatus() != null ? order.getStatus().getIdStatus() : null;
                     String statusLabel = order.getStatus() != null ? order.getStatus().getNazev() : "Nezname";
                     String statusCode = order.getStatus() != null ? String.valueOf(order.getStatus().getIdStatus()) : "0";
-                    double amount = orderAmounts.getOrDefault(order.getIdObjednavka(), 0d);
+                    double amount = resolveOrderAmount(order, orderAmounts, supplierRewards);
                     String priority = amount > 100000 ? "high" : amount > 10000 ? "medium" : "low";
                     String cislo = order.getCislo() != null && !order.getCislo().isBlank()
                             ? order.getCislo()
@@ -321,11 +349,14 @@ public class DashboardService {
                             "PO-" + order.getIdObjednavka(),
                             order.getTypObjednavka(),
                             order.getSupermarket() != null ? order.getSupermarket().getNazev() : "Neuvedeno",
+                            storeId,
                             employeeName,
+                            employeeId,
                             handlerName,
                             supplierName,
                             statusLabel,
                             statusCode,
+                            statusId,
                             order.getDatum() != null ? order.getDatum().format(DateTimeFormatter.ISO_LOCAL_DATE_TIME) : "",
                             amount,
                             priority,
@@ -335,13 +366,23 @@ public class DashboardService {
                 })
                 .toList();
         List<DashboardResponse.OrderLine> orderLineDtos = orderLines.stream()
-                .map(line -> new DashboardResponse.OrderLine(
-                        "PO-" + line.getObjednavka().getIdObjednavka(),
-                        "SKU-" + line.getZbozi().getIdZbozi(),
-                        line.getZbozi().getNazev(),
-                        line.getPocet(),
-                        line.getZbozi().getCena() != null ? line.getZbozi().getCena().doubleValue() : 0d
-                ))
+                .map(line -> {
+                    BigDecimal unitPrice = null;
+                    if (line.getZbozi() != null) {
+                        unitPrice = line.getZbozi().getCena();
+                        if (unitPrice == null && line.getZbozi().getIdZbozi() != null) {
+                            unitPrice = goodsPriceMap.get(line.getZbozi().getIdZbozi());
+                        }
+                    }
+                    double priceValue = unitPrice != null ? unitPrice.doubleValue() : 0d;
+                    return new DashboardResponse.OrderLine(
+                            "PO-" + line.getObjednavka().getIdObjednavka(),
+                            "SKU-" + line.getZbozi().getIdZbozi(),
+                            line.getZbozi().getNazev(),
+                            line.getPocet(),
+                            priceValue
+                    );
+                })
                 .toList();
 
         List<DashboardResponse.StatusInfo> statusInfos = statuses.stream()
@@ -835,6 +876,19 @@ public class DashboardService {
             return "DODAVATEL";
         }
         return "UZIVATEL";
+    }
+
+    private double resolveOrderAmount(Objednavka order,
+                                      Map<Long, Double> orderAmounts,
+                                      Map<Long, Double> supplierRewards) {
+        if (order == null || order.getIdObjednavka() == null) {
+            return 0d;
+        }
+        Long orderId = order.getIdObjednavka();
+        if ("DODAVATEL".equalsIgnoreCase(Optional.ofNullable(order.getTypObjednavka()).orElse(""))) {
+            return supplierRewards.getOrDefault(orderId, orderAmounts.getOrDefault(orderId, 0d));
+        }
+        return orderAmounts.getOrDefault(orderId, 0d);
     }
 
     private String resolveOrderSupplier(Objednavka order, Map<Long, Dodavatel> suppliersByUserId) {

@@ -11,6 +11,7 @@ import dreamteam.com.supermarket.model.user.Uzivatel;
 import dreamteam.com.supermarket.repository.MarketProcedureDao;
 import dreamteam.com.supermarket.repository.OrderProcedureDao;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.jdbc.core.CallableStatementCallback;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class CheckoutService {
 
     private final OrderProcedureDao orderDao;
@@ -149,6 +151,32 @@ public class CheckoutService {
             throw new IllegalArgumentException("Neznama platebni metoda.");
         }
 
+        BigDecimal cashbackAmount = BigDecimal.ZERO;
+        BigDecimal cashbackTurnover = BigDecimal.ZERO;
+        BigDecimal walletBalance = BigDecimal.ZERO;
+        Integer cashbackCode = null;
+
+        try {
+            Long ucetId = walletJdbcService.ensureAccountForUser(user.getIdUzivatel());
+            walletBalance = Optional.ofNullable(walletJdbcService.findBalance(ucetId)).orElse(BigDecimal.ZERO);
+            WalletJdbcService.CashbackResult cashback = walletJdbcService.applyCashback(user.getIdUzivatel());
+            if (cashback != null) {
+                cashbackCode = cashback.code();
+                cashbackAmount = Optional.ofNullable(cashback.cashbackAmount()).orElse(BigDecimal.ZERO);
+                cashbackTurnover = Optional.ofNullable(cashback.turnover()).orElse(BigDecimal.ZERO);
+                if (cashback.balance() != null) {
+                    walletBalance = cashback.balance();
+                } else if (cashbackAmount.compareTo(BigDecimal.ZERO) > 0) {
+                    walletBalance = walletBalance.add(cashbackAmount);
+                }
+                log.info("Cashback result user {}: code={}, amount={}, turnover={}, balance={}",
+                        user.getIdUzivatel(), cashbackCode, cashbackAmount, cashbackTurnover, walletBalance);
+            }
+        } catch (Exception ex) {
+            log.warn("Cashback calculation failed for user {}", user.getIdUzivatel(), ex);
+            cashbackCode = -99;
+        }
+
         BigDecimal prijatoForResponse = prijato;
         BigDecimal changeForResponse = vraceno;
 
@@ -160,10 +188,10 @@ public class CheckoutService {
                 changeForResponse,
                 paymentType,
                 responseLines,
-                BigDecimal.ZERO,   // cashback amount
-                BigDecimal.ZERO,   // cashback turnover
-                BigDecimal.ZERO,   // wallet balance
-                null               // cashback code
+                cashbackAmount,
+                cashbackTurnover,
+                walletBalance,
+                cashbackCode
         );
     }
 
