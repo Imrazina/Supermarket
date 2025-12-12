@@ -195,6 +195,34 @@ public class WalletJdbcService {
 
     public record RefundResult(Long pohybId) {}
 
+    public record CashbackResult(int code, BigDecimal turnover, BigDecimal cashbackAmount, BigDecimal balance) {}
+
+    public CashbackResult applyCashback(Long userId) {
+        if (userId == null) {
+            throw new IllegalArgumentException("User id is required");
+        }
+        return jdbcTemplate.execute((Connection con) -> {
+                    CallableStatement cs = con.prepareCall("{ ? = call fn_cashback_5orders(?, ?, ?, ?, ?, ?) }");
+                    cs.registerOutParameter(1, Types.NUMERIC); // return code
+                    cs.setLong(2, userId);
+                    // Test params: každý 2. nákup, bez cooldownu
+                    cs.setInt(3, 2);  // p_min_orders
+                    cs.setInt(4, 0);  // p_cooldown_d
+                    cs.registerOutParameter(5, Types.NUMERIC); // turnover
+                    cs.registerOutParameter(6, Types.NUMERIC); // cashback
+                    cs.registerOutParameter(7, Types.NUMERIC); // balance
+                    return cs;
+                },
+                (CallableStatementCallback<CashbackResult>) cs -> {
+                    cs.execute();
+                    int code = cs.getInt(1);
+                    BigDecimal turnover = cs.getBigDecimal(5);
+                    BigDecimal cashback = cs.getBigDecimal(6);
+                    BigDecimal balance = cs.getBigDecimal(7);
+                    return new CashbackResult(code, turnover, cashback, balance);
+                });
+    }
+
     public record PohybRow(Long id, String smer, String metoda, BigDecimal castka,
                            String poznamka, LocalDateTime datum,
                            Long objednavkaId, String cisloKarty) {}

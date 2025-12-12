@@ -13,11 +13,16 @@ export default class PermissionsModule {
         this.fetchAdminPermissions = deps.fetchAdminPermissions;
         this.fetchRolePermissions = deps.fetchRolePermissions;
         this.container = document.querySelector('[data-view="permissions"]');
+        this.navLink = document.querySelector('.nav-link[data-view="permissions"]');
         this.editingId = null;
     }
 
     init() {
         if (!this.container) {
+            return;
+        }
+        if (!this.hasAccess()) {
+            this.hideView();
             return;
         }
         this.tableEl = document.getElementById('permissions-table');
@@ -35,6 +40,16 @@ export default class PermissionsModule {
         } else {
             this.render();
         }
+    }
+
+    hasAccess() {
+        const permissions = this.state.data?.profile?.permissions;
+        return Array.isArray(permissions) && permissions.includes('MANAGE_USERS');
+    }
+
+    hideView() {
+        this.container?.remove();
+        this.navLink?.remove();
     }
 
     async reloadAdminData() {

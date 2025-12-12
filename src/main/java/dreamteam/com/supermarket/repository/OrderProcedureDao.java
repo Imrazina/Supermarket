@@ -8,6 +8,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.sql.CallableStatement;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -64,11 +65,22 @@ public class OrderProcedureDao {
                     List<OrderItemRow> list = new ArrayList<>();
                     try (ResultSet rs = (ResultSet) cs.getObject(2)) {
                         while (rs.next()) {
+                            BigDecimal price = null;
+                            try {
+                                price = rs.getBigDecimal("zbozi_cena");
+                            } catch (SQLException ignored) {
+                                try {
+                                    price = rs.getBigDecimal("cena");
+                                } catch (SQLException ignoredLegacy) {
+                                    price = null;
+                                }
+                            }
                             list.add(new OrderItemRow(
                                     rs.getLong("objednavka_id"),
                                     rs.getLong("zbozi_id"),
                                     rs.getString("zbozi_nazev"),
-                                    rs.getInt("pocet")
+                                    rs.getInt("pocet"),
+                                    price
                             ));
                         }
                     }
@@ -315,7 +327,7 @@ public class OrderProcedureDao {
             String obsluhaPrijmeni
     ) {}
 
-    public record OrderItemRow(Long objednavkaId, Long zboziId, String zboziNazev, Integer pocet) {}
+    public record OrderItemRow(Long objednavkaId, Long zboziId, String zboziNazev, Integer pocet, BigDecimal cena) {}
 
     public OrderDeleteInfo getDeleteInfo(Long id) {
         if (id == null) return null;

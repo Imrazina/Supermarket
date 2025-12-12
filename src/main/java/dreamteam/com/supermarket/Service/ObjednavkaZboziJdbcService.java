@@ -25,6 +25,7 @@ public class ObjednavkaZboziJdbcService {
             var zbozi = new dreamteam.com.supermarket.model.market.Zbozi();
             zbozi.setIdZbozi(row.zboziId());
             zbozi.setNazev(row.zboziNazev());
+            zbozi.setCena(row.cena());
             oz.setZbozi(zbozi);
             return oz;
         }).toList();

@@ -64,6 +64,26 @@
             </a>
         </div>
 
+        <div class="new-user-links">
+            <p class="new-user-note">Čekáte na schválení role. Zatím můžete:</p>
+            <a class="nav-link" href="role-request.html">
+                <span class="material-symbols-rounded" aria-hidden="true">assignment</span>
+                <span>Zpět na 3 karty rolí</span>
+            </a>
+            <a class="nav-link" href="login.html">
+                <span class="material-symbols-rounded" aria-hidden="true">login</span>
+                <span>Zpět na login</span>
+            </a>
+            <a class="nav-link" href="landing.html">
+                <span class="material-symbols-rounded" aria-hidden="true">home</span>
+                <span>Na landing stránku</span>
+            </a>
+            <a class="nav-link" href="register.html">
+                <span class="material-symbols-rounded" aria-hidden="true">person_add</span>
+                <span>Vytvořit nový účet</span>
+            </a>
+        </div>
+
         <div class="sidebar-footer">
             <div class="sync-card">
                 <div class="inbox-header">
@@ -686,7 +706,37 @@
             </section>
 
             <section class="view" data-view="customer">
-                <article class="panel">
+                <article class="panel new-user-preview" id="new-user-preview" style="display:none;">
+                    <div class="new-user-hero">
+                        <div>
+                            <p class="eyebrow">Role NEW_USER</p>
+                            <h2>Požádejte o přístup</h2>
+                            <p class="profile-muted">Vyberte, k čemu chcete přístup. Odešleme požadavek adminovi. Do schválení zůstává rozhraní jen k náhledu.</p>
+                        </div>
+                        <div class="new-user-links-inline">
+                            <a class="nav-link" href="role-request.html">
+                                <span class="material-symbols-rounded" aria-hidden="true">assignment</span>
+                                <span>Zpět na 3 role karty</span>
+                            </a>
+                            <a class="nav-link" href="login.html">
+                                <span class="material-symbols-rounded" aria-hidden="true">login</span>
+                                <span>Zpět na login</span>
+                            </a>
+                            <a class="nav-link" href="landing.html">
+                                <span class="material-symbols-rounded" aria-hidden="true">home</span>
+                                <span>Landing</span>
+                            </a>
+                            <a class="nav-link" href="register.html">
+                                <span class="material-symbols-rounded" aria-hidden="true">person_add</span>
+                                <span>Registrace</span>
+                            </a>
+                        </div>
+                    </div>
+                    <div class="new-user-card-grid" id="new-user-card-grid"></div>
+                    <div id="new-user-status" class="status" style="display:none;"></div>
+                </article>
+
+                <article class="panel customer-main">
                     <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
                         <div>
                             <h2>Zákaznický výběr produktů</h2>
