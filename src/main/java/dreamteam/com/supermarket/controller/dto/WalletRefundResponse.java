@@ -1,9 +1,10 @@
 package dreamteam.com.supermarket.controller.dto;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.math.BigDecimal;
 
 public record WalletRefundResponse(
-        Long pohybId,
+        @JsonIgnore Long pohybId,
         Long accountId,
         BigDecimal balance
 ) {}

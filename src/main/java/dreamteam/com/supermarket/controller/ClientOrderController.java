@@ -2,6 +2,7 @@ package dreamteam.com.supermarket.controller;
 
 import dreamteam.com.supermarket.Service.CustomerOrderService;
 import dreamteam.com.supermarket.Service.PermissionService;
+import dreamteam.com.supermarket.controller.dto.CustomerOrderPublicResponse;
 import dreamteam.com.supermarket.controller.dto.CustomerOrderResponse;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -59,12 +60,31 @@ public class ClientOrderController {
     }
 
     @GetMapping("/history")
-    public ResponseEntity<List<CustomerOrderResponse>> history(Authentication authentication) {
+    public ResponseEntity<List<CustomerOrderPublicResponse>> history(Authentication authentication) {
         Long userId = customerOrderService.resolveUserId(authentication.getName());
         if (userId == null) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
-        return ResponseEntity.ok(customerOrderService.listByCustomer(userId));
+        List<CustomerOrderPublicResponse> result = customerOrderService.listByCustomer(userId).stream()
+                .map(o -> new CustomerOrderPublicResponse(
+                        o.status(),
+                        o.statusId(),
+                        o.supermarket(),
+                        o.supermarketId(),
+                        o.customerEmail(),
+                        o.handlerEmail(),
+                        o.handlerName(),
+                        o.createdAt(),
+                        o.note(),
+                        o.items(),
+                        o.total(),
+                        o.cislo(),
+                        o.refunded(),
+                        o.pendingRefund(),
+                        o.refundRejected()
+                ))
+                .toList();
+        return ResponseEntity.ok(result);
     }
 
     @GetMapping("/refunds")
