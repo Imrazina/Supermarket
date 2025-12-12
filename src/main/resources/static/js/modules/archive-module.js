@@ -892,7 +892,7 @@ export default class ArchiveModule {
     }
 
 
-    showTextPreview(text) {
+    showTextPreview(text, editable = true) {
         if (this.previewFrame) {
             this.previewFrame.src = 'about:blank';
             this.previewFrame.style.display = 'none';
@@ -905,7 +905,11 @@ export default class ArchiveModule {
             this.previewText.textContent = text;
             this.previewText.style.display = 'block';
         }
-        this.enableEditing(text);
+        if (editable) {
+            this.enableEditing(text);
+        } else {
+            this.disableEditing();
+        }
     }
 
     showPreviewError(message) {
@@ -941,7 +945,7 @@ export default class ArchiveModule {
                 throw new Error(msg || 'Náhled není podporován.');
             }
             const text = await res.text();
-            this.showTextPreview(text || 'Soubor je prázdný.');
+            this.showTextPreview(text || 'Soubor je prázdný.', this.isOfficeEditable(file));
         } catch (err) {
             console.error('Office preview failed', err);
             this.showPreviewError(err.message || 'Náhled selhal.');
@@ -1107,17 +1111,27 @@ export default class ArchiveModule {
     }
 
     getPreviewMode(file, contentType) {
-        const extRaw = (file.ext || file.name || '').toString();
-        const ext = extRaw.trim().toLowerCase();
-        const extNoDot = ext.replace(/^\./, '');
+        const name = (file?.name || '').toString().trim().toLowerCase();
+        const extMeta = (file?.ext || '').toString().trim().toLowerCase().replace(/^\./, '');
+        const extFromName = name.includes('.') ? name.split('.').pop() : '';
+        const extNoDot = extMeta || extFromName;
+        const extWithDot = extNoDot ? `.${extNoDot}` : '';
         const ct = (contentType || '').toLowerCase();
         const isDoc = extNoDot === 'doc' || extNoDot === 'docx' || ct.includes('msword') || ct.includes('wordprocessingml');
         const isSpreadsheet = extNoDot === 'xls' || extNoDot === 'xlsx' || ct.includes('spreadsheetml') || ct.includes('ms-excel');
         if (isDoc || isSpreadsheet) return 'office';
         if (this.isImagePreview(ct, extNoDot)) return 'image';
-        if (this.isTextPreview(ct, ext)) return 'text';
-        if (this.isIframePreview(ct, ext)) return 'iframe';
+        if (this.isTextPreview(ct, extWithDot)) return 'text';
+        if (this.isIframePreview(ct, extWithDot)) return 'iframe';
         return 'iframe';
+    }
+
+    isOfficeEditable(file) {
+        const name = (file?.name || '').toString().trim().toLowerCase();
+        const extMeta = (file?.ext || '').toString().trim().toLowerCase().replace(/^\./, '');
+        const extFromName = name.includes('.') ? name.split('.').pop() : '';
+        const extNoDot = extMeta || extFromName;
+        return extNoDot === 'docx';
     }
 
     registerLogDetailActions(log) {
@@ -1232,13 +1246,13 @@ export default class ArchiveModule {
             || contentType.includes('csv')
             || contentType.includes('yaml')
             || contentType.includes('javascript'));
-        const extOk = lowerExt.endsWith('.json')
-            || lowerExt.endsWith('.xml')
-            || lowerExt.endsWith('.csv')
-            || lowerExt.endsWith('.yaml')
-            || lowerExt.endsWith('.yml')
-            || lowerExt.endsWith('.txt')
-            || lowerExt.endsWith('.log');
+        const extOk = lowerExt.endsWith('.json') || lowerExt === 'json'
+            || lowerExt.endsWith('.xml') || lowerExt === 'xml'
+            || lowerExt.endsWith('.csv') || lowerExt === 'csv'
+            || lowerExt.endsWith('.yaml') || lowerExt === 'yaml'
+            || lowerExt.endsWith('.yml') || lowerExt === 'yml'
+            || lowerExt.endsWith('.txt') || lowerExt === 'txt'
+            || lowerExt.endsWith('.log') || lowerExt === 'log';
         return ctOk || extOk;
     }
 
@@ -1253,9 +1267,9 @@ export default class ArchiveModule {
         if (!contentType && !lowerExt) return false;
         const ctOk = contentType && (contentType.includes('pdf')
             || contentType.includes('html'));
-        const extOk = lowerExt.endsWith('.pdf')
-            || lowerExt.endsWith('.htm')
-            || lowerExt.endsWith('.html');
+        const extOk = lowerExt.endsWith('.pdf') || lowerExt === 'pdf'
+            || lowerExt.endsWith('.htm') || lowerExt === 'htm'
+            || lowerExt.endsWith('.html') || lowerExt === 'html';
         return ctOk || extOk;
     }
 
