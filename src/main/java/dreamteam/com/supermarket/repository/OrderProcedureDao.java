@@ -254,6 +254,21 @@ public class OrderProcedureDao {
         } catch (SQLException ignored) {
             // older package version without CISLO in cursor
         }
+        Long obsluhaId = null;
+        String obsluhaEmail = null;
+        String obsluhaJmeno = null;
+        String obsluhaPrijmeni = null;
+        try {
+            long rawId = rs.getLong("obsluha_id");
+            if (!rs.wasNull()) {
+                obsluhaId = rawId;
+            }
+            obsluhaEmail = rs.getString("obsluha_email");
+            obsluhaJmeno = rs.getString("obsluha_jmeno");
+            obsluhaPrijmeni = rs.getString("obsluha_prijmeni");
+        } catch (SQLException ignored) {
+            // starší balíček nemá informace o obsluze
+        }
         return new OrderRow(
                 rs.getLong("id"),
                 dt,
@@ -267,7 +282,11 @@ public class OrderProcedureDao {
                 rs.getString("supermarket_nazev"),
                 rs.getString("poznamka"),
                 rs.getString("typ_objednavka"),
-                cislo
+                cislo,
+                obsluhaId,
+                obsluhaEmail,
+                obsluhaJmeno,
+                obsluhaPrijmeni
         );
     }
 
@@ -289,8 +308,51 @@ public class OrderProcedureDao {
             String supermarketNazev,
             String poznamka,
             String typObjednavka,
-            String cislo
+            String cislo,
+            Long obsluhaId,
+            String obsluhaEmail,
+            String obsluhaJmeno,
+            String obsluhaPrijmeni
     ) {}
 
     public record OrderItemRow(Long objednavkaId, Long zboziId, String zboziNazev, Integer pocet) {}
+
+    public OrderDeleteInfo getDeleteInfo(Long id) {
+        if (id == null) return null;
+        return jdbcTemplate.execute(
+                call("{ call pkg_objednavka.get_delete_info(?, ?) }", cs -> {
+                    cs.setLong(1, id);
+                    cs.registerOutParameter(2, OracleTypes.CURSOR);
+                }),
+                (CallableStatementCallback<OrderDeleteInfo>) cs -> {
+                    cs.execute();
+                    try (ResultSet rs = (ResultSet) cs.getObject(2)) {
+                        if (rs.next()) {
+                            return new OrderDeleteInfo(
+                                    rs.getLong("id"),
+                                    rs.getString("cislo"),
+                                    rs.getString("store"),
+                                    rs.getLong("item_count"),
+                                    rs.getLong("platba_count"),
+                                    rs.getLong("hotovost_count"),
+                                    rs.getLong("karta_count"),
+                                    rs.getLong("pohyb_count")
+                            );
+                        }
+                        return null;
+                    }
+                }
+        );
+    }
+
+    public record OrderDeleteInfo(
+            Long id,
+            String cislo,
+            String store,
+            Long itemCount,
+            Long platbaCount,
+            Long hotovostCount,
+            Long kartaCount,
+            Long pohybCount
+    ) {}
 }

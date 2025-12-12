@@ -27,7 +27,11 @@ public class ObjednavkaJdbcService {
                         r.uzivatelId(),
                         r.uzivatelEmail(),
                         r.uzivatelJmeno(),
-                        r.uzivatelPrijmeni()
+                        r.uzivatelPrijmeni(),
+                        r.obsluhaId(),
+                        r.obsluhaEmail(),
+                        r.obsluhaJmeno(),
+                        r.obsluhaPrijmeni()
                 ))
                 .toList();
     }
@@ -46,7 +50,11 @@ public class ObjednavkaJdbcService {
                         r.uzivatelId(),
                         r.uzivatelEmail(),
                         r.uzivatelJmeno(),
-                        r.uzivatelPrijmeni()
+                        r.uzivatelPrijmeni(),
+                        r.obsluhaId(),
+                        r.obsluhaEmail(),
+                        r.obsluhaJmeno(),
+                        r.obsluhaPrijmeni()
                 ))
                 .toList();
     }
@@ -75,7 +83,11 @@ public class ObjednavkaJdbcService {
                                 Long uzivatelId,
                                 String uzivatelEmail,
                                 String uzivatelJmeno,
-                                String uzivatelPrijmeni) {}
+                                String uzivatelPrijmeni,
+                                Long obsluhaId,
+                                String obsluhaEmail,
+                                String obsluhaJmeno,
+                                String obsluhaPrijmeni) {}
 
     public record ObjednavkaUser(Long id, java.time.LocalDateTime datum, Long statusId,
                                  String userEmail, String userJmeno, String userPrijmeni) {}

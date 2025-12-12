@@ -349,7 +349,6 @@
                         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
                             <span class="badge" id="orders-count">0</span>
                             <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                                <button type="button" class="ghost-btn ghost-strong" id="order-add-btn">Pridat</button>
                                 <button type="button" class="ghost-btn" id="order-edit-btn" disabled>Editovat</button>
                                 <button type="button" class="ghost-btn ghost-muted" id="order-delete-btn" disabled>Smazat</button>
                             </div>
@@ -359,13 +358,15 @@
                         <table class="orders-table">
                             <thead>
                             <tr>
-                                <th>typ</th>
-                                <th>prodejna</th>
-                                <th>odpovědný</th>
-                                <th>dodavatel</th>
-                                <th>status</th>
-                                <th>datum</th>
-                                <th>částka</th>
+                                <th>Číslo</th>
+                                <th>Typ</th>
+                                <th>Prodejna</th>
+                                <th>Dodavatel</th>
+                                <th>Uživatel</th>
+                                <th>Obsluha</th>
+                                <th>Status</th>
+                                <th>Datum</th>
+                                <th>Částka</th>
                             </tr>
                             </thead>
                             <tbody id="orders-table-body"></tbody>
@@ -403,7 +404,7 @@
                             <label><span>Prodejna</span>
                                 <select id="order-store" name="store" required></select>
                             </label>
-                            <label><span>Odpovedny</span>
+                            <label><span>Uzivatel</span>
                                 <select id="order-employee" name="employee" required></select>
                             </label>
                             <label><span>Status</span>
@@ -416,6 +417,20 @@
                                 <span>Poznamka</span>
                                 <textarea id="order-note" name="note" rows="3" style="width:100%;"></textarea>
                             </label>
+                        </div>
+                        <div class="order-form-items" id="order-form-items">
+                            <div class="order-form-items-head">
+                                <div>
+                                    <p class="order-form-items-title">Položky objednávky</p>
+                                    <p class="profile-muted order-form-items-caption">Zobrazení pouze pro čtení</p>
+                                </div>
+                                <div class="order-form-items-meta">
+                                    <span class="badge" id="order-form-items-badge">—</span>
+                                    <span class="order-form-items-total" id="order-form-items-total">0&nbsp;Kč</span>
+                                </div>
+                            </div>
+                            <ul class="order-form-items-list" id="order-form-items-list" hidden></ul>
+                            <p class="profile-muted" id="order-form-items-empty">Položky se zobrazí po výběru existující objednávky.</p>
                         </div>
                         <div style="margin-top:12px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
                             <button type="submit" class="ghost-btn ghost-strong" id="order-save-btn">Ulozit</button>
@@ -727,10 +742,6 @@
                     </div>
                     <div id="customer-product-grid" class="card-list" style="margin-top:12px;"></div>
                 </article>
-                <article class="panel">
-                    <h2>Doporučení</h2>
-                    <div id="customer-suggestions"></div>
-                </article>
             </section>
 
             <section class="view" data-view="customer-cart">
@@ -756,46 +767,75 @@
                         <a class="nav-link" data-view="customer-cart" href="cart.html" style="width:auto;gap:8px;padding:8px 12px;">Zpět do košíku</a>
                     </div>
                     <div class="payment-summary">
-                        <p>Celkem k úhradě: <strong id="payment-total">—</strong></p>
+                        <div class="payment-total">
+                            <p class="summary-label">Celkem k úhradě</p>
+                            <strong id="payment-total">—</strong>
+                        </div>
+                        <p class="summary-note">Zkontrolujte částku a dokončete platbu.</p>
                     </div>
                     <form id="payment-form" class="payment-form">
-                        <div class="pill-select">
-                            <span class="pill-label">Metoda</span>
-                            <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                                <label style="display:flex;align-items:center;gap:6px;">
+                        <div class="payment-group">
+                            <div class="payment-group-head">
+                                <p class="group-title">Způsob platby</p>
+                                <p class="group-subtitle">Vyberte preferovanou metodu úhrady.</p>
+                            </div>
+                            <div class="payment-method-toggle" role="radiogroup" aria-label="Zvolte metodu platby">
+                                <label class="method-pill">
                                     <input type="radio" name="paymentType" value="CASH" checked>
-                                    <span>Hotově</span>
+                                    <span class="pill-body">
+                                        <strong>Hotově</strong>
+                                        <small>Platba v hotovosti</small>
+                                    </span>
                                 </label>
-                                <label style="display:flex;align-items:center;gap:6px;">
+                                <label class="method-pill">
                                     <input type="radio" name="paymentType" value="CARD">
-                                    <span>Kartou</span>
+                                    <span class="pill-body">
+                                        <strong>Kartou</strong>
+                                        <small>Platba kartou</small>
+                                    </span>
                                 </label>
-                                <label style="display:flex;align-items:center;gap:6px;">
+                                <label class="method-pill">
                                     <input type="radio" name="paymentType" value="WALLET">
-                                    <span>Účtem</span>
+                                    <span class="pill-body">
+                                        <strong>Účtem</strong>
+                                        <small>Odečíst z peněženky</small>
+                                    </span>
                                 </label>
                             </div>
                         </div>
 
-                        <div id="cash-section" class="payment-section">
-                            <label>
-                                <span>Hotovost přijatá</span>
-                                <input type="number" id="cash-given" name="cashGiven" min="0" step="0.01" placeholder="Zadejte částku">
-                            </label>
-                            <p class="profile-muted">Vrátit: <strong id="cash-change">0 Kč</strong></p>
+                        <div id="cash-section" class="payment-panel">
+                            <div class="payment-group-head">
+                                <p class="group-title">Hotovostní platba</p>
+                                <p class="group-subtitle">Zadejte částku, kterou jste převzali.</p>
+                            </div>
+                            <div class="payment-field-grid">
+                                <label class="payment-field">
+                                    <span>Hotovost přijatá</span>
+                                    <input type="number" id="cash-given" name="cashGiven" min="0" step="0.01" placeholder="Zadejte částku">
+                                </label>
+                                <div class="payment-field payment-field-inline">
+                                    <span>Vrátit</span>
+                                    <strong id="cash-change">0 Kč</strong>
+                                </div>
+                            </div>
                         </div>
 
-                        <div id="card-section" class="payment-section" style="display:none;">
-                            <label>
+                        <div id="card-section" class="payment-panel" style="display:none;">
+                            <div class="payment-group-head">
+                                <p class="group-title">Platba kartou</p>
+                                <p class="group-subtitle">Číslo karty je povinný údaj.</p>
+                            </div>
+                            <label class="payment-field">
                                 <span>Číslo karty</span>
-                                <input type="text" id="card-number" name="cardNumber" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456">
+                <input type="text" id="card-number" name="cardNumber" inputmode="numeric" autocomplete="cc-number" placeholder="1234 5678 9012 3456">
                             </label>
                         </div>
 
-                        <div class="form-actions" style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                            <button type="submit" class="ghost-btn ghost-strong">Zaplatit</button>
+                        <div class="payment-actions">
+                            <button type="submit" class="payment-primary">Zaplatit</button>
                             <button type="button" class="ghost-btn ghost-muted" id="payment-back">Zpět</button>
-                            <span id="payment-status" class="profile-muted"></span>
+                            <span id="payment-status" class="payment-status"></span>
                         </div>
                     </form>
                 </article>
@@ -912,6 +952,7 @@
                             <thead>
                             <tr>
                                 <th>Prodejna</th>
+                                <th>Objednávka</th>
                                 <th>Status</th>
                                 <th>Datum</th>
                                 <th>Částka</th>
@@ -920,7 +961,7 @@
                             </tr>
                             </thead>
                             <tbody id="customer-history-body">
-                            <tr><td colspan="6" style="text-align:center;" class="profile-muted">Načítám…</td></tr>
+                            <tr><td colspan="7" style="text-align:center;" class="profile-muted">Načítám…</td></tr>
                             </tbody>
                         </table>
                     </div>

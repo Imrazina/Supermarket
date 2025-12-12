@@ -63,6 +63,7 @@ public record DashboardResponse(
             String type,
             String store,
             String employee,
+            String handler,
             String supplier,
             String status,
             String statusCode,

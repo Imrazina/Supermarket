@@ -18,7 +18,8 @@ public record CustomerOrderResponse(
         BigDecimal total,
         String cislo,
         boolean refunded,
-        boolean pendingRefund
+        boolean pendingRefund,
+        boolean refundRejected
 ) {
     public record Item(Long id, String name, Integer qty, BigDecimal price) {}
 }

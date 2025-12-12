@@ -30,6 +30,8 @@ public class Objednavka {
 
     private String typObjednavka;
 
+    private Uzivatel obsluha;
+
     protected void onCreate() {
         if (datum == null) {
             datum = LocalDateTime.now();

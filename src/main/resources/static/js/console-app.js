@@ -2368,6 +2368,11 @@ function resolveAllowedViews(role, permissions = []) {
             this.cancelBtn = document.getElementById('order-cancel-btn');
             this.closeBtn = document.getElementById('order-modal-close');
             this.saveBtn = document.getElementById('order-save-btn');
+            this.formItemsSection = document.getElementById('order-form-items');
+            this.formItemsList = document.getElementById('order-form-items-list');
+            this.formItemsEmpty = document.getElementById('order-form-items-empty');
+            this.formItemsBadge = document.getElementById('order-form-items-badge');
+            this.formItemsTotal = document.getElementById('order-form-items-total');
             this.options = { statuses: [], stores: [], employees: [], types: [] };
         }
 
@@ -2485,7 +2490,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (!this.tableBody) return;
             const orders = this.getOrders();
             if (!orders.length) {
-                this.tableBody.innerHTML = '<tr><td colspan="8" class="table-placeholder">Žádné objednávky</td></tr>';
+                this.tableBody.innerHTML = '<tr><td colspan="9" class="table-placeholder">Žádné objednávky</td></tr>';
             } else {
                 this.tableBody.innerHTML = orders.map(order => this.renderOrderRow(order)).join('');
             }
@@ -2533,10 +2538,59 @@ function resolveAllowedViews(role, permissions = []) {
                 : 'nevybráno';
             this.orderLinesTitle.textContent = 'Slozeni objednavky';
             this.orderLinesBadge.textContent = orderId ? 'vybrana' : '-';
-            const lines = (this.state.data.orderItems || []).filter(item => item.orderId === orderId);
+            const lines = this.getOrderItems(orderId);
             this.orderLines.innerHTML = lines.length
                 ? lines.map(line => `<li>${line.sku} &times; ${line.name} — ${line.qty} ks · ${currencyFormatter.format(line.price)}</li>`).join('')
                 : '<p class="profile-muted">Žádná data o položkách.</p>';
+        }
+
+        getOrderItems(orderId) {
+            if (!orderId) {
+                return [];
+            }
+            const all = Array.isArray(this.state.data.orderItems) ? this.state.data.orderItems : [];
+            return all.filter(item => item.orderId === orderId);
+        }
+
+        renderFormItems(orderId) {
+            if (!this.formItemsSection) return;
+            const items = this.getOrderItems(orderId);
+            const totalQty = items.reduce((sum, item) => sum + (Number(item.qty) || 0), 0);
+            const totalAmount = items.reduce((sum, item) => sum + (Number(item.price) || 0), 0);
+            if (this.formItemsBadge) {
+                this.formItemsBadge.textContent = orderId ? `${totalQty} ks` : '—';
+            }
+            if (this.formItemsTotal) {
+                this.formItemsTotal.textContent = currencyFormatter.format(totalAmount || 0);
+            }
+            if (items.length && this.formItemsList) {
+                this.formItemsList.innerHTML = items.map(item => `
+                    <li class="order-form-item">
+                        <div class="order-form-item-main">
+                            <strong>${this.escapeHtml(item.name || 'Položka')}</strong>
+                        </div>
+                        <div class="order-form-item-meta">
+                            <span>${Number(item.qty) || 0} ks</span>
+                            <span>${currencyFormatter.format(item.price || 0)}</span>
+                        </div>
+                    </li>
+                `).join('');
+                this.formItemsList.hidden = false;
+                if (this.formItemsEmpty) {
+                    this.formItemsEmpty.hidden = true;
+                }
+            } else {
+                if (this.formItemsList) {
+                    this.formItemsList.innerHTML = '';
+                    this.formItemsList.hidden = true;
+                }
+                if (this.formItemsEmpty) {
+                    this.formItemsEmpty.textContent = orderId
+                        ? 'Žádné položky pro tuto objednávku.'
+                        : 'Položky se zobrazí po výběru existující objednávky.';
+                    this.formItemsEmpty.hidden = false;
+                }
+            }
         }
 
         openForm(orderId = null) {
@@ -2557,6 +2611,7 @@ function resolveAllowedViews(role, permissions = []) {
             if (this.formStatus) {
                 this.formStatus.textContent = '';
             }
+            this.renderFormItems(order?.id || null);
             this.modal.classList.add('active');
             this.modal.setAttribute('aria-hidden', 'false');
             document.body.classList.add('modal-open');
@@ -2640,14 +2695,14 @@ function resolveAllowedViews(role, permissions = []) {
                 return;
             }
             const order = this.getOrders().find(o => o.id === orderId);
-            const label = order
-                ? `${order.store || 'Objednávka'} (${order.status || order.type || ''})`.trim()
-                : 'vybranou objednavku';
-            if (!window.confirm(`Opravdu smazat ${label}?`)) {
-                return;
+            const token = localStorage.getItem('token') || '';
+            let deleteInfo = null;
+            if (token) {
+                deleteInfo = await this.fetchOrderDeleteInfo(orderId, token);
             }
+            const confirmed = await this.showOrderDeleteDialog(order, deleteInfo);
+            if (!confirmed) return;
             try {
-                const token = localStorage.getItem('token') || '';
                 const response = await fetch(this.apiUrl(`/api/orders/${orderId}`), {
                     method: 'DELETE',
                     headers: { 'Authorization': `Bearer ${token}` }
@@ -2660,6 +2715,93 @@ function resolveAllowedViews(role, permissions = []) {
                 await this.refreshApp();
             } catch (error) {
                 alert(error.message || 'Smazani se nezdarilo.');
+            }
+        }
+
+        async showOrderDeleteDialog(order, info) {
+            const label = order?.store || order?.type || 'objednávku';
+            const orderNumber = order?.cislo || (order?.id ? `PO-${order.id}` : '—');
+            const overlay = document.createElement('div');
+            overlay.className = 'modal active';
+            overlay.style.zIndex = '9999';
+            const formatCount = (value) => {
+                const num = Number(value);
+                return Number.isFinite(num) ? `${num}×` : '';
+            };
+            const cascades = [
+                { label: 'OBJEDNAVKA_ZBOZI', detail: 'Položky objednávky', count: formatCount(info?.itemCount) },
+                { label: 'PLATBA', detail: 'Záznamy o platbách', count: formatCount(info?.paymentCount) },
+                { label: 'HOTOVOST', detail: 'Detaily hotovostních plateb', count: formatCount(info?.cashCount) },
+                { label: 'KARTA', detail: 'Detaily karetních plateb', count: formatCount(info?.cardCount) },
+                { label: 'POHYB_UCTU', detail: 'Pohyby peněženky navázané na objednávku', count: formatCount(info?.walletMovements) }
+            ];
+            const headerCislo = this.escapeHtml(info?.cislo || orderNumber);
+            const storeLine = info?.store ? `<p class="profile-muted" style="margin:4px 0 0;">Prodejna: ${this.escapeHtml(info.store)}</p>` : '';
+            const cascadeList = `
+                <div class="cascade-list">
+                    ${cascades.map(item => `
+                        <div class="cascade-item">
+                            <div class="cascade-item-head">
+                                <strong>${this.escapeHtml(item.label)}</strong>
+                                ${item.count ? `<span class="cascade-count">${this.escapeHtml(item.count)}</span>` : ''}
+                            </div>
+                            <span class="cascade-detail">${this.escapeHtml(item.detail)}</span>
+                        </div>`).join('')}
+                </div>`;
+            overlay.innerHTML = `
+                <div class="modal-content" role="dialog" aria-modal="true" style="max-width:520px;">
+                    <div class="modal-header">
+                        <h3 style="margin:0;">Smazat objednávku ${headerCislo}</h3>
+                        <button type="button" class="ghost-btn ghost-muted" data-order-delete="close" aria-label="Zavřít">×</button>
+                    </div>
+                    <p style="margin:8px 0 0;">Opravdu chcete odstranit <strong>${this.escapeHtml(label)}</strong>?</p>
+                    ${storeLine}
+                    <p class="profile-muted" style="margin:8px 0;">Databázová procedura <code>delete_objednavka_cascade</code> smaže také následující vazby:</p>
+                    ${cascadeList}
+                    <p class="profile-muted" style="margin-top:12px;">Tuto akci nelze vrátit.</p>
+                    <div class="modal-actions" style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+                        <button type="button" class="ghost-btn ghost-muted" data-order-delete="cancel">Zrušit</button>
+                        <button type="button" class="ghost-btn ghost-strong" data-order-delete="confirm">Ano, smazat vše</button>
+                    </div>
+                </div>
+            `;
+            return new Promise((resolve) => {
+                const cleanup = (result) => {
+                    if (overlay.dataset.closed) return;
+                    overlay.dataset.closed = '1';
+                    overlay.remove();
+                    document.removeEventListener('keydown', escHandler);
+                    resolve(result);
+                };
+                const escHandler = (event) => {
+                    if (event.key === 'Escape') {
+                        cleanup(false);
+                    }
+                };
+                document.addEventListener('keydown', escHandler);
+                overlay.addEventListener('click', (event) => {
+                    if (event.target === overlay) {
+                        cleanup(false);
+                    }
+                });
+                overlay.querySelector('[data-order-delete="close"]')?.addEventListener('click', () => cleanup(false));
+                overlay.querySelector('[data-order-delete="cancel"]')?.addEventListener('click', () => cleanup(false));
+                overlay.querySelector('[data-order-delete="confirm"]')?.addEventListener('click', () => cleanup(true));
+                document.body.appendChild(overlay);
+            });
+        }
+
+        async fetchOrderDeleteInfo(orderId, token) {
+            if (!orderId || !token) return null;
+            try {
+                const response = await fetch(this.apiUrl(`/api/orders/${orderId}/delete-info`), {
+                    headers: { 'Authorization': `Bearer ${token}` }
+                });
+                if (!response.ok) return null;
+                return await response.json();
+            } catch (error) {
+                console.warn('Nepodařilo se načíst informace o mazání objednávky', error);
+                return null;
             }
         }
 
@@ -2695,6 +2837,7 @@ function resolveAllowedViews(role, permissions = []) {
                     </td>
                     <td>${order.supplier || '-'}</td>
                     <td>${order.employee || '-'}</td>
+                    <td>${order.handler || '-'}</td>
                     <td><span class="status-badge ${statusClass}">${order.status || '—'}</span></td>
                     <td>${dateText}</td>
                     <td>${currencyFormatter.format(amount)}</td>
@@ -4369,7 +4512,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.storeSelect = document.getElementById('customer-store-select');
             this.cartEls = Array.from(document.querySelectorAll('[data-customer-cart]'));
             this.cartCountEl = document.getElementById('customer-cart-count');
-            this.suggestionsEl = document.getElementById('customer-suggestions');
         }
 
         init() {
@@ -4466,7 +4608,6 @@ function resolveAllowedViews(role, permissions = []) {
             this.renderChips();
             this.renderProducts();
             this.renderCart();
-            this.renderSuggestions();
         }
 
         async loadStoresAndProducts() {
@@ -4639,15 +4780,6 @@ function resolveAllowedViews(role, permissions = []) {
                     </div>
                 </div>`;
             this.cartEls.forEach(el => el.innerHTML = markup);
-        }
-
-        renderSuggestions() {
-            if (!this.suggestionsEl) return;
-            this.suggestionsEl.innerHTML = this.state.data.customerSuggestions.map(text => `
-                <div class="pill-card">
-                    <p>${text}</p>
-                </div>
-            `).join('');
         }
 
         loadCart() {
@@ -4915,6 +5047,7 @@ class GlobalSearch {
             const isRefund = mode === 'refund';
             const isHistory = mode === 'history';
             const refunded = Boolean(order?.refunded);
+            const rejectedRefund = Boolean(order?.refundRejected);
             const itemsArray = Array.isArray(order?.items) ? order.items : [];
             const itemsList = this.renderItems(itemsArray);
             const amountValue = order?.total ?? this.computeTotal(itemsArray);
@@ -4927,8 +5060,10 @@ class GlobalSearch {
             const itemsSummary = this.formatItemsSummary(itemsArray);
             const displayNumber = order?.cislo || '—';
             const orderTitle = `Objednávka #${displayNumber}`.trim();
-            const refundPill = isHistory && refunded
-                ? `<span class="status-badge warning" style="margin-left:6px;">Vráceno</span>`
+            const refundPill = isHistory
+                ? (rejectedRefund
+                    ? `<span class="status-badge danger" style="margin-left:6px;">Zamítnuto</span>`
+                    : (refunded ? `<span class="status-badge warning" style="margin-left:6px;">Vráceno</span>` : ''))
                 : '';
 
             if (isQueue || isRefund) {
@@ -5374,11 +5509,11 @@ class GlobalSearch {
             const { items = [], loading, error } = this.state.customerHistory || {};
             this.setAlert(error);
             if (loading) {
-                this.tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;" class="profile-muted">Načítám…</td></tr>';
+                this.tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;" class="profile-muted">Načítám…</td></tr>';
                 return;
             }
             if (!items.length) {
-                this.tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;" class="profile-muted">Zatím žádné objednávky.</td></tr>';
+                this.tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;" class="profile-muted">Zatím žádné objednávky.</td></tr>';
                 this.updateBadge(0);
                 return;
             }
@@ -5391,12 +5526,14 @@ class GlobalSearch {
             const amount = this.formatAmount(amountValue);
             const status = escapeHtml(order?.status || '');
             const store = escapeHtml(order?.supermarket || '');
+            const orderNumber = escapeHtml(order?.cislo || this.formatOrderNumber(order?.id));
             const date = escapeHtml(order?.createdAt || '');
             const items = this.renderItems(order?.items);
             const refunded = Boolean(order?.refunded);
             const pending = Boolean(order?.pendingRefund);
-            const statusClass = this.statusClass(order?.statusId, refunded || pending);
-            const canRefund = !refunded && !pending && Number(order?.statusId) === 5 && amountValue > 0;
+            const rejected = Boolean(order?.refundRejected);
+            const statusClass = this.statusClass(order?.statusId, refunded || pending, rejected);
+            const canRefund = !refunded && !pending && !rejected && Number(order?.statusId) === 5 && amountValue > 0;
             const handler = order?.handlerName
                 ? escapeHtml(order.handlerName)
                 : (order?.handlerEmail ? escapeHtml(order.handlerEmail) : '');
@@ -5405,10 +5542,13 @@ class GlobalSearch {
                 ? `<button type="button" class="ghost-btn ghost-muted" data-history-refund="${order?.id ?? ''}" data-refund-amount="${amountValue}" data-handler-label="${handlerLabel}">Vrátit na účet</button>`
                 : (pending
                     ? `<span class="badge status-badge warning">Odesláno manažerovi${handler ? ` (${handler})` : ''}</span>`
-                    : (refunded ? '<span class="badge badge-muted">Vráceno</span>' : ''));
+                    : (refunded
+                        ? '<span class="badge badge-muted">Vráceno</span>'
+                        : (rejected ? '<span class="badge status-badge danger">Zamítnuto</span>' : '')));
             return `
-                <tr class="history-row${refunded ? ' refunded' : ''}">
+                <tr class="history-row${refunded ? ' refunded' : ''}${rejected ? ' refund-rejected' : ''}">
                     <td>${store}</td>
+                    <td>${orderNumber}</td>
                     <td><span class="status-badge ${statusClass}">${status || '—'}</span></td>
                     <td>${date || '—'}</td>
                     <td>${amount}</td>
@@ -5418,7 +5558,8 @@ class GlobalSearch {
             `;
         }
 
-        statusClass(statusId, refunded) {
+        statusClass(statusId, refunded, rejected) {
+            if (rejected) return 'danger';
             if (refunded) return 'muted';
             const id = Number(statusId);
             switch (id) {
@@ -5512,7 +5653,7 @@ class GlobalSearch {
                 const items = Array.isArray(this.state.customerHistory.items) ? this.state.customerHistory.items : [];
                 this.state.customerHistory.items = items.map(it => {
                     if (String(it?.id) !== String(orderId)) return it;
-                    return { ...it, pendingRefund: true };
+                    return { ...it, pendingRefund: true, refundRejected: false };
                 });
                 this.render();
             } catch (err) {
@@ -5581,7 +5722,7 @@ class GlobalSearch {
                 const items = Array.isArray(this.state.customerHistory.items) ? this.state.customerHistory.items : [];
                 this.state.customerHistory.items = items.map(it => {
                     if (String(it?.id) !== String(orderId)) return it;
-                    return { ...it, pendingRefund: true };
+                    return { ...it, pendingRefund: true, refundRejected: false };
                 });
                 this.render();
             } catch (err) {
@@ -6299,11 +6440,16 @@ class GlobalSearch {
                 });
                 if (!response.ok) {
                     const text = await response.text();
-                    throw new Error(text || 'Platbu se nepodarilo dokoncit.');
+                    const header = response.headers.get('X-Error');
+                    const message = header || text || `Platbu se nepodarilo dokoncit. (HTTP ${response.status})`;
+                    throw new Error(message);
                 }
                 const data = await response.json();
                 this.state.customerCart = [];
                 try { localStorage.removeItem('customerCart'); } catch (e) {}
+                if (typeof window?.app?.customer?.render === 'function') {
+                    try { window.app.customer.render(); } catch (e) { console.debug('Customer view refresh skip', e); }
+                }
                 if (typeof window?.app?.updateWalletChip === 'function' && method === 'WALLET') {
                     try { window.app.updateWalletChip(); } catch (e) { console.debug('Wallet chip refresh skip', e); }
                 }
@@ -6313,9 +6459,18 @@ class GlobalSearch {
                 if (data && data.cashbackAmount && Number(data.cashbackAmount) > 0) {
                     this.showCashbackModal(data.cashbackAmount, data.walletBalance, data.cashbackTurnover);
                 }
-                this.statusEl.textContent = 'Objednávka a platba byly uloženy.';
-                this.statusEl.textContent = 'Objednavka a platba byly ulozeny.';
+                this.statusEl.textContent = 'Objednavka a platba byly ulozeny. Presmerovani do historie zakaznika...';
                 this.statusEl.classList.add('chat-status-success');
+                setTimeout(() => {
+                    if (typeof window?.app?.customerHistory?.load === 'function') {
+                        try { window.app.customerHistory.load(); } catch (e) { console.debug('history refresh skip', e); }
+                    }
+                    if (typeof window?.app?.navigation?.setActive === 'function') {
+                        window.app.navigation.setActive('customer-history');
+                    } else {
+                        window.location.href = 'customer-history.html';
+                    }
+                }, 1500);
             } catch (error) {
                 this.statusEl.textContent = error.message || 'Platbu se nepodarilo dokoncit.';
             } finally {
