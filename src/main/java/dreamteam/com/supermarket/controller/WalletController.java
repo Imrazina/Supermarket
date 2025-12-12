@@ -162,13 +162,19 @@ public class WalletController {
                         p.smer(),
                         p.metoda(),
                         p.castka(),
-                        p.poznamka(),
+                        sanitizeNote(p.poznamka()),
                         p.datum(),
                         p.objednavkaId(),
                         p.cisloKarty()
                 ))
                 .toList();
         return ResponseEntity.ok(list);
+    }
+
+    private String sanitizeNote(String note) {
+        if (note == null) return null;
+        String cleaned = note.replaceAll("(?i)\\bobjednavk[ay]\\s*\\d+\\b", "objednavky").trim();
+        return cleaned.isEmpty() ? null : cleaned;
     }
 
     private java.time.LocalDate parseDate(String value) {
