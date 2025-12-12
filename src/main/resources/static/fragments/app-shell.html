@@ -64,18 +64,6 @@
             </a>
         </div>
 
-        <div class="sidebar-section">
-            <h4>Rychlé akce</h4>
-            <button class="nav-link" id="new-order-btn">
-                <span class="material-symbols-rounded" aria-hidden="true">add_circle</span>
-                <span>Nová objednávka</span>
-            </button>
-            <button class="nav-link" id="new-store-btn">
-                <span class="material-symbols-rounded" aria-hidden="true">storefront</span>
-                <span>Nový supermarket</span>
-            </button>
-        </div>
-
         <div class="sidebar-footer">
             <div class="sync-card">
                 <div class="inbox-header">
@@ -142,7 +130,6 @@
                     <article class="kpi-card">
                         <div class="kpi-label">Týdenní obrat</div>
                         <div class="kpi-value" id="kpi-revenue">—</div>
-                        <div class="kpi-trend">+8,6 % vs. plán</div>
                     </article>
                     <article class="kpi-card">
                         <div class="kpi-label">Kritická SKU</div>
@@ -171,7 +158,7 @@
                             </div>
                             <span class="badge ghost">real-time</span>
                         </div>
-                        <div class="sparkline" id="demand-chart"></div>
+                        <div class="health-grid" id="store-health-grid"></div>
                     </article>
 
                     <div class="two-column">
@@ -195,35 +182,6 @@
                         </article>
                     </div>
 
-                    <article class="panel">
-                        <div style="display:flex;justify-content:space-between;align-items:center;">
-                            <div>
-                                <h2>Prodejny &amp; sklady</h2>
-                                <p>SUPERMARKET • SKLAD • ADRESA</p>
-                            </div>
-                            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-                                <button type="button" class="ghost-btn" id="store-add-btn">Přidat</button>
-                                <button type="button" class="ghost-btn ghost-strong" id="store-edit-btn" disabled>Upravit</button>
-                                <button type="button" class="ghost-btn ghost-muted" id="store-delete-btn" disabled>Smazat</button>
-                                <button class="logout-btn" id="export-store-btn">Export</button>
-                            </div>
-                        </div>
-                        <div class="table-wrapper">
-                            <table>
-                                <thead>
-                                <tr>
-                                    <th>prodejna</th>
-                                    <th>město</th>
-                                    <th>adresa</th>
-                                    <th>sklad</th>
-                                    <th>manager</th>
-                                    <th>status</th>
-                                </tr>
-                                </thead>
-                                <tbody id="stores-table"></tbody>
-                            </table>
-                        </div>
-                    </article>
                 </div>
             </section>
 
@@ -557,7 +515,6 @@
                                 <th>Metoda</th>
                                 <th>Částka</th>
                                 <th>Datum</th>
-                                <th>Stav</th>
                             </tr>
                             </thead>
                             <tbody id="payments-table-body"></tbody>
