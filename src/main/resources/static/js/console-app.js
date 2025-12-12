@@ -1517,7 +1517,10 @@ function resolveAllowedViews(role, permissions = []) {
                 ? riskItems.map(item => `<li>${escapeHtml(item.name)} — zbyva ${item.stock}, minimum ${item.minStock}</li>`).join('')
                 : '<p>Vsechny polozky jsou nad minimem.</p>';
 
-            this.statusBoard.innerHTML = this.state.data.statuses.map(stat => `
+            const statusesForBoard = (this.state.data.statuses || []).filter(stat =>
+                (stat.label || '').toLowerCase() !== 'vraceno'
+            );
+            this.statusBoard.innerHTML = statusesForBoard.map(stat => `
                 <div class="pill-card">
                     <strong>${stat.label}</strong>
                     <p>${stat.count} zaznamu</p>
@@ -6015,14 +6018,6 @@ class GlobalSearch {
             const walletBtn = document.getElementById("wallet-btn");
             walletBtn?.addEventListener('click', () => this.openWalletPanel());
             this.updateWalletChip();
-            document.getElementById("new-order-btn")?.addEventListener("click", () => {
-                if (this.orders && typeof this.orders.openForm === 'function') {
-                    this.orders.openForm();
-                } else {
-                    alert("Pruvodce vytvorenim objednavky bude brzy dostupny.");
-                }
-            });
-            document.getElementById("new-store-btn")?.addEventListener("click", () => alert("Pruvodce otevrenim prodejny bude brzy dostupny."));
             document.getElementById("export-store-btn")?.addEventListener("click", () => alert("Export seznamu prodejen bude brzy pripraven."));
             document.getElementById("upload-btn")?.addEventListener("click", () => alert("Nahravani souboru pridame pozdeji."));
             const exitBtn = document.getElementById("impersonation-exit-btn");
